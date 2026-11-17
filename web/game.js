@@ -1,7 +1,23 @@
 const app = document.querySelector('#app');
 const notice = document.querySelector('#notice');
 const pendingInvite = new URLSearchParams(location.hash.slice(1));
+const roomId = new URLSearchParams(location.search).get('room') ?? pendingInvite.get('room');
+const roomSeal = pendingInvite.get('seal');
+const approvalWindow = 60_000;
 const soloNames = ['Mara', 'Vale'];
+const acts = ['The First Tell', 'The Double Stake', 'The Last Word'];
+const hostLines = {
+  trivia: [
+    'Two seats. One question. Let’s see who blinks first.',
+    'Whatever you thought you knew about your opponent, put it aside.',
+    'One last answer. Whatever happens next goes on the record.',
+  ],
+  choice: [
+    'I’ll reveal both cards together. Your opponent is making this same choice.',
+    'The pact is now worth double. A betrayal against trust pays six.',
+    'Remember what they played last time. Then decide whether it matters.',
+  ],
+};
 const questions = [
   ['Which planet spins fastest on its axis?', 'Jupiter', 'Mercury', 'Earth', 'Neptune'],
   ['What is the only mammal capable of sustained powered flight?', 'Bat', 'Flying squirrel', 'Sugar glider', 'Colugo'],
@@ -16,9 +32,11 @@ const questions = [
 ];
 
 const duration = 20_000;
+const finalDuration = 12_000;
 let arena, link, key, game, revision = 0, shown, audio, enabled = false;
-let seat = 0, clockEnd = 0, solo = false, pending = false, guestAccepted = false;
+let seat = 0, clockEnd = 0, phaseDuration = duration, solo = false, pending = false, guestAccepted = false;
 let invitation = '';
+let lastAlarm = -1;
 
 const escape = value => String(value).replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -64,8 +82,8 @@ document.querySelector('#sound').onclick = async event => {
   }
 };
 
-function stage(content, summons = false) {
-  app.innerHTML = `<section class="stage ${summons ? 'summons' : ''}"><div class="board reveal">${content}</div></section>`;
+function stage(content, summons = false, scene = '') {
+  app.innerHTML = `<section class="stage ${summons ? 'summons' : ''} ${scene}"><div class="board reveal">${content}</div></section>`;
   const heading = app.querySelector('h2');
   if (heading) {
     heading.tabIndex = -1;
@@ -126,6 +144,32 @@ async function copy() {
     say('Select and copy the invite link from the field.');
   }
 }
+function waitingRoom() {
+  stage(`<span class="eyebrow">PRIVATE SUMMONS</span><h2>One seat left.</h2>
+  <p>Send your summons and keep this room open while your friend joins.</p>
+  <label for="invite" class="eyebrow">Invite link</label><input id="invite" class="invite" readonly value="${escape(invitation)}">
+  <div class="row"><button class="primary" id="share">Share to WhatsApp ↗</button><button id="copy">Copy invite</button></div>
+  <p class="waiting">Waiting for your friend. Return here after sharing.</p>${homeButton}`, true);
+  document.querySelector('#share').onclick = share;
+  document.querySelector('#copy').onclick = copy;
+}
+
+async function approveGuest(code) {
+  stage(`<span class="eyebrow">PRIVATE SUMMONS</span><h2>Someone is at the door.</h2>
+    <p>Ask your friend if this is the code on their screen.</p>
+    <p class="pair-code">${escape(code)}</p>
+    <div class="row"><button class="primary" id="admit">Let them in ↗</button><button id="decline">Decline</button></div>`, true);
+  const decision = new Promise(resolve => {
+    document.querySelector('#admit').onclick = () => resolve(true);
+    document.querySelector('#decline').onclick = () => resolve(false);
+  });
+  try {
+    return await timeout(decision, approvalWindow);
+  } catch {
+    return false;
+  }
+}
+
 async function host() {
   connecting('Preparing your summons');
   try {
@@ -133,23 +177,30 @@ async function host() {
     const id = await timeout(arena.invite());
     key = Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2, '0')).join('');
     const url = new URL('./', location.href);
-    url.hash = new URLSearchParams({ room: id, seal: key });
+    url.searchParams.set('room', id);
+    url.hash = new URLSearchParams({ seal: key });
     invitation = url.href;
-    stage(`<span class="eyebrow">PRIVATE SUMMONS</span><h2>One seat left.</h2>
-    <p>Send your summons and keep this room open while your friend joins.</p>
-    <label for="invite" class="eyebrow">Invite link</label><input id="invite" class="invite" readonly value="${escape(invitation)}">
-    <div class="row"><button class="primary" id="share">Share to WhatsApp ↗</button><button id="copy">Copy invite</button></div>
-    <p class="waiting">Waiting for your friend. Return here after sharing.</p>${homeButton}`, true);
-    document.querySelector('#share').onclick = share;
-    document.querySelector('#copy').onclick = copy;
+    waitingRoom();
     while (!guestAccepted) {
       let candidate;
       try {
         candidate = await arena.accept();
         const hello = JSON.parse(await timeout(candidate.receive(), 8_000));
-        if (hello.kind !== 'join' || hello.key !== key) {
+        if (hello?.kind !== 'join') {
           candidate.close();
           continue;
+        }
+        if (hello.key !== key) {
+          const needsApproval = hello.key === null && typeof hello.code === 'string' && /^\d{6}$/.test(hello.code);
+          if (!needsApproval) {
+            candidate.close();
+            continue;
+          }
+          if (!await approveGuest(hello.code)) {
+            candidate.close();
+            waitingRoom();
+            continue;
+          }
         }
       } catch {
         if (!candidate) throw new Error('The room closed.');
@@ -172,8 +223,14 @@ async function join(id, seal) {
   try {
     await timeout(network());
     link = await timeout(arena.dial(id));
-    await link.send(JSON.stringify({ kind: 'join', key: seal }));
-    const message = JSON.parse(await timeout(link.receive()));
+    const code = (crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).toString().padStart(6, '0');
+    if (!seal) {
+      stage(`<span class="eyebrow">SEALED SUMMONS</span><h2>Waiting for your friend</h2>
+        <p>Tell the host this code so they can let you in.</p><p class="pair-code">${code}</p>
+        <p class="waiting">The trial starts when the host opens the door.</p>${homeButton}`, true);
+    }
+    await link.send(JSON.stringify({ kind: 'join', key: seal, code }));
+    const message = JSON.parse(await timeout(link.receive(), seal ? 18_000 : approvalWindow + 8_000));
     if (message.kind !== 'state') throw new Error('Unrecognized room.');
     receiveState(message);
     void listen();
@@ -220,9 +277,10 @@ function nextRound() {
 }
 function beginPhase(phase) {
   game.phase = phase;
-  game.ends = Date.now() + duration;
+  game.duration = game.round === 2 ? finalDuration : duration;
+  game.ends = Date.now() + game.duration;
   clearTimeout(hostTimer);
-  hostTimer = setTimeout(expire, duration);
+  hostTimer = setTimeout(expire, game.duration);
   sync();
 }
 function expire() {
@@ -280,7 +338,7 @@ function sync() {
     kind: 'state', revision: ++revision, phase: game.phase, round: game.round,
     scores: [...game.scores], records: [...game.records], solo,
     prompt: question.prompt, options: question.options,
-    endsIn: Math.max(0, game.ends - Date.now()),
+    duration: game.duration, endsIn: Math.max(0, game.ends - Date.now()),
   };
   const choices = game.phase === 'trivia' ? game.answers : game.cards;
   draw({ ...state, locked: choices[0] !== null });
@@ -302,25 +360,46 @@ function move(choice) {
   app.querySelectorAll('[data-choice]').forEach(button => { button.disabled = true; });
   void link.send(JSON.stringify({ kind: 'move', phase, round, choice })).catch(() => failure('Your move couldn’t reach the other seat.'));
 }
+function transmission(line) {
+  return `<aside class="transmission"><span class="host-avatar" aria-hidden="true"></span><div><span class="eyebrow">THE HOST</span><p>${line}</p></div></aside>`;
+}
+
+function pactCards(record) {
+  return [seat, 1 - seat].map(player => {
+    const choice = record.cards[player];
+    const style = choice === 'Trust' ? 'trust' : choice === 'Betray' ? 'betray' : 'empty';
+    const mark = choice === 'Trust' ? '✦' : choice === 'Betray' ? '◆' : '–';
+    return `<div class="pact-card ${style}"><span class="eyebrow">${player === seat ? 'Your card' : 'Other seat'}</span><span class="pact-mark" aria-hidden="true">${mark}</span><strong>${escape(choice)}</strong><small>+${record.gains[player]} total points</small></div>`;
+  }).join('');
+}
+
 function draw(state) {
   const previous = shown;
   shown = state;
   clockEnd = performance.now() + state.endsIn;
+  phaseDuration = state.duration ?? duration;
   if (previous?.phase === state.phase && previous?.round === state.round && previous?.locked === state.locked &&
       !app.querySelector('[data-choice]:disabled')) return;
   const { phase, round, scores, records, prompt, options, locked } = state;
-  if (previous?.phase !== phase) chime(phase === 'verdict' ? [196, 294, 392] : undefined);
+  if (previous?.phase !== phase || previous?.round !== round) {
+    lastAlarm = -1;
+    chime(phase === 'verdict' ? [98, 196, 294, 392] :
+      phase === 'choice' ? [110, 139, 165] : undefined);
+  }
   const opponent = state.solo ? soloNames[round % 2] : 'Opponent';
   const score = `<div class="score"><span>YOU · ${scores[seat]}</span><span>${opponent} · ${scores[1 - seat]}</span></div>`;
-  const label = `<span class="eyebrow">ROUND ${round + 1} / 3 · ${phase === 'trivia' ? 'THE QUESTION' : 'THE PACT'}</span>`;
+  const label = `<span class="eyebrow">ROUND ${round + 1} / 3 · ${acts[round]} · ${phase === 'trivia' ? 'THE QUESTION' : 'THE PACT'}</span>`;
   if (phase === 'trivia' || phase === 'choice') {
     const actions = phase === 'trivia' ? options.map((option, index) =>
       `<button data-choice="${index}">${escape(option)}</button>`).join('') :
       '<button data-choice="Trust">✦ Trust <small>Both trust: +2 each.</small></button><button data-choice="Betray">◆ Betray <small>Take +3 if they trust. Both betray: +0.</small></button>';
-    const twist = round === 1 && phase === 'choice' ? '<p class="waiting">The host changed the rules. Pact points double this round.</p>' : '';
+    const announcement = round === 1 && phase === 'choice' ? 'Rule change · Double pact points' :
+      round === 2 ? 'Final round · 12 seconds per decision' : '';
+    const twist = announcement ? `<p class="twist">${announcement}</p>` : '';
     stage(`${score}${label}<h2>${phase === 'trivia' ? escape(prompt) : 'Will you keep the pact?'}</h2>${twist}
-      <span class="clock" id="clock" aria-label="Time remaining"></span><div class="bar" id="bar" aria-hidden="true"></div>
-      ${locked ? '<p class="waiting">Your choice is sealed. Waiting for the other seat.</p>' : `<div class="options">${actions}</div>`}`);
+      <div class="clock-track"><span class="clock" id="clock" aria-label="Time remaining"></span><div class="bar" id="bar" aria-hidden="true"></div></div>
+      ${locked ? '<p class="waiting">Your choice is sealed. Waiting for the other seat.</p>' : `<div class="options">${actions}</div>`}
+      ${transmission(hostLines[phase][round])}`, false, `scene scene-${phase}`);
     app.querySelectorAll('[data-choice]').forEach(button => {
       button.onclick = () => move(phase === 'trivia' ? Number(button.dataset.choice) : button.dataset.choice);
     });
@@ -332,35 +411,39 @@ function draw(state) {
   if (phase === 'reveal') {
     const result = record.cards.every(card => card === 'Trust') ? 'The pact held.' :
       record.cards.includes('Betray') ? 'Someone broke the pact.' : 'The pact went unanswered.';
-    stage(`${score}<span class="eyebrow">ROUND ${round + 1} · UNSEALED</span><h2>${result}</h2><ul class="receipt"><li>${receipt(record)}</li></ul>
-      ${seat === 0 ? '<button class="primary" id="next">Open the next round ↗</button>' : '<p class="waiting">The host will open the next round.</p>'}`);
+    stage(`${score}<span class="eyebrow">ROUND ${round + 1} · UNSEALED</span><h2>${result}</h2><div class="pact-cards">${pactCards(record)}</div><ul class="receipt"><li>${receipt(record)}</li></ul>
+      ${seat === 0 ? '<button class="primary" id="next">Open the next round ↗</button>' : '<p class="waiting">The host will open the next round.</p>'}`, false, 'scene scene-reveal');
     const next = document.querySelector('#next');
     if (next) next.onclick = nextRound;
     return;
   }
   const [you, them] = [scores[seat], scores[1 - seat]];
   const verdict = you === them ? 'The trial ends in a draw.' : you > them ? 'You won the trial.' : 'The other seat won.';
-  stage(`${score}<span class="eyebrow">FINAL VERDICT · RECORD UNSEALED</span><h2>${verdict}</h2><ul class="receipt">${records.map(result => `<li>${receipt(result)}</li>`).join('')}</ul>${homeButton}`);
+  stage(`${score}<span class="eyebrow">FINAL VERDICT · RECORD UNSEALED</span><h2>${verdict}</h2><div class="pact-cards">${pactCards(record)}</div><ul class="receipt">${records.map(result => `<li>${receipt(result)}</li>`).join('')}</ul>${homeButton}`, false, 'scene scene-verdict');
 }
 function tick() {
   const clock = document.querySelector('#clock');
   if (!clock) return;
   const remaining = Math.max(0, clockEnd - performance.now());
-  clock.textContent = `${Math.ceil(remaining / 1000)}s`;
-  document.querySelector('#bar').style.transform = `scaleX(${remaining / duration})`;
+  const seconds = Math.ceil(remaining / 1000);
+  clock.textContent = `${seconds.toString().padStart(2, '0')}s`;
+  clock.closest('.stage').classList.toggle('under-pressure', seconds <= 5);
+  if (seconds > 0 && seconds <= 5 && lastAlarm !== seconds) {
+    lastAlarm = seconds;
+    chime([seconds === 1 ? 147 : 110]);
+  }
+  document.querySelector('#bar').style.transform = `scaleX(${remaining / phaseDuration})`;
 }
 setInterval(tick, 150);
-if (pendingInvite.has('room') || pendingInvite.has('seal')) {
-  const id = pendingInvite.get('room');
-  const seal = pendingInvite.get('seal');
-  if (!/^[a-f0-9]{64}$/i.test(id ?? '') || !/^[a-f0-9]{32}$/i.test(seal ?? '')) {
+if (roomId !== null || roomSeal !== null) {
+  if (!/^[a-f0-9]{64}$/i.test(roomId ?? '') || (roomSeal !== null && !/^[a-f0-9]{32}$/i.test(roomSeal))) {
     failure('This invite is incomplete. Ask your friend to share the full link again.');
   } else {
     stage(`<span class="icon" aria-hidden="true">✦</span><p class="eyebrow">SEALED SUMMONS</p><h2>Your seat is waiting.</h2>
       <p>A friend has called you to the Midnight Trial. Three rounds of timed trivia and secret pacts. The masked host opens the record at the end.</p>
       <div class="card"><p class="muted consent">The trial is for points. Your choices are revealed after each round.</p></div>
       <div class="row"><button class="primary" id="enter">Accept summons ↗</button>${homeButton}</div>`, true);
-    document.querySelector('#enter').onclick = () => join(id, seal);
+    document.querySelector('#enter').onclick = () => join(roomId, roomSeal);
   }
 } else {
   document.querySelector('#host').onclick = host;

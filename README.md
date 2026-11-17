@@ -8,13 +8,13 @@ A two-seat browser game about trivia, trust, and betrayal. Play privately with a
 
 1. Tap **Invite a friend** and wait for the link.
 2. Tap **Share to WhatsApp** and pick WhatsApp in your device's share sheet. You can also copy the link into a chat.
-3. Return to the open host tab. Your friend opens the summons and taps **Accept summons**. The trial starts when they join.
+3. Return to the open host tab. Your friend opens the summons and taps **Accept summons**. If WhatsApp opens the card without the private seal, your friend will see a six-digit code. Check that it matches the code on the host screen and tap **Let them in**. The trial then starts for both players.
 
 The invite grants access to one open seat. A refresh, closed tab, or disrupted connection requires a fresh room. WhatsApp decides whether to render the rich link preview. The full invite link works independently of the preview.
 
 ## Rules
 
-Each of three rounds opens with a 20-second trivia question. Correct answers earn 2 points. Both players then make a secret choice within 20 seconds.
+Each of three rounds opens with a timed trivia question. The first two rounds give you 20 seconds per decision. The final round gives you 12. Correct answers earn 2 points. Both players then make a secret choice before the clock runs out.
 
 | Your card | Opponent's card | Your points |
 | --- | --- | --- |
@@ -40,4 +40,4 @@ If the macOS system Clang fails while linking ring, set `CC_wasm32_unknown_unkno
 
 ## How rooms work
 
-[Iroh](https://docs.iroh.computer/languages/wasm-browser) connects the two browser endpoints over its shared relays. The client carries the host endpoint ID and a random admission seal in the invite's URL fragment. The host accepts one guest and runs the timers and scoring. The relay carries encrypted traffic. The host can inspect match data on their own device, so this model assumes both players trust each other to run the game as supplied. Match state is in browser memory. The game uses no account, camera, microphone, or device monitoring.
+[Iroh](https://docs.iroh.computer/languages/wasm-browser) connects the two browser endpoints over its shared relays. The invite carries the host endpoint ID in the query string and a random admission seal in the fragment. The endpoint ID can be read by link preview services. If the fragment is missing, the host must approve the guest after confirming a matching code. The host accepts one guest and runs the timers and scoring. The relay carries encrypted traffic. The host can inspect match data on their own device, so this model assumes both players trust each other to run the game as supplied. Match state is in browser memory. The game uses no account, camera, microphone, or device monitoring.
