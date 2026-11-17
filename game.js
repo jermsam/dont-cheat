@@ -107,7 +107,13 @@ async function share() {
       if (error.name === 'AbortError') return;
     }
   }
-  window.location.href = 'https://wa.me/?text=' + encodeURIComponent('You’ve been summoned. Take the other seat?\n' + invitation);
+  const whatsapp = document.createElement('a');
+  whatsapp.href = 'https://wa.me/?text=' + encodeURIComponent('You’ve been summoned. Take the other seat?\n' + invitation);
+  whatsapp.target = '_blank';
+  whatsapp.rel = 'noopener noreferrer';
+  whatsapp.textContent = 'Open WhatsApp ↗';
+  notice.replaceChildren(whatsapp, ' or copy the invite into your chat.');
+  whatsapp.focus();
 }
 async function copy() {
   const field = document.querySelector('#invite');
