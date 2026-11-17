@@ -1,0 +1,19 @@
+[package]
+name = "dont-cheat-link"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+iroh = { version = "=1.0.0", default-features = false, features = ["tls-ring"] }
+wasm-bindgen = "=0.2.122"
+wasm-bindgen-futures = "0.4"
+getrandom = { version = "0.3", features = ["wasm_js"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
