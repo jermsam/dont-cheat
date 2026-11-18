@@ -684,3 +684,26 @@ select, .destination-picker select, .table-menu select, .table-accuse select {
 .draft-your-pick{border-color:#f4bd75;background:#2b1e29}
 .draft-your-pick .draft-games button{background:#573b32;border-color:#d49e68}
 .draft-your-pick .draft-games button:hover,.draft-your-pick .draft-games button:focus-visible{background:#ffcf88;color:#27151c}
+.draft-details{border-top:1px solid #624f64;padding-top:.35rem}
+.draft-details summary{cursor:pointer;color:#e1cde1;padding:.45rem 0;min-height:44px}
+.draft-details .draft-bait{border-top:0}
+.table-draft .draft-encore{padding:.55rem .65rem;border-radius:6px;background:#263b33}
+@media(max-width:560px){
+  .recap-result .round-loot{margin:.45rem 0}
+  .recap-result .round-loot>span{min-height:0;padding:.38rem .5rem}
+  .recap-result .round-loot>span b{font-size:1.05rem}
+  .recap-next .table-draft{margin:.1rem 0}
+}
+
+.room-name{display:grid;grid-template-columns:1fr auto;gap:.3rem .65rem;max-width:22rem;margin:.55rem 0;color:var(--ink)}
+.room-name[hidden]{display:none}
+.room-name small{color:var(--dim)}
+.room-name input{grid-column:1/-1;min-width:0;min-height:44px;padding:.55rem .7rem;border:1px solid #a98264;border-radius:7px;background:#241a28;color:#fff0db;font:inherit}
+.quick-chat-link .screen-open{min-height:44px;display:inline-flex;align-items:center;gap:.5rem}
+.quick-chat-link [data-unread]::after{content:"";width:.55rem;height:.55rem;border-radius:50%;background:#ffcf88}
+.quick-chat-log{min-height:3rem;max-height:12rem;overflow:auto;padding:.5rem .7rem;list-style:none;background:#291f2c;border-radius:7px}
+.quick-chat-log li{padding:.35rem 0;overflow-wrap:anywhere}
+.quick-chat-log strong{margin-inline-end:.35rem;color:#ffcf88}
+.quick-chat-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.45rem}
+.quick-chat-choices button{min-height:44px}
+.clock-player,.table-person strong{overflow-wrap:anywhere}

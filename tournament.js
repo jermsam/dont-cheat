@@ -9,12 +9,22 @@ import { masks, maskId } from './masks.js?v=2';
 import { seasonLength, seasonLineup, seasonMatches } from './season.js?v=13';
 import { bestHoldem } from './card-dice-rules.js?v=7';
 import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=12';
-import { matchMarkup, mountMatch } from './match-view.js?v=19';
+import { matchMarkup, mountMatch } from './match-view.js?v=20';
 
 const limit = 6;
 const pickCost = 1;
 const pickWindow = 30_000;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
+const quickLines = ['Hey!', 'Nice move!', 'Well played!', 'Good luck!', 'That was close!', 'Rematch?'];
+const chatLimit = 12;
+
+export function cleanDisplayName(value) {
+  if (typeof value !== 'string') return '';
+  const name = value.slice(0, 120).normalize('NFC').replace(/\s+/gu, ' ')
+    .replace(/[\p{Cc}\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/gu, '').trim();
+  return Array.from(name).slice(0, 24).join('').trim();
+}
+
 const statuses = ['Ready', 'Thinking', 'I trust you', 'Well played'];
 const phases = ['draft', 'clue', 'final', 'pact'];
 const gifts = {'Gift coin':'coins','Gift time':'time'};
@@ -30,8 +40,10 @@ const tablePowers = [
 const signals = ['Let’s work together','I have a plan','You have the advantage'];
 
 export function hostTournament(env) {
-  const players = [{ mask: maskId(env.mask), moves: {}, score: 0, online: true, status: '' }];
+  const players = [{ mask: maskId(env.mask), displayName:cleanDisplayName(env.displayName), moves: {}, score: 0, online: true, status: '' }];
   const requests = new Map();
+  const quickChat = [];
+  let chatId = 0;
   const lineup = seasonLineup(env.playlist, env.shuffle);
   const records = [];
   const route = routes.map(places =>
@@ -99,8 +111,9 @@ export function hostTournament(env) {
       tablePick:phase==='reveal'?tablePick:undefined,
       lead:phase==='match'?lead:undefined,
       powers:phase==='match'?[...powers.values()].filter(power=>power.seat===seat||power.target===seat):undefined,
-      players: players.map(({ mask, score, online, status, moves }) => ({
-        mask, score, online, status,
+      quickChat:[...quickChat],
+      players: players.map(({ mask, displayName, score, online, status, moves }) => ({
+        mask, displayName, score, online, status,
         clue: exposeClues ? moves.clue?.option : undefined,
       })),
       own: players[seat].moves.draft?.option,
@@ -108,13 +121,18 @@ export function hostTournament(env) {
       approvals: seat === 0 ? [...requests.entries()].map(([id, request]) => ({ id, code: request.code })) : [],
     };
   }
-  function publish() {
-    view.render(state(0));
+  function broadcast(messageForSeat) {
     players.forEach((player, seat) => {
       if (!player.online || !player.link) return;
-      const message = JSON.stringify(state(seat));
+      const payload=messageForSeat(seat);
+      if (!payload) return;
+      const message = JSON.stringify(payload);
       player.queue = player.queue.then(() => player.link.send(message)).catch(() => disconnect(player));
     });
+  }
+  function publish() {
+    view.render(state(0));
+    broadcast(state);
   }
   function disconnect(player) {
     if (!player.online) return;
@@ -286,6 +304,16 @@ export function hostTournament(env) {
     const player = players[seat];
     if (!intent || !player.online) return;
     const { type } = intent;
+    if (type === 'quick-chat') {
+      const now=Date.now();
+      if (!quickLines.includes(intent.value) || now-(player.lastChat ?? 0)<1800) return;
+      player.lastChat=now;
+      quickChat.push({id:++chatId, seat, name:player.displayName || `Seat ${seat+1}`, line:intent.value});
+      if (quickChat.length>chatLimit) quickChat.shift();
+      view.updateChat(quickChat, 0);
+      broadcast(id=>players[id].quickChat ? {kind:'table-chat', messages:quickChat} : null);
+      return;
+    }
     if (type === 'status' && statuses.includes(intent.value) && ['lobby', 'reveal', 'verdict'].includes(phase)) {
       player.status = intent.value === player.status ? '' : intent.value;
       publish();
@@ -434,7 +462,7 @@ export function hostTournament(env) {
       if (phase !== 'lobby' || players.filter(p => p.online).length >= limit) throw Error('Room full');
       const vacant = players.findIndex(p => !p.online);
       const seat = vacant === -1 ? players.length : vacant;
-      player = { mask: maskId(hello.mask), moves: {}, score: 0, online: true, status: '', link, queue: Promise.resolve() };
+      player = { mask: maskId(hello.mask), displayName:cleanDisplayName(hello.displayName), quickChat:hello.quickChat===true, moves: {}, score: 0, online: true, status: '', link, queue: Promise.resolve() };
       players[seat] = player;
       wallet.set(seat, {coins:5,time:1});
       if (id) requests.delete(id);
@@ -481,12 +509,20 @@ function validBoard(board, state) {
     (!board.result || board.result.winner === null || integer(board.result.winner,0,board.seats.length-1));
 }
 
+function validChat(messages) {
+  return Array.isArray(messages) && messages.length <= chatLimit && messages.every(entry=>
+    entry && integer(entry.id,1,Number.MAX_SAFE_INTEGER) && integer(entry.seat,0,limit-1) &&
+    typeof entry.name==='string' && entry.name===cleanDisplayName(entry.name) && quickLines.includes(entry.line));
+}
+
 function isTableState(state) {
   return state?.kind === 'table' && Number.isInteger(state.seat) &&
     Number.isInteger(state.round) && state.round >= 0 && state.round < seasonLength &&
     Array.isArray(state.players) && state.players.length <= limit &&
     state.seat >= 0 && state.seat < state.players.length &&
-    state.players.every(player => Number.isInteger(player.score)) &&
+    state.players.every(player => Number.isInteger(player.score) &&
+      (player.displayName===undefined || typeof player.displayName==='string' && player.displayName===cleanDisplayName(player.displayName))) &&
+    (state.quickChat===undefined || validChat(state.quickChat)) &&
     Array.isArray(state.approvals) && state.approvals.length === 0 &&
     Array.isArray(state.records) && state.records.length <= seasonLength &&
     state.records.every(record => Array.isArray(record.entries) &&
@@ -523,11 +559,15 @@ export async function joinTournament(env, link, key) {
   if (key === null) env.stage(`<h2>Waiting for the host</h2><p>Ask the host to match this code.</p><p class="pair-code">${code}</p>`, true);
   let state;
   try {
-    await link.send(JSON.stringify({ kind: 'table-join', key, code, mask: env.mask }));
+    await link.send(JSON.stringify({ kind: 'table-join', key, code, mask: env.mask, displayName:env.displayName, quickChat:true }));
     state = JSON.parse(await env.timeout(link.receive(), key === null ? 68_000 : 18_000));
     for (;;) {
-      if (!isTableState(state)) throw Error('Unrecognized room');
-      view.render(state);
+      if (state?.kind === 'table-chat' && validChat(state.messages)) {
+        view.updateChat(state.messages);
+      } else {
+        if (!isTableState(state)) throw Error('Unrecognized room');
+        view.render(state);
+      }
       state = JSON.parse(await link.receive());
     }
   } catch {
@@ -542,13 +582,45 @@ function makeView(env, send) {
   const esc = env.escape;
   const name = (state, i) => {
     const id = maskId(state.players[i]?.mask);
-    return `Seat ${i + 1}${id ? ` · ${masks[id].title}` : ''}`;
+    return state.players[i]?.displayName || `Seat ${i + 1}${id ? ` · ${masks[id].title}` : ''}`;
   };
   const avatar = (state, i) => {
     const id = maskId(state.players[i]?.mask);
     return id ? `<img src="masks/${id}.jpg" alt="" width="36" height="36">` : '<span class="table-sigil" aria-hidden="true">✦</span>';
   };
   const button = (label, action, attrs = '') => `<button data-table="${action}" ${attrs}>${action==='start' ? icon('play') : action==='share-result' ? icon('share-2') : ''}${esc(label)}</button>`;
+
+  let chatSeat, seenChat=0;
+  function updateChat(messages, seat=chatSeat) {
+    const panel=document.querySelector('#table-chat');
+    if (!panel) return;
+    const list=panel.querySelector('.quick-chat-log');
+    const latest=messages.at(-1)?.id ?? 0;
+    if (panel.open) seenChat=latest;
+    const unread=messages.filter(message=>message.id>seenChat && message.seat!==seat).length;
+    const trigger=document.querySelector('[data-open-screen="table-chat"]');
+    trigger.toggleAttribute('data-unread',Boolean(unread));
+    trigger.setAttribute('aria-label',unread ? `Chat, ${unread} unread` : 'Chat');
+    if (!messages.length) {
+      if (!list.firstElementChild) list.innerHTML='<li>No messages yet.</li>';
+      return;
+    }
+    const ids=new Set(messages.map(message=>String(message.id)));
+    [...list.children].forEach(item=>{ if(!ids.has(item.dataset.chatId)) item.remove(); });
+    const last=Number(list.lastElementChild?.dataset.chatId ?? 0);
+    const added=messages.filter(message=>message.id>last);
+    if (added.length) {
+      list.insertAdjacentHTML('beforeend',added.map(message=>`<li data-chat-id="${message.id}"><strong>${message.seat===seat?'You':esc(message.name)}</strong> ${esc(message.line)}</li>`).join(''));
+      list.scrollTop=list.scrollHeight;
+    }
+  }
+
+  function quickChatPanel() {
+    return sideScreen('table-chat','Quick chat',`
+      <ul class="quick-chat-log" role="log" aria-label="Room messages"></ul>
+      <div class="quick-chat-choices" aria-label="Send a reaction">${quickLines.map(line=>
+        button(line,'quick-chat',`type="button" data-label="${esc(line)}"`)).join('')}</div>`, 'Chat');
+  }
 
   function roster(state) {
     return `<div class="table-roster">${state.players.map((p, i) => `<div class="table-person">
@@ -603,10 +675,12 @@ function makeView(env, send) {
     const quick=[...new Set([nextSlot.key,...schedule.slice(round+2).map(event=>event.key)])]
       .filter(key=>Object.hasOwn(matchTitles,key)).slice(0,3);
     const other=Object.entries(matchTitles).filter(([key])=>!quick.includes(key));
+    const voters=state.players.flatMap((player,id)=>player.online?[id]:[]);
+    const votes=voters.filter(id=>pick.picks[id]).length;
     const action=mine?'Choose for 1 coin':'Back game';
     const choices=canPick ? `<div class="draft-games">${quick.map(key=>`
       <button type="button" data-table="pick-table" data-key="${esc(key)}" aria-pressed="${own===key}"
-        aria-label="${action} · ${esc(matchTitles[key])}">${icon(own===key?'flag':'play')} ${esc(matchTitles[key])}</button>`).join('')}</div>
+        aria-label="${action} · ${esc(matchTitles[key])}">${esc(matchTitles[key])}</button>`).join('')}</div>
       ${sideScreen('more-games','More games',`<label for="table-pick">Game</label>
         <select id="table-pick" required><option value="">Select a game</option>${other.map(([key,title])=>
           `<option value="${esc(key)}" ${key===own?'selected':''}>${esc(title)}</option>`).join('')}</select>
@@ -616,16 +690,18 @@ function makeView(env, send) {
     return `<section class="table-draft${mine&&pending?' draft-your-pick':''}" aria-labelledby="draft-title">
       <header><span class="eyebrow">ROUND ${round+2}</span>
       <h3 id="draft-title">${pick.locked?'Encore':pending&&mine?'Your pick':'Next game'}</h3>
-      <p class="draft-status" role="status">${pending?(mine?'Choose the next game for 1 coin or pass for free.':`${esc(nameOf(pick.captain))} is choosing. You can back a game for an encore.`):
+      <p class="draft-status" role="status">${pending?(mine?'Pick a game for 1 coin.':`${esc(nameOf(pick.captain))} is choosing. You can back a game for an encore.`):
         `<strong>${esc(nextSlot.title)}</strong>${pick.locked?' · Unanimous pick':pick.closed?' · Suggested game':` · Picked by ${mine?`you · 1 coin spent · ${wallet.coins} left`:esc(nameOf(pick.captain))}`}`}</p></header>
-      ${choices}
-      ${pending?`<div class="draft-pick-meta"><span>${icon('timer')} <span data-recap-clock>30s</span> to pick</span>
+      ${pending?`<div class="draft-pick-meta"><span aria-label="Time to pick">${icon('timer')} <span data-recap-clock>30s</span></span>
         ${mine?`<span class="draft-balance">${icon('layers')} ${wallet.coins} coins</span>${button('Pass free','pass-pick','class="quiet"')}`:''}</div>`:''}
-      ${!pick.locked&&!pick.closed?`<ul class="draft-votes" aria-label="Player picks">${state.players.flatMap((player,id)=>player.online?
-        [`<li><strong>${esc(nameOf(id))}</strong><span>${pick.picks[id]?esc(matchTitles[pick.picks[id]]):'Choosing…'}</span></li>`]:[]).join('')}</ul>`:''}
+      ${choices}
       ${pick.encore===null?'':`<p class="draft-encore" role="status">${icon('rotate-cw')} ${esc(schedule[pick.encore].title)} returns in Round ${pick.encore+1}</p>`}
-      ${canPick&&schedule.slice(round+2).some(event=>Object.hasOwn(matchTitles,event.key))?'<small>Same pick from everyone? It can come back for an encore.</small>':''}
-      <div class="draft-bait">${call}${pick.bait===null?'<small>First to call gets the opening move.</small>':''}</div>
+      <details class="draft-details"><summary>Table options${votes&&!pick.locked&&!pick.closed?` · ${votes}/${voters.length} picked`:''}</summary>
+        ${!pick.locked&&!pick.closed?`<ul class="draft-votes" aria-label="Player picks">${voters.map(id=>
+          `<li><strong>${esc(nameOf(id))}</strong><span>${pick.picks[id]?esc(matchTitles[pick.picks[id]]):'Choosing…'}</span></li>`).join('')}</ul>`:''}
+        ${canPick&&schedule.slice(round+2).some(event=>Object.hasOwn(matchTitles,event.key))?'<p><small>A unanimous pick can earn an encore.</small></p>':''}
+        <div class="draft-bait">${call}${pick.bait===null?'<small>First to call gets the opening move.</small>':''}</div>
+      </details>
     </section>`;
   }
 
@@ -749,9 +825,9 @@ function makeView(env, send) {
           tableDraft(state) + (state.tablePick && !state.tablePick.locked &&
             !state.tablePick.closed && !(state.tablePick.chosen ?? state.tablePick.picks[state.tablePick.captain]) ?
             '' : roundAdvance(round + 2, host, state.recapPaused))}
-        ${progressMarkup(profile)}</div></div>
+        ${phase==='verdict'?progressMarkup(profile):''}</div></div>
         <div class="screen-links recap-links">
-          ${sideScreen('table-scores', 'Scoreboard', roster(state))}
+          ${sideScreen('table-scores', 'Scoreboard', roster(state) + (phase==='reveal'?progressMarkup(profile):''))}
           ${sideScreen('table-results', 'Round history', receipt(state) +
             (state.records.some(record => record.verdict) ? '<p>Did someone’s clue change your mind?</p>' : ''))}
           ${statusOptions(state)}</div>`;
@@ -805,10 +881,19 @@ function makeView(env, send) {
         '<p class="waiting">Locked in. Waiting for the other seats.</p>' : actions}`;
     }
 
+    content += `<div class="screen-links quick-chat-link">${quickChatPanel()}</div>`;
     clearInterval(ticker);
     const art = (phases.includes(phase) || phase === 'match') && place?.art ? `--place-art:url(places/${place.art}.jpg)` : '';
     env.stage(content, false, `scene focused-turn tournament${phase === 'match' ? ' live-table-stage' : phase === 'lobby' ? ' arena-lobby' : phase === 'reveal' || phase === 'verdict' ? ' season-recap' : ''}${won ? ' victory' : ''}${art ? ' with-place' : ''}`, art, `table:${round}:${phase}`);
     const app = document.querySelector('#app');
+    chatSeat=seat;
+    updateChat(state.quickChat ?? []);
+    app.querySelector('[data-open-screen="table-chat"]').addEventListener('click',()=>{
+      seenChat=Number(app.querySelector('.quick-chat-log [data-chat-id]:last-child')?.dataset.chatId ?? 0);
+      const trigger=app.querySelector('[data-open-screen="table-chat"]');
+      trigger.removeAttribute('data-unread');
+      trigger.setAttribute('aria-label','Chat');
+    });
     app.querySelector('.another-season')?.addEventListener('click', event=>{
       if (location.search === '?season=new') {
         event.preventDefault();
@@ -883,7 +968,7 @@ function makeView(env, send) {
         else if (type === 'call-bait' || type === 'pass-pick') send({type,round});
         else if (type === 'table-power') send({type,round,card,target:Number(app.querySelector('#power-target').value),signal:app.querySelector('#power-signal').value});
         else if (type === 'share-result' || type === 'share-status') void shareUpdate(state, type === 'share-status');
-        else if (type === 'status') send({ type, value: label });
+        else if (type === 'quick-chat' || type === 'status') send({ type, value: label });
         else if (type === 'admit' || type === 'decline') send({ type: 'admit', id: Number(id), accept: type === 'admit' });
         else if (type === 'start' || type === 'next') send({ type });
         else {
@@ -895,5 +980,5 @@ function makeView(env, send) {
     });
   }
 
-  return { render };
+  return { render, updateChat };
 }

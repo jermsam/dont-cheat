@@ -13,7 +13,7 @@ const files = 'abcdefgh';
 const escape = value => String(value).replace(/[&<>"]/g, character =>
   ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;'})[character]);
 export const cardName = card => `${'23456789TJQKA'[card % 13]}${'♣♦♥♠'[Math.floor(card / 13)]}`;
-const sideName = (board, side) => board.seats[side] < 0 ? `Arena rival ${Math.abs(board.seats[side])}` : `Seat ${board.seats[side] + 1}`;
+const sideName = (board, side) => board.seats[side] < 0 ? `Arena rival ${Math.abs(board.seats[side])}` : board.displayNames?.[board.seats[side]] || `Seat ${board.seats[side] + 1}`;
 const mins = time => `${Math.floor(time / 60)}:${String(time % 60).padStart(2, '0')}`;
 
 function squareName(board, piece, name) {
@@ -229,7 +229,7 @@ function cardDiceMarkup(board) {
       ${board.bids?.length?`<p>Bids ${Array.from({length:4},(_,i)=>board.bids[i] == null?'—':Number(board.bids[i])).join(' / ')}</p>`:''}
       ${board.taken?`<p>Tricks ${board.taken.map(Number).join(' / ')}</p>`:''}
       ${played?.length ? `<p>${board.trick.length?'Current trick':'Last trick'}</p>
-        ${lineOfCards(played.map(entry=>entry.card))}<p class="turn-note">${played.map(entry=>sideName(board,entry.side)).map(escape).join(' · ')}</p>`:''}
+        ${lineOfCards(played.map(entry=>entry.card))}<p class="turn-note">${played.map(entry=>sideName(board,entry.side)).join(' · ')}</p>`:''}
       ${gin?`<p>Discard pile · Stock ${Number(board.stock)} cards</p>${options(board)}${lineOfCards([board.top],'discard')}`:''}
       ${gin&&board.shown?`<p>Knock resolved. Deadwood ${board.shown.dead.map(Number).join(' / ')}.</p>`:''}
       ${bidding?`<label for="trick-bid">Tricks to bid</label> <select id="trick-bid">${legal.map(move=>`<option value="${Number(move.bid)}">${Number(move.bid)||'Nil'}</option>`).join('')}</select>
@@ -313,6 +313,7 @@ function cardDiceMarkup(board) {
 
 export function matchMarkup(board, wallet, players = []) {
   if (!board) return '<p>Waiting for the tables to finish.</p>';
+  board = {...board, displayNames: players.map(player=>escape(player.displayName ?? ''))};
   const active = board.active === board.side;
   const result = board.result;
   const won = result?.winners?.includes(board.side) ?? result?.winner === board.side;
