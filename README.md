@@ -75,3 +75,7 @@ If the macOS system Clang fails while linking ring, set `CC_wasm32_unknown_unkno
 [Iroh](https://docs.iroh.computer/languages/wasm-browser) connects the two browser endpoints over its shared relays. The invite carries the host endpoint ID and relay hostname in the query string and a random admission seal in the fragment. The endpoint ID and relay hostname can be read by link preview services. If the fragment is missing, the host must approve the guest after confirming a matching code. The host accepts one guest and runs the timers and scoring. The relay carries encrypted traffic. The host can inspect match data on their own device, so this model assumes both players trust each other to run the game as supplied. Match state is in browser memory. The game uses no account, camera, microphone, or device monitoring.
 
 Setup and in-game artifacts use a locally hosted Three.js r169 build. Motion 14.14.0 animates screen changes. Both licenses are in `web/vendor`. The controls work with or without WebGL and both libraries respect the game’s reduced-motion behavior.
+
+## Music credits
+
+Victory music is [“The Curtain Rises” by Kevin MacLeod](https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1500011), licensed under [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/). The track is used unedited.
