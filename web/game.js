@@ -1,8 +1,9 @@
+import { roomMarkup, mountRoomWindow } from './room-window.js';
 import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { drawRelic, stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
-import { hostTournament, joinTournament } from './tournament.js?v=9';
+import { hostTournament, joinTournament } from './tournament.js?v=10';
 
 import { challenges } from './challenges.js';
 import { matchTitles } from './match-rules.js?v=3';
@@ -267,7 +268,7 @@ function stage(content, summons = false, scene = '', placeArt = '', screen = nul
   } : null;
   const choices = sameScreen ? [...app.querySelectorAll('select[id]')].map(select=>[select.id,select.value]) : [];
   const resignOpen = sameScreen && app.querySelector('[data-resign-confirm]:not([hidden])');
-  const liveBoard = sameScreen ? [...app.querySelectorAll('.live-3d, .table-objects')] : [];
+  const liveBoard = sameScreen ? [...app.querySelectorAll('.live-3d, .table-objects, .room-window')] : [];
   currentScreen = screen;
   stopRelic?.();
   stopRelic = undefined;
@@ -366,10 +367,11 @@ async function copy() {
 }
 function waitingRoom(crew) {
   stage(`<span class="eyebrow">PRIVATE SUMMONS</span><h2>${crew ? 'Build your crew.' : 'One seat left.'}</h2>
-  <p>Send your friend the invite. They tap the card or link, then <strong>Continue</strong> to join.</p>
+  <p>Send your friend the invite. They tap the card or link, then <strong>Continue</strong> to join.</p>${roomMarkup}
   <div class="row"><button class="primary" id="share">Share to WhatsApp ↗</button><button id="copy">Copy invite</button></div>
   <div hidden><label for="invite" class="eyebrow">Invite link</label><input id="invite" class="invite" readonly value="${escape(invitation)}"></div>
-  <p class="waiting">Waiting for your friend. Keep this tab open and come back after sharing.</p>${homeButton}`, true);
+  <p class="waiting">Waiting for your friend. Keep this tab open and come back after sharing.</p>${homeButton}`, true, 'arena-lobby', '', 'private-lobby');
+  mountRoomWindow(app,[{online:true,mask:chosenMask}]);
   document.querySelector('#share').onclick = share;
   document.querySelector('#copy').onclick = copy;
 }
@@ -1105,6 +1107,7 @@ function draw(state) {
   if (phase === 'briefing' && scenario) {
     stage(`${score}${maskSeats(state)}<div class="cinematic-title"><div><span class="eyebrow">ROUND ${round + 1} OF ${roundCount} · BRIEFING</span><h2>${scenario.name}</h2></div>${relic}</div>
       <p>${scenario.line}</p>
+      ${!state.solo ? sideScreen('arena-view','Game room',roomMarkup,'Look inside the room') : ''}
       <ul class="briefing-rules">
         <li><b>${crew ? crewTriviaTime(scenario) : scenario.seconds + extraTriviaSeconds}s</b> to answer</li>
         <li><b>+${scenario.trivia ?? 2}</b> for a correct answer</li>
@@ -1114,6 +1117,7 @@ function draw(state) {
       </ul>
       <div class="clock-track"><span class="eyebrow">Round starts in</span><span class="clock" id="clock" aria-label="Round starts in"></span><div class="bar" id="bar" aria-hidden="true"></div></div>`,
       false, `scene scene-briefing${locationTone}`, locationStyle);
+    if (!state.solo) mountRoomWindow(app,state.masks.map(mask=>({online:true,mask})),scenario,app.querySelector('[data-open-screen="arena-view"]'));
     tick();
     return;
   }
