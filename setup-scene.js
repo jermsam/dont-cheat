@@ -1,6 +1,6 @@
 import * as THREE from './vendor/three.module.min.js';
 
-export function mountSetupScene(container) {
+export function mountSetupScene(container, compact = false) {
   if (!window.WebGL2RenderingContext) return;
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
@@ -60,6 +60,10 @@ export function mountSetupScene(container) {
   mesh(gate, new THREE.IcosahedronGeometry(0.43, 0), stone);
 
   const objects = [seats, wardrobe, gate];
+  if (compact) {
+    dais.visible = floorRing.visible = false;
+    camera.zoom = 1.33;
+  }
   world.add(...objects);
   const loader = new THREE.TextureLoader();
   const textures = new Map();

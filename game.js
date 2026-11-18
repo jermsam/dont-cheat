@@ -1,7 +1,8 @@
 import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { drawRelic, stageDepth } from './relic.js';
-import { hostTournament, joinTournament, tournamentMenu } from './tournament.js';
+import { arrive, sideScreen, mountSideScreens, roundPages } from './screens.js';
+import { hostTournament, joinTournament, tournamentMenu } from './tournament.js?v=2';
 
 const app = document.querySelector('#app');
 const notice = document.querySelector('#notice');
@@ -54,7 +55,7 @@ let arena, link, key, game, revision = 0, shown, audio, enabled = false;
 let seat = 0, clockEnd = 0, phaseDuration = duration, solo = false, pending = false, guestAccepted = false;
 let invitation = '';
 let lastAlarm = -1;
-let audioOut, stopRelic;
+let audioOut, stopRelic, currentScreen;
 let chosenMask = null;
 let chosenDestination = null;
 
@@ -124,18 +125,42 @@ document.querySelector('#sound').onclick = async event => {
   }
 };
 
-const relic = '<canvas class="relic" width="260" height="260" aria-hidden="true"></canvas>';
+const relic = '<div class="relic" aria-hidden="true"><canvas width="260" height="260"></canvas></div>';
 
-function stage(content, summons = false, scene = '', placeArt = '') {
+function stage(content, summons = false, scene = '', placeArt = '', screen = null) {
+  const sameScreen = screen !== null && screen === currentScreen;
+  const open = sameScreen && app.querySelector('dialog[open]');
+  const restore = open ? {
+    id: open.id,
+    page: Math.max(0, [...open.querySelectorAll('[data-record-page]')].findIndex(page => !page.hidden)),
+  } : null;
+  currentScreen = screen;
   stopRelic?.();
   stopRelic = undefined;
-  app.innerHTML = `<section class="stage ${summons ? 'summons' : ''} ${scene}"${placeArt ? ` style="${placeArt}"` : ''}><div class="board reveal">${content}</div></section>`;
+  app.innerHTML = `<section class="stage ${summons ? 'summons' : ''} ${scene}"${placeArt ? ` style="${placeArt}"` : ''}><div class="board">${content}</div></section>`;
+  mountSideScreens(app, restore);
+  if (!sameScreen) {
+    arrive(app.querySelector('.board'));
+    window.scrollTo(0, 0);
+  }
   const sculpture = app.querySelector('.relic');
-  if (sculpture) stopRelic = drawRelic(sculpture);
+  if (sculpture) {
+    const fallback = sculpture.querySelector('canvas');
+    stopRelic = drawRelic(fallback);
+    import('./setup-scene.js?v=2').then(({ mountSetupScene }) => {
+      if (!sculpture.isConnected) return;
+      const model = mountSetupScene(sculpture, true);
+      if (!model) return;
+      stopRelic?.();
+      stopRelic = undefined;
+      fallback.remove();
+      model.update(2, 'tournament');
+    }).catch(() => {});
+  }
   const sceneElement = app.querySelector('.scene');
   if (sceneElement) stageDepth(sceneElement);
   const heading = app.querySelector('h2');
-  if (heading) {
+  if (heading && !restore) {
     heading.tabIndex = -1;
     heading.focus({ preventScroll: true });
   }
@@ -163,7 +188,7 @@ async function network() {
   arena = await Arena.start();
 }
 async function share() {
-  const message = 'Want to play Don’t Cheat? Tap the invite card or link, then tap Join game.';
+  const message = 'Want to play Don’t Cheat? Tap the invite card or link to join.';
   if (navigator.share) {
     try {
       await navigator.share({
@@ -198,7 +223,7 @@ async function copy() {
 }
 function waitingRoom(crew) {
   stage(`<span class="eyebrow">PRIVATE SUMMONS</span><h2>${crew ? 'Build your crew.' : 'One seat left.'}</h2>
-  <p>Send your friend the invite. They tap the card or link, then <strong>Join game</strong>.</p>
+  <p>Send your friend the invite. They tap the card or link, then <strong>Continue</strong> to join.</p>
   <div class="row"><button class="primary" id="share">Share to WhatsApp ↗</button><button id="copy">Copy invite</button></div>
   <div hidden><label for="invite" class="eyebrow">Invite link</label><input id="invite" class="invite" readonly value="${escape(invitation)}"></div>
   <p class="waiting">Waiting for your friend. Keep this tab open and come back after sharing.</p>${homeButton}`, true);
@@ -224,7 +249,7 @@ async function approveGuest(code) {
 
 function tableEnvironment(playlist) {
   return { arena, key, invite: invitation, mask: chosenMask, playlist, stage, timeout, share, copy,
-    notice: say, escape, shuffle: shuffled, cue: playCue, destination: chosenDestination };
+    notice: say, escape, relic, shuffle: shuffled, cue: playCue, destination: chosenDestination };
 }
 
 async function host(crew = false, playlist = null) {
@@ -661,14 +686,12 @@ function mountMaskPicker(mode) {
       ${portrait(id)}<span><strong>${label}</strong><small data-style-hint>${hint}</small></span></button>`).join('')}
   </div>
   <div class="mask-choice-summary" role="status"></div>
-  <details class="wardrobe">
-    <summary>Browse all ${Object.keys(masks).length} masks</summary>
-    <div class="mask-options" role="group" aria-label="Masks">
+  ${sideScreen('mask-wardrobe', 'All masks', `<div class="mask-options" role="group" aria-label="Masks">
       ${Object.entries(masks).map(([id, mask]) => `<button class="mask-option" type="button" data-mask="${id}" aria-pressed="false">
         ${portrait(id)}<span class="mask-caption"><strong>${mask.title}</strong><small>${mask.name}${mask.origin ? ` · ${mask.origin}` : ''}</small></span>
       </button>`).join('')}
-    </div>
-  </details>`;
+    </div>`, `Browse all ${Object.keys(masks).length} masks`)}`;
+  mountSideScreens(slot);
   const full = [...slot.querySelectorAll('[data-mask]')];
   const starters = [...slot.querySelectorAll('[data-starter]')];
   const summary = slot.querySelector('.mask-choice-summary');
@@ -698,6 +721,7 @@ function mountMaskPicker(mode) {
     button.onclick = () => {
       chosenMask = button.dataset.mask ?? button.dataset.starter;
       showSelection();
+      if (button.hasAttribute('data-mask')) slot.querySelector('#mask-wardrobe').close();
       chime([146, 219, 293]);
     };
   });
@@ -743,12 +767,14 @@ function mountLobby() {
   }
 
   function showStep(index) {
+    const reverse = index < step;
     step = index;
     panels.forEach((panel, i) => { panel.hidden = i !== step; });
     progress.textContent = `Step ${step + 1} of ${panels.length}`;
     launch.hidden = next.hidden = step !== panels.length - 1;
     forward.hidden = !launch.hidden;
     forward.textContent = step === 1 ? (chosenMask ? 'Continue →' : 'Continue without a mask →') : 'Continue →';
+    arrive(panels[step], reverse);
     panels[step].querySelector('h2').focus({ preventScroll: true });
     window.scrollTo(0, 0);
     showScene();
@@ -760,7 +786,7 @@ function mountLobby() {
     showStep(0);
     if (sceneLoading) return;
     sceneLoading = true;
-    import('./setup-scene.js?v=1').then(({ mountSetupScene }) => {
+    import('./setup-scene.js?v=2').then(({ mountSetupScene }) => {
       if (visual.isConnected) scene = mountSetupScene(visual);
       showScene();
     }).catch(() => {});
@@ -836,7 +862,7 @@ function pactCards(record, state) {
   }).join('');
 }
 
-function timeBankPanel(state, open) {
+function timeBankPanel(state) {
   const { bank, locked, extensions } = state;
   const { coins, time, offer, note } = bank;
   const friend = 1 - seat;
@@ -848,16 +874,13 @@ function timeBankPanel(state, open) {
     `<p>Your teammate offers ${timeBank.hirePrice} coins for 1 of your time tokens.</p>
       ${button(`accept-${offer.id}`, 'Accept trade', time[seat] > 0 && coins[friend] >= timeBank.hirePrice)}
       ${button(`close-${offer.id}`, 'Decline', true)}`) : '';
-  return `<details id="time-bank" class="round-tools" ${open || offer ? 'open' : ''}>
-    <summary>Time bank · ${time[seat]} time · ${coins[seat]} coins</summary>
-    <p>Spend 1 time token for +${timeBank.seconds}s on the shared clock. Your teammate has ${time[friend]} time and ${coins[friend]} coins.</p>
+  return `${sideScreen('time-bank', 'Time bank', `<p>Spend 1 time token for +${timeBank.seconds}s on the shared clock. Your teammate has ${time[friend]} time and ${coins[friend]} coins.</p>
     <div class="secrets">
       ${button('buy', `Buy 1 time · ${timeBank.price} coins`, coins[seat] >= timeBank.price)}
       ${button('hire', `Hire 1 time · ${timeBank.hirePrice} coins`, !offer && coins[seat] >= timeBank.hirePrice && time[friend] > 0)}
       ${button('gift', 'Give 1 time', !offer && time[seat] > 0)}
     </div>
-    ${offerActions}
-  </details>
+    ${offerActions}`, `Time bank · ${time[seat]} time · ${coins[seat]} coins${offer ? ' · Offer' : ''}`)}
   <div class="secrets">
     ${button('extend', `Need time? +${timeBank.seconds}s · 1 time token`, !locked && time[seat] > 0 && extensions < timeBank.extensions)}
   </div>
@@ -915,9 +938,9 @@ function draw(state) {
     const clueActions = ownAnswer === null ? '<button data-choice="private">Keep it private</button>' :
       `<button class="primary" data-choice="share">Show my answer</button>
       <button data-choice="private">Keep it private</button>
-      <details class="decoy-options"><summary>Send a decoy</summary><div class="options">
+      ${sideScreen('send-decoy', 'Send a decoy', `<div class="options">
         ${options.map((option, index) => index === ownAnswer ? '' : `<button data-choice="decoy-${index}">${escape(option)}</button>`).join('')}
-      </div></details>`;
+      </div>`)}`;
     const actions = phase === 'trivia' ? options.map((option, index) =>
       `<button data-choice="${index}">${escape(option)}</button>`).join('') : phase === 'claim' && clues ? clueActions : phase === 'claim' ? claims.map(text => `<button data-choice="${text}">${text}</button>`).join('') : crew ? crewActions :
       `<button class="play-card trust" data-choice="Trust"><span aria-hidden="true" class="pact-mark">✦</span><strong>Trust</strong><small>+${2 * bonus} each if both trust</small></button>
@@ -944,23 +967,21 @@ function draw(state) {
           `Your answer is ${escape(options[ownAnswer])}.`}</p>
         ${!locked ? `<button class="quiet" data-choice="${copied ? 'keep' : 'copy'}">${copied ? 'Undo copy' : 'Copy their clue'}</button>` : ''}
       </aside>` : '<p class="turn-note">No clue shared.</p>' : `<p class="claim-banner">${claim ? `They said “${escape(claim)}.”` : 'They made no claim.'}</p>`) : '';
-    const bankOpen = previous?.phase === phase && previous?.round === round &&
-      app.querySelector('#time-bank')?.open;
     stage(`${score}${progress}<h2>${heading}</h2>
       <div class="clock-track"><span class="clock" id="clock" aria-label="Time remaining"></span><div class="bar" id="bar" aria-hidden="true"></div></div>
-      ${crew && state.bank ? timeBankPanel(state, bankOpen) : ''}
+      ${crew && state.bank ? timeBankPanel(state) : ''}
       ${announcement ? `<p class="turn-note">${announcement}</p>` : ''}
       ${instructions}${cluePrompt}
       ${peekAnswer ? `<p class="secret-note">Only you see this · <strong>${escape(peekAnswer)}</strong></p>` : ''}
       ${secret && phase === 'trivia' ? `<p class="secret-note"><strong>${escape(secret.name)}</strong> · ${escape(secret.hint)}</p>` : ''}
       ${locked ? '<p class="waiting">Locked in. Waiting for your friend.</p>' : `<div class="options ${phase === 'choice' ? crew ? 'card-options crew-actions' : 'card-options duel-actions' : ''}">${actions}</div>`}
-      ${phase === 'trivia' && !locked && (peekAvailable || !secret && round > 0) ? `<details class="round-tools"><summary>Secret tools</summary>
+      ${phase === 'trivia' && !locked && (peekAvailable || !secret && round > 0) ? sideScreen('secret-tools', 'Secret tools', `
         ${peekAvailable ? '<p class="turn-note">If they catch your peek, you lose your trivia points.</p>' : ''}
         <div class="secrets">
         ${peekAvailable ? '<button class="quiet" data-choice="peek">Peek once</button>' : ''}
         ${!secret && round > 0 ? `<button class="quiet" data-choice="door">${round === 1 ? 'Open the secret door' : 'Follow the lantern'}</button>` : ''}
-      </div></details>` : ''}`,
-      false, `scene scene-${phase} focused-turn${locationTone}`, locationStyle);
+      </div>`) : ''}`,
+      false, `scene scene-${phase} focused-turn${locationTone}`, locationStyle, `${round}:${phase}`);
     app.querySelectorAll('[data-choice]').forEach(button => {
       button.onclick = () => move(phase === 'trivia' && /^\d$/.test(button.dataset.choice) ? Number(button.dataset.choice) : button.dataset.choice);
     });
@@ -993,7 +1014,7 @@ function draw(state) {
       record.cards.every(card => card === 'Betray') ? 'Two masterminds. Zero pact points.' :
       record.cards.includes('Betray') ? 'Someone broke the pact.' : 'The pact went unanswered.';
     const nextNumber = round + 2;
-    stage(`${score}<span class="eyebrow">ROUND ${round + 1} · UNSEALED</span><h2>${result}</h2><div class="pact-cards">${pactCards(record, state)}</div>${giftReveal(record)}<ul class="receipt"><li>${receipt(record)}</li></ul>${!state.solo ? debrief(round) : ''}
+    stage(`${score}<span class="eyebrow">ROUND ${round + 1} · UNSEALED</span><h2>${result}</h2><div class="pact-cards">${pactCards(record, state)}</div>${giftReveal(record)}${sideScreen('round-results', 'Round results', `<ul class="receipt"><li>${receipt(record)}</li></ul>${!state.solo ? debrief(round) : ''}`)}
       ${seat === 0 ? `<button class="primary" id="next">Start Round ${nextNumber} ↗</button>${solo ? '' : `<p class="muted">${scenario ? 'Both players see the briefing before the clock starts.' : 'This starts the timer for both players.'}</p>`}` : `<p class="waiting">Waiting for the host to start Round ${nextNumber}.</p>`}`, false, `scene scene-reveal${locationTone}`, locationStyle);
     const next = document.querySelector('#next');
     if (next) next.onclick = nextRound;
@@ -1001,7 +1022,7 @@ function draw(state) {
   }
   const [you, them] = [scores[seat], scores[1 - seat]];
   const verdict = crew ? (teamScore >= crewTarget ? 'Your crew got away.' : 'The host kept the loot.') : you === them ? 'The trial ends in a draw.' : you > them ? 'You won the trial.' : 'The other seat won.';
-  stage(`${score}<div class="cinematic-title"><div><span class="eyebrow">FINAL VERDICT · RECORD UNSEALED</span><h2>${verdict}</h2></div>${relic}</div><div class="pact-cards">${pactCards(record, state)}</div>${giftReveal(record)}<ul class="receipt">${records.map(result => `<li>${receipt(result)}</li>`).join('')}</ul>${!state.solo ? debrief(round) : ''}${homeButton}`, false, `scene scene-verdict${locationTone}`, locationStyle);
+  stage(`${score}<div class="cinematic-title"><div><span class="eyebrow">FINAL VERDICT · RECORD UNSEALED</span><h2>${verdict}</h2></div>${relic}</div><div class="pact-cards">${pactCards(record, state)}</div>${giftReveal(record)}<div class="row">${sideScreen('round-results', 'Round history', roundPages(records.map(result => `<ul class="receipt"><li>${receipt(result)}</li></ul>`)) + (!state.solo ? debrief(round) : ''))}${homeButton}</div>`, false, `scene scene-verdict${locationTone}`, locationStyle);
 }
 function tick() {
   const clock = document.querySelector('#clock');
@@ -1009,6 +1030,8 @@ function tick() {
   const remaining = Math.max(0, clockEnd - performance.now());
   const seconds = Math.ceil(remaining / 1000);
   clock.textContent = `${seconds.toString().padStart(2, '0')}s`;
+  const extraClock = app.querySelector('dialog[open] [data-screen-clock]');
+  if (extraClock) extraClock.textContent = clock.textContent;
   clock.closest('.stage').classList.toggle('under-pressure', shown.phase !== 'briefing' && seconds <= 5);
   if (shown.phase !== 'briefing' && seconds > 0 && seconds <= 5 && lastAlarm !== seconds) {
     lastAlarm = seconds;
@@ -1025,14 +1048,21 @@ if (roomId !== null || roomSeal !== null) {
     const title = mode === 'tournament' ? 'Join a tournament' : mode === 'crew' ? 'Join your teammate' : 'Join your opponent';
     const intro = mode === 'tournament' ? 'Take a seat. The host starts when everyone is in.' :
       mode === 'crew' ? 'Work together to get past the masked host.' : 'Trade clues and decide which ones to trust.';
-    stage(`<span class="eyebrow">YOU’RE INVITED</span><h2>${title}</h2><p>${intro}</p>
-      <section class="invite-masks" aria-labelledby="invite-mask-title">
-        <h3 id="invite-mask-title">Choose a mask <small>Optional</small></h3>
-        <div id="mask-picker"></div>
-      </section>
-      <div class="row"><button class="primary" id="enter">Join game ↗</button>${homeButton}</div>`, true);
-    mountMaskPicker(mode);
-    document.querySelector('#enter').onclick = () => join(roomId, roomSeal);
+    function inviteStep(maskStep) {
+      stage(maskStep ?
+        `<span class="eyebrow">INVITE · STEP 2 OF 2</span><h2>Choose a mask</h2>
+          <p>Optional. You can join without one.</p><section class="invite-masks"><div id="mask-picker"></div></section>
+          <div class="row"><button class="quiet" id="invite-back">Back</button><button class="primary" id="enter">Join game ↗</button></div>` :
+        `<span class="eyebrow">INVITE · STEP 1 OF 2</span><h2>${title}</h2><p>${intro}</p>
+          <div class="row"><button class="primary" id="invite-continue">Continue →</button>${homeButton}</div>`,
+      true, '', '', `invite:${maskStep}`);
+      if (maskStep) {
+        mountMaskPicker(mode);
+        document.querySelector('#invite-back').onclick = () => inviteStep(false);
+        document.querySelector('#enter').onclick = () => join(roomId, roomSeal);
+      } else document.querySelector('#invite-continue').onclick = () => inviteStep(true);
+    }
+    inviteStep(false);
   }
 } else {
   mountLobby();
