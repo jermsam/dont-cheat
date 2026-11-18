@@ -1,6 +1,6 @@
 import * as THREE from './vendor/three.module.min.js';
 
-export function addPortraitDetail(material,portrait,profiles,height) {
+export function addPortraitDetail(material,portrait,profiles,height,mask) {
   portrait.colorSpace=THREE.SRGBColorSpace;
   portrait.anisotropy=4;
   profiles.forEach(texture=>{
@@ -12,12 +12,13 @@ export function addPortraitDetail(material,portrait,profiles,height) {
     shader.uniforms.faceLeft={value:profiles[0]};
     shader.uniforms.faceRight={value:profiles[1]};
     shader.uniforms.profileStrength={value:profiles[0]===portrait?0:1};
+    shader.uniforms.princeCollar={value:mask==="prince"?1:0};
     shader.uniforms.characterHeight={value:height};
     shader.vertexShader=shader.vertexShader
       .replace('#include <common>','#include <common>\nvarying vec3 faceRest;\nvarying vec3 faceNormal;')
       .replace('#include <begin_vertex>','#include <begin_vertex>\nfaceRest=position; faceNormal=normal;');
     shader.fragmentShader=shader.fragmentShader
-      .replace('#include <common>','#include <common>\nuniform sampler2D facePortrait;\nuniform sampler2D faceLeft;\nuniform sampler2D faceRight;\nuniform float profileStrength;\nuniform float characterHeight;\nvarying vec3 faceRest;\nvarying vec3 faceNormal;')
+      .replace('#include <common>','#include <common>\nuniform sampler2D facePortrait;\nuniform sampler2D faceLeft;\nuniform sampler2D faceRight;\nuniform float profileStrength;\nuniform float characterHeight;\nuniform float princeCollar;\nvarying vec3 faceRest;\nvarying vec3 faceNormal;')
       .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=max(.78,roughnessFactor);')
       .replace('#include <map_fragment>',`#include <map_fragment>
         vec3 face=faceRest/characterHeight;
@@ -34,6 +35,14 @@ export function addPortraitDetail(material,portrait,profiles,height) {
         vec4 rightProfile=texture2D(faceRight,vec2(.50+face.z*4.9,profileY));
         vec4 profile=mix(rightProfile,leftProfile,step(0.0,n.x));
         diffuseColor.rgb=mix(diffuseColor.rgb,profile.rgb,profile.a*across*head*profileStrength*.84*(1.0-frontMix*.92));
+        // The scanned jaw continues onto an untextured strip below the portrait.
+        // Match that strip to the nearby skin and fade into the collar.
+        float underJaw=smoothstep(.837,.861,face.y)*(1.0-smoothstep(.880,.896,face.y));
+        float neckWidth=mix(.024,.047,smoothstep(.838,.887,face.y));
+        float neck=smoothstep(.012,.033,face.z)*(1.0-smoothstep(neckWidth-.014,neckWidth,abs(face.x)));
+        vec3 cheek=texture2D(facePortrait,vec2(.5+face.x/.22,.365)).rgb;
+        float lightPatch=smoothstep(.25,.63,dot(diffuseColor.rgb,vec3(.2126,.7152,.0722)));
+        diffuseColor.rgb=mix(diffuseColor.rgb,cheek*.66,underJaw*neck*lightPatch*(1.0-frontMix)*princeCollar);
       `);
   };
 }

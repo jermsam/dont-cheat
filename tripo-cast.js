@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.module.min.js';
 import { arrangeHeldCards,digits,posePinch,cardContact } from './card-pinch.js?v=2';
-import { addPortraitDetail } from './portrait-detail.js?v=3';
-import { fitPortraitGeometry } from './portrait-fit.js';
+import { addPortraitDetail } from './portrait-detail.js?v=4';
+import { fitPortraitGeometry, sculptPortraitRelief } from './portrait-fit.js?v=2';
 import { GLTFLoader } from './vendor/GLTFLoader-r169.js';
 
 const dimensions={
@@ -18,16 +18,21 @@ export async function loadTripoCast(mask,root,source) {
   const fit=dimensions[mask];
   const textureLoader=new THREE.TextureLoader();
   const loadTexture=path=>textureLoader.loadAsync(new URL(path,import.meta.url).href).catch(()=>null);
-  const [{scene},portrait,left,right]=await Promise.all([
+  const [{scene},portrait,left,right,relief]=await Promise.all([
     loader.loadAsync(new URL(`characters/the-${mask}-tripo.glb`,import.meta.url).href),
     loadTexture(`characters/${mask}-registered.webp`),
     loadTexture(`characters/${mask}-profile-left.webp`),
     loadTexture(`characters/${mask}-profile-right.webp`),
+    loadTexture(`characters/${mask}-depth.png`),
   ]);
   let original;
   scene.traverse(node=>{if(node.isMesh)original=node;});
   const geometry=original.geometry;
   fitPortraitGeometry(geometry,mask);
+  if(relief){
+    sculptPortraitRelief(geometry,relief.image);
+    relief.dispose();
+  }
   geometry.scale(meters,meters,meters);
   const bones=[];
   function bone(parent,x,y,z=0){
@@ -65,7 +70,7 @@ export async function loadTripoCast(mask,root,source) {
   paint.metalness=.04;
   paint.roughness=.82;
   paint.normalScale.setScalar(.055);
-  if(portrait)addPortraitDetail(paint,portrait,left&&right?[left,right]:[portrait,portrait],meters);
+  if(portrait)addPortraitDetail(paint,portrait,left&&right?[left,right]:[portrait,portrait],meters,mask);
   paint.envMapIntensity=.37;
   const skin=new THREE.SkinnedMesh(geometry,paint);
   skin.name=mask;
@@ -136,28 +141,29 @@ export async function loadTripoCast(mask,root,source) {
   const workingHand=limbs[1];
   function steerToCard(target,amount){
     const {arm,elbow,wrist,finger,thumb,index}=workingHand;
-    const current=cardContact(thumb,index,wrist).position;
     const wristStart=wrist.getWorldPosition(vec());
-    const handOffset=current.clone().sub(wristStart);
     const shoulderPoint=arm.getWorldPosition(vec());
-    const desired=target.clone().addScaledVector(
-      new THREE.Vector3(0,0,1).applyQuaternion(root.getWorldQuaternion(quat())),-.064
-    );
-    desired.y+=.004;
-    const wristGoal=wristStart.clone().lerp(desired.sub(handOffset),amount);
-    const direction=wristGoal.sub(shoulderPoint);
-    const upper=shoulderPoint.distanceTo(elbow.getWorldPosition(vec()));
-    const lower=elbow.getWorldPosition(vec()).distanceTo(wristStart);
-    const length=THREE.MathUtils.clamp(direction.length(),Math.abs(upper-lower)+.008,upper+lower-.003);
-    direction.normalize();
-    const bend=down.clone().addScaledVector(direction,-down.dot(direction)).normalize();
-    const projection=(upper*upper-lower*lower+length*length)/(2*length);
-    const bendDistance=Math.sqrt(Math.max(0,upper*upper-projection*projection));
-    const toElbow=direction.clone().multiplyScalar(projection).addScaledVector(bend,bendDistance);
-    const toWrist=direction.clone().multiplyScalar(length).sub(toElbow);
-    align(arm,axisTo(elbow),toElbow);
-    align(elbow,axisTo(wrist),toWrist);
-    align(wrist,axisTo(finger),toWrist);
+    const elbowPoint=elbow.getWorldPosition(vec());
+    const upper=shoulderPoint.distanceTo(elbowPoint);
+    const lower=elbowPoint.distanceTo(wristStart);
+    // Re-evaluate the fingertip position after bending the elbow and wrist.
+    // The card should meet the fingertips at the pile, even at full reach.
+    for(let step=0;step<3;step++){
+      const contact=cardContact(thumb,index,wrist);
+      const contactCenter=vec().set(0,0,.070).applyQuaternion(contact.rotation).add(contact.position);
+      const wristOffset=contactCenter.sub(wrist.getWorldPosition(vec()));
+      const direction=wristStart.clone().lerp(target.clone().sub(wristOffset),amount).sub(shoulderPoint);
+      const length=THREE.MathUtils.clamp(direction.length(),Math.abs(upper-lower)+.008,upper+lower-.003);
+      direction.normalize();
+      const bend=down.clone().addScaledVector(direction,-down.dot(direction)).normalize();
+      const projection=(upper*upper-lower*lower+length*length)/(2*length);
+      const bendDistance=Math.sqrt(Math.max(0,upper*upper-projection*projection));
+      const toElbow=direction.clone().multiplyScalar(projection).addScaledVector(bend,bendDistance);
+      const toWrist=direction.clone().multiplyScalar(length).sub(toElbow);
+      align(arm,axisTo(elbow),toElbow);
+      align(elbow,axisTo(wrist),toWrist);
+      align(wrist,axisTo(finger),toWrist);
+    }
   }
   function sync(pinch=0,lean=0,target){
     pelvis.position.copy(bindHip).add(new THREE.Vector3(0,source.hip.position.y-.93,0));
