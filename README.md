@@ -8,7 +8,7 @@ A two-seat browser game about trivia, trust, and betrayal. Play privately with a
 
 1. Tap **Invite a friend** and wait for the link.
 2. Tap **Share to WhatsApp** and pick WhatsApp in your device's share sheet. You can also copy the link into a chat.
-3. Return to the open host tab. Your friend opens the summons and taps **Accept summons**. If WhatsApp opens the card without the private seal, your friend will see a six-digit code. Check that it matches the code on the host screen and tap **Let them in**. The trial then starts for both players.
+3. Return to the open host tab. Your friend taps the WhatsApp card or link, then taps **Join game**. If WhatsApp opens the card without the private seal, your friend will see a six-digit code. Check that it matches the code on the host screen and tap **Let them in**. The trial then starts for both players.
 
 The invite grants access to one open seat. A refresh, closed tab, or disrupted connection requires a fresh room. WhatsApp decides whether to render the rich link preview. The full invite link works independently of the preview.
 

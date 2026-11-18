@@ -115,11 +115,12 @@ async function network() {
   arena = await Arena.start();
 }
 async function share() {
+  const message = 'Want to play Don’t Cheat? Tap the invite card or link, then tap Join game.';
   if (navigator.share) {
     try {
       await navigator.share({
         title: 'Don’t Cheat · The Midnight Trial',
-        text: 'You’ve been summoned. Take the other seat?',
+        text: message,
         url: invitation,
       });
       return;
@@ -128,7 +129,7 @@ async function share() {
     }
   }
   const whatsapp = document.createElement('a');
-  whatsapp.href = 'https://wa.me/?text=' + encodeURIComponent('You’ve been summoned. Take the other seat?\n' + invitation);
+  whatsapp.href = 'https://wa.me/?text=' + encodeURIComponent(message + '\n' + invitation);
   whatsapp.target = '_blank';
   whatsapp.rel = 'noopener noreferrer';
   whatsapp.textContent = 'Open WhatsApp ↗';
@@ -141,6 +142,7 @@ async function copy() {
     await navigator.clipboard.writeText(invitation);
     say('Invite copied. Paste it into your WhatsApp chat.');
   } catch {
+    field.parentElement.hidden = false;
     field.focus();
     field.select();
     say('Select and copy the invite link from the field.');
@@ -148,10 +150,10 @@ async function copy() {
 }
 function waitingRoom() {
   stage(`<span class="eyebrow">PRIVATE SUMMONS</span><h2>One seat left.</h2>
-  <p>Send your summons and keep this room open while your friend joins.</p>
-  <label for="invite" class="eyebrow">Invite link</label><input id="invite" class="invite" readonly value="${escape(invitation)}">
+  <p>Send your friend the invite. They tap the card or link, then <strong>Join game</strong>.</p>
   <div class="row"><button class="primary" id="share">Share to WhatsApp ↗</button><button id="copy">Copy invite</button></div>
-  <p class="waiting">Waiting for your friend. Return here after sharing.</p>${homeButton}`, true);
+  <div hidden><label for="invite" class="eyebrow">Invite link</label><input id="invite" class="invite" readonly value="${escape(invitation)}"></div>
+  <p class="waiting">Waiting for your friend. Keep this tab open and come back after sharing.</p>${homeButton}`, true);
   document.querySelector('#share').onclick = share;
   document.querySelector('#copy').onclick = copy;
 }
@@ -399,11 +401,11 @@ function draw(state) {
     const bonus = pactMultiplier(round);
     const actions = phase === 'trivia' ? options.map((option, index) =>
       `<button data-choice="${index}">${escape(option)}</button>`).join('') :
-      `<button data-choice="Trust">✦ Trust <small>Both trust: +${2 * bonus} each.</small></button><button data-choice="Betray">◆ Betray <small>Take +${3 * bonus} if they trust. Both betray: +0.</small></button>`;
+      `<button data-choice="Trust">✦ Trust <small>If they trust too, you each get +${2 * bonus}. If they betray, you get 0.</small></button><button data-choice="Betray">◆ Betray <small>If they trust, you get +${3 * bonus}. If they betray too, you both get 0.</small></button>`;
     const announcement = round === 1 && phase === 'choice' ? 'Rule change · Double pact points' :
       round === 2 ? 'Final round · 12 seconds per decision' : '';
     const twist = announcement ? `<p class="twist">${announcement}</p>` : '';
-    stage(`${score}${label}<h2>${phase === 'trivia' ? escape(prompt) : 'Will you keep the pact?'}</h2>${twist}
+    stage(`${score}${label}<h2>${phase === 'trivia' ? escape(prompt) : 'Trust or betray?'}</h2>${twist}
       <div class="clock-track"><span class="clock" id="clock" aria-label="Time remaining"></span><div class="bar" id="bar" aria-hidden="true"></div></div>
       ${locked ? '<p class="waiting">Your choice is sealed. Waiting for the other seat.</p>' : `<div class="options">${actions}</div>`}
       ${transmission(hostLines[phase][round])}`, false, `scene scene-${phase}`);
@@ -418,8 +420,9 @@ function draw(state) {
   if (phase === 'reveal') {
     const result = record.cards.every(card => card === 'Trust') ? 'The pact held.' :
       record.cards.includes('Betray') ? 'Someone broke the pact.' : 'The pact went unanswered.';
+    const nextNumber = round + 2;
     stage(`${score}<span class="eyebrow">ROUND ${round + 1} · UNSEALED</span><h2>${result}</h2><div class="pact-cards">${pactCards(record)}</div><ul class="receipt"><li>${receipt(record)}</li></ul>
-      ${seat === 0 ? '<button class="primary" id="next">Open the next round ↗</button>' : '<p class="waiting">The host will open the next round.</p>'}`, false, 'scene scene-reveal');
+      ${seat === 0 ? `<button class="primary" id="next">Start Round ${nextNumber} ↗</button>${solo ? '' : '<p class="muted">This starts the timer for both players.</p>'}` : `<p class="waiting">Waiting for the host to start Round ${nextNumber}.</p>`}`, false, 'scene scene-reveal');
     const next = document.querySelector('#next');
     if (next) next.onclick = nextRound;
     return;
@@ -447,9 +450,9 @@ if (roomId !== null || roomSeal !== null) {
     failure('This invite is incomplete. Ask your friend to share the full link again.');
   } else {
     stage(`<span class="icon" aria-hidden="true">✦</span><p class="eyebrow">SEALED SUMMONS</p><h2>Your seat is waiting.</h2>
-      <p>A friend has called you to the Midnight Trial. Three rounds of timed trivia and secret pacts. The masked host opens the record at the end.</p>
-      <div class="card"><p class="muted consent">The trial is for points. Your choices are revealed after each round.</p></div>
-      <div class="row"><button class="primary" id="enter">Accept summons ↗</button>${homeButton}</div>`, true);
+      <p>Play three rounds with your friend. First, answer a timed question. Then secretly choose Trust or Betray.</p>
+      <p class="muted">The first question starts when you join. Your choices are revealed after each round.</p>
+      <div class="row"><button class="primary" id="enter">Join game ↗</button>${homeButton}</div>`, true);
     document.querySelector('#enter').onclick = () => join(roomId, roomSeal);
   }
 } else {
