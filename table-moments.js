@@ -43,7 +43,8 @@ export function tableIdentity(key) {
 }
 
 export function tableMoment(board) {
-  if(!board || board.result)return '';
+  if(!board)return '';
+  if(board.result)return board.result.reason;
   const last=board.last ?? {};
   switch(board.key){
     case 'chess': return board.check?'King under attack':'';

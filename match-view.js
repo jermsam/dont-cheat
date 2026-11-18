@@ -321,7 +321,7 @@ export function matchMarkup(board, wallet, players = []) {
   const classic = ['poker','ludo','mweso','snakes'].includes(board.key);
   const play = (board.key === 'poker' ? poker(board) : board.key === 'ludo' ? ludo(board) :
     board.key === 'snakes' ? snakes(board) : board.key === 'mweso' ? mweso(board) : board.pieces ? grid(board) : cardDiceMarkup(board));
-  return `<h2>${headline}</h2>${result ? `<p>${escape(result.reason)}. Scores update when all tables finish.</p>` : ''}
+  return `<h2>${headline}</h2>${result ? `<p>Scores update when all tables finish.</p>` : ''}
     <div class="match-clocks">${[board.side, ...board.seats.map((_,i)=>i).filter(i=>i!==board.side)].map(side => {
       const seat=board.seats[side];
       const mask=maskId(players[seat]?.mask);
