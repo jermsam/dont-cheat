@@ -53,3 +53,50 @@
 .secrets:empty{display:none}
 .debrief{margin:16px 0;padding:10px 12px;border:1px solid #755965;border-radius:6px;color:var(--dim);background:#201727}
 .debrief summary{cursor:pointer;color:var(--gold);font-weight:700}
+
+/* Mask wardrobe and gift effects */
+.mask-jump{display:inline-block;color:var(--gold);font-size:.83rem;font-weight:800;margin-top:14px}
+.mask-jump:hover{text-decoration:underline}
+#game-modes,#mask-picker{scroll-margin-top:18px}
+.wardrobe{margin:16px 0;padding:clamp(12px,3vw,24px);background:linear-gradient(130deg,#201725,#2a1a2b);border:1px solid var(--stroke);border-radius:10px}
+.wardrobe>summary{cursor:pointer;color:var(--ink);font-weight:800;font-size:clamp(1rem,3vw,1.38rem)}
+.wardrobe>summary span{font-size:.73rem;color:var(--gold);margin-left:7px}
+.wardrobe>p{color:var(--dim);font-size:.86rem;margin:.75rem 0}
+.mask-options{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin:14px 0}
+.board .mask-options{grid-template-columns:repeat(4,minmax(0,1fr))}
+button.mask-option{position:relative;display:grid;text-align:left;padding:0;overflow:hidden;isolation:isolate;min-width:0;border:1px solid #624854;background:#130c19}
+.mask-portrait{display:block;width:100%;aspect-ratio:1;object-fit:cover}
+.mask-option .mask-portrait{transition:transform .35s,filter .35s}
+.mask-option:is(:hover,[aria-pressed="true"]) .mask-portrait{transform:scale(1.09);filter:brightness(1.12)}
+.mask-option[aria-pressed="true"]{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold),0 0 14px #ffc77f40}
+.mask-option[aria-pressed="true"]::after{content:"✓";position:absolute;right:6px;top:6px;display:grid;place-items:center;width:23px;height:23px;border-radius:50%;background:var(--gold);color:#221320;font-size:.8rem}
+.mask-caption{position:absolute;inset:auto 0 0;padding:22px 7px 7px;display:grid;gap:2px;background:linear-gradient(0deg,#100b16 12%,#110b15dc 63%,transparent);line-height:1.12}
+.mask-caption strong{font-size:clamp(.68rem,1.5vw,.98rem)}
+.mask-caption small{font-size:clamp(.54rem,1.15vw,.73rem);color:#e4cfd7}
+.mask-description{border-left:2px solid var(--gold);padding:7px 11px;background:#170f1a;color:var(--dim);font-size:.83rem;line-height:1.35}
+.mask-description strong{color:var(--gold)}
+.mask-description p,.board .mask-description p{margin:3px 0 0}
+.mask-seats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 14px}
+.mask-seat{padding:6px;border:1px solid #755965;background:#1b1221;border-radius:7px}
+.mask-seat summary{display:flex;align-items:center;gap:7px;cursor:pointer;line-height:1.16}
+.mask-seat summary::-webkit-details-marker{display:none}
+.mask-seat summary span:last-child{display:grid;gap:3px}
+.mask-seat summary small{color:var(--dim);font-size:.65rem}
+.mask-seat summary strong{font-size:.76rem}
+.mask-seat .mask-portrait{width:36px;border-radius:5px;flex:0 0 36px}
+.mask-empty{display:grid;place-items:center;background:#39263b;color:var(--gold)}
+.board .mask-seat p{color:var(--dim);font-size:.76rem;margin:8px 2px 2px}
+.gift-reveal{position:relative;overflow:hidden;border:1px solid #a88153;background:#38261f;color:#ffe1b3;border-radius:7px;padding:2px 13px}
+.gift-reveal p{position:relative;margin:9px 0;font-size:.86rem}
+.gift-reveal::before{content:"";position:absolute;inset:0;background:linear-gradient(108deg,transparent 17%,#ffc77f55,transparent 80%);transform:translateX(-130%);animation:mask-glint 1s ease-out both}
+@keyframes mask-glint{to{transform:translateX(130%)}}
+.scene-reveal .pact-card,.scene-verdict .pact-card{animation:card-appear .38s ease-out both}
+.scene-reveal .pact-card:nth-child(2),.scene-verdict .pact-card:nth-child(2){animation-delay:.11s}
+@keyframes card-appear{from{opacity:.25;transform:perspective(450px) rotateY(-32deg) translateY(8px)}to{opacity:1;transform:perspective(450px) rotateY(0) translateY(0)}}
+.scene.under-pressure::after{animation:timer-glow 1.5s ease-in-out 3 alternate both}
+@keyframes timer-glow{from{opacity:.45}to{opacity:1}}
+@media(max-width:680px){
+  .mask-options,.board .mask-options{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  .mask-caption{padding:16px 5px 5px}
+  .mask-seat .mask-portrait{width:30px;flex-basis:30px}
+}

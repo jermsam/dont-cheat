@@ -30,6 +30,10 @@ After trivia, tell your opponent whether you got it right. You can bluff. Each p
 
 Other card combinations yield zero pact points. Round two doubles pact points. The final verdict opens all three records. All stakes are in-game points.
 
+## Masks
+
+Choose a mask in the lobby or on the invite screen. Each mask can award +2 points once per match. Tap an in-game mask portrait to see the gift and whether it has been used. When a gift scores, both players see it in the round record. Masks are optional in every mode.
+
 ## Team Heist
 
 Tap **Team up** to play on the same side. Both players earn 2 crew points for each correct answer. Then one player must **Distract** the host while the other chooses **Grab**. Picking different jobs earns 4 crew points, doubled in Round 2. Picking the same job or leaving a job unfilled earns zero loot points. Reach 16 crew points after three rounds to escape together.
