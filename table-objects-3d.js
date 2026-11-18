@@ -172,7 +172,7 @@ export function createTableObjects(holder) {
     renderer.setSize(w,h,false);
     render();
   }
-  function update({cards,dice,ludoTiles,ludoTokens,pits,race,stock,backs,rollCount},serial) {
+  function update({cards,dice,ludoTiles,ludoTokens,pits,race,stock,stockEmpty,backs,rollCount},serial) {
     animation?.stop();
     objects.clear();
     wideTable=cards.length>0||dice.length>0;
@@ -244,7 +244,7 @@ export function createTableObjects(holder) {
       });
     }
     previousCards=currentCards;
-    if (cards.length || stock) {
+    if (!stockEmpty && (cards.length || stock)) {
       for(let i=0;i<5;i++){
         const deck=cardModel('back',stock);
         if(stock) deck.userData.button=stock;

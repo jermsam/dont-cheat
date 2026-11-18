@@ -1,8 +1,8 @@
 import { masks, maskId } from './masks.js?v=2';
 import { jumps, squarePosition } from './snakes.js';
-import { diceCategories } from './card-dice-rules.js?v=4';
-import { pokerRanks, rankHand } from './match-rules.js?v=7';
-import { mountTableObjects } from './table-objects.js?v=7';
+import { diceCategories } from './card-dice-rules.js?v=5';
+import { pokerRanks, rankHand } from './match-rules.js?v=8';
+import { mountTableObjects } from './table-objects.js?v=8';
 import { mountLiveBoard } from './live-board.js';
 
 const glyph = {p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', m:'●'};
@@ -214,8 +214,8 @@ function cardDiceMarkup(board) {
     content = `${draft ? '<p>Draft five cards from the shared pool. Best poker hand wins.</p>' :
       `<p>Rival has ${Number(board.count)} cards · Match ${suits[board.called]}${board.penalty ? ` · Draw penalty ${Number(board.penalty)}` : ''}</p>
       ${Number.isInteger(board.openingSuit) ? `<p class="muted">Cut card · 7${'♣♦♥♠'[board.openingSuit]}</p>` : ''}
-      ${canDraw ? `<div class="stock-action"><button type="button" class="primary" data-stock data-take>Draw ${board.penalty ? Number(board.penalty) : 1}</button>
-        <p>${board.penalty ? (legal.some(move=>move.card!==undefined)?'Take the penalty cards and pass, or stack a 2.':'Take the penalty cards and pass.') : 'Draw from the pile. You pass if the card cannot play.'}</p></div>` : ''}
+      ${canDraw ? `<div class="stock-action"><button type="button" class="primary" ${board.stockEmpty ? '' : 'data-stock'} data-take>${board.stockEmpty ? 'Pass · stock empty' : `Draw ${board.penalty || 1}`}</button>
+        <p>${board.stockEmpty ? 'There are no cards left to draw.' : board.penalty ? (legal.some(move=>move.card!==undefined)?'Take the penalty cards and pass, or stack a 2.':'Take the penalty cards and pass.') : 'Draw from the pile. You pass if the card cannot play.'}</p></div>` : ''}
       ${lineOfCards([board.top])}`}
       <p class="table-caption">${draft ? 'Available cards' : 'Your hand'}</p><div class="shown-cards" data-card-zone="${draft ? 'table' : 'hand'}">
         ${(draft ? board.display : hand).map(card=>legal.some(move=>move.card===card) ? pickCard(card) : handCards([card])).join('')}</div>

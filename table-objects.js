@@ -22,6 +22,7 @@ export function mountTableObjects(app, board) {
   if (privateCards.length) button.after(cover);
   const describe = () => ({
     stock,
+    stockEmpty:board.key==='matatu'&&board.stockEmpty,
     rollCount:board.rollCount,
     backs: board.key === 'holdem' || board.key === 'poker' ? (board.shown || board.showdown ? 0 : board.hand?.length ?? 0) :
       Number.isInteger(board.count) ? board.count : board.counts?.length === 4 ?
@@ -75,7 +76,7 @@ export function mountTableObjects(app, board) {
     if (open) {
       const model=describe();
       const canPlay=model.cards.some(card=>card.button);
-      hint.textContent=stock?'Tap the face-down pile to draw.':'Tap a card with a gold corner to select it.';
+      hint.textContent=stock?'Tap the face-down pile to draw.':'Tap a card with a gold corner.';
       hint.hidden=!stock&&!canPlay;
       holder.dataset.hand=String(model.cards.some(card=>card.zone==='hand'));
       holder.dataset.stock=String(Boolean(stock));
@@ -87,7 +88,7 @@ export function mountTableObjects(app, board) {
   async function start() {
     button.disabled=true;
     try {
-      const {createTableObjects}=await import('./table-objects-3d.js?v=7');
+      const {createTableObjects}=await import('./table-objects-3d.js?v=8');
       if (!holder.isConnected) return;
       view=createTableObjects(holder);
       views.set(holder,view);

@@ -3,10 +3,10 @@ import { getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { masks, maskId } from './masks.js?v=2';
 
-import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=7';
-import { bestHoldem } from './card-dice-rules.js?v=4';
-import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=7';
-import { matchMarkup, mountMatch } from './match-view.js?v=10';
+import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=8';
+import { bestHoldem } from './card-dice-rules.js?v=5';
+import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=8';
+import { matchMarkup, mountMatch } from './match-view.js?v=11';
 
 const limit = 6;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
@@ -248,11 +248,16 @@ export function hostTournament(env) {
     }
     if (phase === 'match' && intent.round === round && ['match-move', 'match-resign', 'match-time'].includes(type)) {
       const match = matches.find(item => item.seats.includes(seat));
-      if (!match) return;
-      if (type === 'match-resign' && intent.serial === match.snapshot(seat).serial) match.resign(seat);
-      else if (type === 'match-move') match.move(seat, intent);
-      else if (type === 'match-time' && wallet.get(seat).time &&
-          match.addTime(seat,intent.serial)) wallet.get(seat).time--;
+      if (!match || match.done) return;
+      if (type === 'match-resign') {
+        if (intent.serial !== match.snapshot(seat).serial) return;
+        match.resign(seat);
+      } else if (type === 'match-move') {
+        if (!match.move(seat,intent)) return;
+      } else {
+        if (!wallet.get(seat).time || !match.addTime(seat,intent.serial)) return;
+        wallet.get(seat).time--;
+      }
       updateMatches();
       return;
     }
