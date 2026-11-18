@@ -6,7 +6,7 @@ A two-seat browser game about trivia, trust, and betrayal. Play privately with a
 
 ## Invite a friend
 
-1. Tap **Set up your game**. Choose **Tournament**, **Duel a friend**, **Team up**, or **Play solo**. Continue to the optional mask and destination steps, then launch. Use **Back** to change either choice.
+1. Tap **Set up your game**. Choose **Tournament**, **Duel a friend**, **Team up**, or **Play solo**. Tournament has a dedicated game selection step. Continue to the optional mask and destination steps, then launch. Use **Back** to change either choice.
 2. Tap **Share to WhatsApp** and pick WhatsApp in your device's share sheet. You can also copy the link into a chat.
 3. Return to the open host tab. Your friend taps the WhatsApp card or link, then taps **Continue**. They can pick a mask or go straight to **Join game**. If WhatsApp opens the card without the private seal, your friend will see a six-digit code. Check that it matches the code on the host screen and tap **Let them in**. The trial then starts for both players.
 
@@ -79,3 +79,9 @@ Setup and in-game artifacts use a locally hosted Three.js r169 build. Motion 14.
 ## Music credits
 
 Victory music is [“The Curtain Rises” by Kevin MacLeod](https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1500011), licensed under [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/). The track is used unedited.
+
+## Brain games and round recaps
+
+Open **Play brain games** to try three solo puzzles from Chess Jump, Draughts Capture, Poker Read, Mweso Seed Relay, Ludo Finish, Card Draft, Signal Code, or Dare or Draw. Tournament also offers Majority Verdict, which needs a group. These are short challenges based on those games. Chess and draughts offer an optional rotatable 3D board.
+
+After each round, the recap counts down to the next round. The host can start immediately or use **Keep reading** to pause. Tap **Sound off** to turn sound on and hear a short fanfare preview. The choice is remembered for that browser when storage is available.

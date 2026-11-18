@@ -15,8 +15,8 @@
 <meta property="og:image:alt" content="Don't Cheat: The Midnight Trial">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="icon.png">
-<link rel="stylesheet" href="style.css?v=11">
-<script type="module" src="game.js?v=15"></script>
+<link rel="stylesheet" href="style.css?v=12">
+<script type="module" src="game.js?v=16"></script>
 </head>
 <body>
 <header class="mast"><a class="brand" href="./"><span class="sigil">✦</span> DON'T CHEAT</a><button id="sound" class="quiet" type="button" aria-pressed="false">Sound off</button></header>
@@ -25,6 +25,7 @@
 <div class="hero-content"><span class="eyebrow">THE MIDNIGHT TRIAL</span><h1>DON'T<br>CHEAT<span>.</span></h1>
 <p>Give the right answer.<br>Trust the right person.</p>
 <a class="hero-start" href="#game-modes">Set up your game →</a>
+<a class="hero-arcade" href="#brain-games">Play brain games →</a>
 </div></section>
 <section class="lobby-setup" id="game-modes" aria-label="Set up your game" hidden>
   <div class="setup-visual" aria-hidden="true"></div>
@@ -41,10 +42,9 @@
         <strong>Team up</strong><small>2 players · beat the host together</small></button>
       <button type="button" data-mode="solo" id="solo" aria-pressed="false" aria-label="Play solo">
         <strong>Play solo</strong><small>1 player · face an arena rival</small></button>
+      <button type="button" data-mode="arcade" id="arcade" aria-pressed="false">
+        <strong>Brain games</strong><small>1 player · chess, poker, mweso and more</small></button>
     </div>
-    <details class="setup-playlist" id="setup-playlist">
-      <summary>Change the tournament playlist</summary><div class="table-menu"></div>
-    </details>
   </section>
   <section class="setup-section" aria-labelledby="mask-heading" hidden>
     <h2 id="mask-heading" tabindex="-1"> Choose a mask <small>Optional</small></h2>
@@ -55,6 +55,11 @@
     <p>Choose one stop. The other two are a surprise.</p>
     <select id="destination" aria-label="Destination"><option value="">Surprise me</option></select>
     <figure id="destination-preview" hidden><img alt=""><figcaption></figcaption></figure>
+  </section>
+  <section class="setup-section" aria-labelledby="games-heading" hidden>
+    <h2 id="games-heading" tabindex="-1">Pick your games</h2>
+    <p id="games-description"></p>
+    <div class="game-library" id="game-library" role="group" aria-label="Games"></div>
   </section>
   <div class="setup-launch">
     <p id="setup-next" hidden>You’ll get one invite to share with everyone.</p>

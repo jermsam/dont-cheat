@@ -57,3 +57,19 @@ export function roundPages(entries) {
       <button type="button" class="quiet" data-record-next>Next</button>
     </nav>` : '');
 }
+
+export const recapDelay = 20_000;
+
+export function roundAdvance(round, host, paused = false) {
+  const label = paused ? 'Round recap is paused.' :
+    `Round ${round} starts in <span class="clock" data-recap-clock>20s</span>.`;
+  return `<div class="round-advance"><p>${label}</p>${host ? `<div class="row">
+    <button type="button" class="primary" id="next">Start Round ${round} ↗</button>
+    ${paused ? '' : '<button type="button" class="quiet" id="hold-round">Keep reading</button>'}
+  </div>` : ''}</div>`;
+}
+
+export function tickRecap(app, end) {
+  const clock = app.querySelector('[data-recap-clock]');
+  if (clock) clock.textContent = `${Math.ceil(Math.max(0, end - performance.now()) / 1000)}s`;
+}

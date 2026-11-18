@@ -1,5 +1,5 @@
-import { sideScreen, roundPages } from './screens.js';
-import { buildChallenges, challenges, getPuzzle, majorityVerdict } from './challenges.js';
+import { sideScreen, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
+import { buildChallenges, getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { masks, maskId } from './masks.js?v=2';
 
@@ -7,12 +7,6 @@ const limit = 6;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
 const statuses = ['Ready', 'Thinking', 'I trust you', 'Well played'];
 const phases = ['draft', 'clue', 'final', 'pact'];
-
-export function tournamentMenu() {
-  return `<label class="eyebrow" for="table-playlist">Challenge playlist</label>
-    <select id="table-playlist"><option value="mixed">Surprise me</option>
-    ${Object.entries(challenges).map(([id, game]) => `<option value="${id}">${game.title}</option>`).join('')}</select>`;
-}
 
 export function hostTournament(env) {
   const players = [{ mask: maskId(env.mask), moves: {}, score: 0, online: true, status: '' }];
@@ -27,7 +21,7 @@ export function hostTournament(env) {
   function state(seat) {
     const exposeClues = ['final', 'pact'].includes(phase);
     return {
-      kind: 'table', phase, round, seat, endsIn: Math.max(0, deadline - Date.now()),
+      kind: 'table', phase, round, seat, recapPaused: phase === 'reveal' && !deadline, endsIn: Math.max(0, deadline - Date.now()),
       challenge: lineup[round], location: route[round], records: [...records],
       players: players.map(({ mask, score, online, status, moves }) => ({
         mask, score, online, status,
@@ -60,6 +54,10 @@ export function hostTournament(env) {
     phase = next;
     deadline = times[phase] ? Date.now() + times[phase] : 0;
     if (deadline) timer = setTimeout(advance, times[phase]);
+    else if (phase === 'reveal') {
+      deadline = Date.now() + recapDelay;
+      timer = setTimeout(nextRound, recapDelay);
+    }
     publish();
   }
   function advance() {
@@ -95,6 +93,12 @@ export function hostTournament(env) {
     } : null });
     enter(round === lineup.length - 1 ? 'verdict' : 'reveal');
   }
+  function nextRound() {
+    if (phase !== 'reveal') return;
+    round++;
+    players.forEach(player => { player.moves = {}; });
+    enter('draft');
+  }
   function handle(seat, intent) {
     const player = players[seat];
     if (!intent || !player.online) return;
@@ -115,11 +119,17 @@ export function hostTournament(env) {
       enter('draft');
       return;
     }
-    if (seat === 0 && type === 'next' && phase === 'reveal') {
-      round++;
-      players.forEach(p => { p.moves = {}; });
-      enter('draft');
-      return;
+    if (seat === 0 && phase === 'reveal') {
+      if (type === 'next') {
+        nextRound();
+        return;
+      }
+      if (type === 'hold') {
+        clearTimeout(timer);
+        deadline = 0;
+        publish();
+        return;
+      }
     }
     if (type !== 'move' || intent.phase !== phase || intent.round !== round ||
         !phases.includes(phase) || player.moves[phase] || Date.now() >= deadline) return;
@@ -324,7 +334,7 @@ function makeView(env, send) {
         ${phase === 'verdict' ? `<p>${winners.length === 1 ? 'Winner' : 'Joint winners'} <strong>${winners.map(esc).join(' / ')}</strong> · ${best} pts</p>` : ''}
         <p>Your score <strong>${players[seat].score} pts</strong></p>${won ? env.victoryControls() : ''}
         ${phase === 'verdict' ? `<div class="row">${button('Share result', 'share-result', 'class="primary"')}${back}</div>` :
-          host ? button(`Start Round ${round + 2}`, 'next', 'class="primary"') : '<p class="waiting">Waiting for the next round.</p>'}
+          roundAdvance(round + 2, host, state.recapPaused)}
         <div class="screen-links">
           ${sideScreen('table-scores', 'Scoreboard', roster(state))}
           ${sideScreen('table-results', 'Round history', receipt(state) +
@@ -375,6 +385,12 @@ function makeView(env, send) {
     const art = phases.includes(phase) && place ? `--place-art:url(places/${place.art}.jpg)` : '';
     env.stage(content, false, `scene focused-turn tournament${won ? ' victory' : ''}${art ? ' with-place' : ''}`, art, `table:${round}:${phase}`);
     const app = document.querySelector('#app');
+    app.querySelector('#next')?.addEventListener('click', () => send({type: 'next'}));
+    app.querySelector('#hold-round')?.addEventListener('click', () => send({type: 'hold'}));
+    if (phase === 'reveal') {
+      tickRecap(app, ends);
+      ticker = setInterval(() => tickRecap(app, ends), 200);
+    }
     clock = app.querySelector('#table-clock');
     if (clock) {
       const tick = () => {

@@ -1,8 +1,11 @@
 import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { drawRelic, stageDepth } from './relic.js';
-import { arrive, sideScreen, mountSideScreens, roundPages } from './screens.js';
-import { hostTournament, joinTournament, tournamentMenu } from './tournament.js?v=3';
+import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
+import { hostTournament, joinTournament } from './tournament.js?v=4';
+
+import { buildChallenges, getPuzzle, challenges } from './challenges.js';
+import { mountPuzzleBoard } from './puzzle-board.js';
 
 const app = document.querySelector('#app');
 const notice = document.querySelector('#notice');
@@ -108,66 +111,113 @@ function playCue(name) {
 
 const soundButton = document.querySelector('#sound');
 let fanfare;
+let fanfareBuffer;
 let fanfareRequest = 0;
+let fanfareControl;
+let previewTimer;
+const soundKey = 'dont-cheat-sound';
 
 async function prepareAudio() {
   if (!audio) {
     audio = new AudioContext();
     audioOut = audio.createGain();
     audioOut.connect(audio.destination);
+    audioOut.gain.value = enabled ? 1 : 0;
   }
   return audio.resume();
 }
 
+function loadFanfare() {
+  fanfareBuffer ??= fetch('music/the-curtain-rises.mp3').then(response => {
+    if (!response.ok) throw new Error('Fanfare unavailable');
+    return response.arrayBuffer();
+  }).then(buffer => audio.decodeAudioData(buffer)).catch(error => {
+    fanfareBuffer = null;
+    throw error;
+  });
+  return fanfareBuffer;
+}
+
 function updateFanfareButton() {
   const control = app.querySelector('#victory-music');
-  if (control) control.textContent = fanfare && !fanfare.paused && !fanfare.ended ? 'Stop fanfare' : 'Play fanfare';
+  if (control) control.textContent = fanfare ? 'Stop fanfare' : 'Play fanfare';
+}
+
+function stopFanfare() {
+  fanfareRequest++;
+  clearTimeout(previewTimer);
+  fanfare?.stop();
+  fanfare = null;
+  fanfareControl = null;
+  updateFanfareButton();
 }
 
 function setSound(value) {
   enabled = value;
+  try { localStorage.setItem(soundKey, value ? 'on' : 'off'); } catch {}
   if (audioOut) audioOut.gain.setTargetAtTime(enabled ? 1 : 0, audio.currentTime, .02);
   soundButton.textContent = enabled ? 'Sound on' : 'Sound off';
   soundButton.setAttribute('aria-pressed', enabled);
-  if (!enabled && fanfare) {
-    fanfareRequest++;
-    fanfare.pause();
-    updateFanfareButton();
-  }
+  if (!enabled) stopFanfare();
 }
 
-async function playFanfare() {
-  if (!fanfare) {
-    fanfare = new Audio('music/the-curtain-rises.mp3');
-    fanfare.volume = .68;
-    for (const event of ['play', 'pause', 'ended']) fanfare.addEventListener(event, updateFanfareButton);
-  }
-  const request = ++fanfareRequest;
-  fanfare.currentTime = 0;
+async function playFanfare(preview = false) {
+  stopFanfare();
+  const request = fanfareRequest;
+  fanfareControl = preview ? 'preview' : 'victory';
   try {
-    await fanfare.play();
-  } catch (error) {
+    const resuming = prepareAudio().catch(() => false);
+    const buffer = await loadFanfare();
+    if (request !== fanfareRequest || !enabled) return;
+    // A fresh in-app browser may require a tap before it resumes the sound context.
+    if (audio.state !== 'running') {
+      if (!preview) say('Tap Play fanfare to hear your victory music.');
+      return;
+    }
+    await resuming;
     if (request !== fanfareRequest) return;
+    const source = audio.createBufferSource();
+    const gain = audio.createGain();
+    gain.gain.value = .65;
+    source.buffer = buffer;
+    source.connect(gain).connect(audioOut);
+    source.onended = () => {
+      source.disconnect();
+      gain.disconnect();
+      if (fanfare !== source) return;
+      fanfare = null;
+      fanfareControl = null;
+      updateFanfareButton();
+    };
+    fanfare = source;
+    source.start();
     updateFanfareButton();
-    if (error.name !== 'NotAllowedError') say('The victory fanfare could not play.');
+    if (preview) previewTimer = setTimeout(stopFanfare, 3_800);
+  } catch {
+    if (request === fanfareRequest) say('The fanfare could not load. Tap to try again.');
   }
 }
 
-soundButton.onclick = async () => {
+try {
+  enabled = localStorage.getItem(soundKey) === 'on';
+  if (enabled) {
+    soundButton.textContent = 'Sound on';
+    soundButton.setAttribute('aria-pressed', 'true');
+  }
+} catch {}
+
+document.addEventListener('click', event => {
+  if (!enabled || event.target.closest('#sound, #victory-music') || audio?.state === 'running') return;
+  void prepareAudio().then(loadFanfare).catch(() => {});
+}, {capture: true});
+
+soundButton.onclick = () => {
   if (enabled) {
     setSound(false);
     return;
   }
-  try {
-    const resuming = prepareAudio();
-    setSound(true);
-    const victoryScreen = app.querySelector('#victory-music');
-    if (victoryScreen) void playFanfare();
-    await resuming;
-    if (!victoryScreen) chime();
-  } catch {
-    say('Audio is unavailable in this browser.');
-  }
+  setSound(true);
+  void playFanfare(!app.querySelector('#victory-music'));
 };
 
 function victoryControls() {
@@ -179,12 +229,10 @@ function celebrate(stageElement, fresh) {
   const control = stageElement.querySelector('#victory-music');
   if (!control) return;
   control.onclick = () => {
-    if (fanfare && !fanfare.paused && !fanfare.ended) {
-      fanfareRequest++;
-      fanfare.pause();
-    } else {
-      void prepareAudio().catch(() => {});
+    if (fanfare) stopFanfare();
+    else {
       setSound(true);
+      say('');
       void playFanfare();
     }
   };
@@ -221,6 +269,8 @@ function stage(content, summons = false, scene = '', placeArt = '', screen = nul
   stopRelic = undefined;
   app.innerHTML = `<section class="stage ${summons ? 'summons' : ''} ${scene}"${placeArt ? ` style="${placeArt}"` : ''}><div class="board">${content}</div></section>`;
   mountSideScreens(app, restore);
+  if (fanfareControl === 'preview') stopFanfare();
+  mountPuzzleBoard(app);
   celebrate(app.firstElementChild, !sameScreen);
   if (!sameScreen) {
     arrive(app.querySelector('.board'));
@@ -683,7 +733,11 @@ function reveal() {
     game.bank.note = 'Each player earned 2 coins at the end of the round.';
     game.bank.coins = game.bank.coins.map(coins => coins + 2);
   }
-  game.phase = round === 2 ? 'verdict' : 'reveal';
+  game.phase = round === game.questions.length - 1 ? 'verdict' : 'reveal';
+  game.ends = game.phase === 'reveal' ? Date.now() + recapDelay : 0;
+  if (game.ends) hostTimer = setTimeout(() => {
+    if (game.phase === 'reveal' && game.ends) nextRound();
+  }, recapDelay);
   sync();
 }
 let sendQueue = Promise.resolve();
@@ -696,6 +750,7 @@ function sync() {
     route: game.route.map(scenario => scenario.id), clues: game.clues,
     prompt: question.prompt, options: question.options,
     bank: game.bank && structuredClone(game.bank), extensions: game.extensions,
+    recapPaused: game.phase === 'reveal' && !game.ends,
     duration: game.duration, endsIn: Math.max(0, game.ends - Date.now()),
   };
   const choices = phaseChoices();
@@ -819,8 +874,10 @@ function mountLobby() {
   mountRoutePicker();
   const updateMask = mountMaskPicker('tournament');
   const modes = [...document.querySelectorAll('[data-mode]')];
-  const playlist = document.querySelector('#setup-playlist');
-  playlist.querySelector('.table-menu').innerHTML = tournamentMenu();
+  const library = document.querySelector('#game-library');
+  library.innerHTML = [['mixed', 'Mixed games'], ...Object.entries(challenges).map(([id, item]) => [id, item.title])]
+    .map(([id, title]) => `<button type="button" data-game="${id}" aria-pressed="${id === 'mixed'}">${title}</button>`).join('');
+  const gamesDescription = document.querySelector('#games-description');
   const launch = document.querySelector('#setup-start');
   const next = document.querySelector('#setup-next');
   const descriptions = {
@@ -828,6 +885,7 @@ function mountLobby() {
     duel: ['Open duel room ↗', 'You’ll get an invite for one opponent.'],
     crew: ['Open team room ↗', 'Play together across three rounds. Use the time bank when you need longer to think.'],
     solo: ['Start solo game ↗', 'Your first round starts after a short briefing.'],
+    arcade: ['Play three rounds ↗', 'Take your time. Get at least two right to win.'],
   };
   const lobby = document.querySelector('#game-modes');
   const hero = document.querySelector('.hero');
@@ -839,34 +897,47 @@ function mountLobby() {
   const visual = lobby.querySelector('.setup-visual');
   let selected = 'tournament';
   let step = 0;
+  let playlist = 'mixed';
+  const flow = () => selected === 'tournament' ? [0, 3, 1, 2] : selected === 'arcade' ? [0, 3] : [0, 1, 2];
+  const gameButtons = [...library.querySelectorAll('[data-game]')];
+  gameButtons.forEach(button => {
+    button.onclick = () => {
+      playlist = button.dataset.game;
+      gameButtons.forEach(item => item.setAttribute('aria-pressed', item === button));
+      showScene();
+    };
+  });
   let scene;
   let sceneLoading = false;
 
   function showScene() {
     const place = routes.flat().find(location => location.id === chosenDestination);
-    visual.style.setProperty('--setup-art', step === 2 && place?.art ? `url(places/${place.art}.jpg)` : '');
-    visual.dataset.step = step;
-    scene?.update(step, selected, chosenMask, place?.id);
+    const panel = flow()[step];
+    visual.style.setProperty('--setup-art', panel === 2 && place?.art ? `url(places/${place.art}.jpg)` : '');
+    visual.dataset.step = panel;
+    scene?.update(panel === 3 ? 0 : panel, selected === 'arcade' ? 'solo' : selected, chosenMask, place?.id);
   }
 
   function showStep(index) {
     const reverse = index < step;
     step = index;
-    panels.forEach((panel, i) => { panel.hidden = i !== step; });
-    progress.textContent = `Step ${step + 1} of ${panels.length}`;
-    launch.hidden = next.hidden = step !== panels.length - 1;
+    const sequence = flow();
+    const active = sequence[step];
+    panels.forEach((panel, i) => { panel.hidden = i !== active; });
+    progress.textContent = `Step ${step + 1} of ${sequence.length}`;
+    launch.hidden = next.hidden = step !== sequence.length - 1;
     forward.hidden = !launch.hidden;
-    forward.textContent = step === 1 ? (chosenMask ? 'Continue →' : 'Continue without a mask →') : 'Continue →';
-    arrive(panels[step], reverse);
-    panels[step].querySelector('h2').focus({ preventScroll: true });
+    forward.textContent = active === 1 ? (chosenMask ? 'Continue →' : 'Continue without a mask →') : 'Continue →';
+    arrive(panels[active], reverse);
+    panels[active].querySelector('h2').focus({ preventScroll: true });
     window.scrollTo(0, 0);
     showScene();
   }
 
-  function enter() {
+  function enter(at = 0) {
     hero.hidden = true;
     lobby.hidden = false;
-    showStep(0);
+    showStep(at);
     if (sceneLoading) return;
     sceneLoading = true;
     import('./setup-scene.js?v=2').then(({ mountSetupScene }) => {
@@ -879,7 +950,11 @@ function mountLobby() {
     event.preventDefault();
     enter();
   };
-  if (location.hash === '#game-modes') enter();
+  hero.querySelector('.hero-arcade').onclick = event => {
+    event.preventDefault();
+    document.querySelector('#arcade').click();
+    enter(1);
+  };
   back.onclick = () => {
     if (step > 0) showStep(step - 1);
     else {
@@ -899,17 +974,86 @@ function mountLobby() {
     button.onclick = () => {
       selected = button.dataset.mode;
       modes.forEach(item => item.setAttribute('aria-pressed', item === button));
-      playlist.hidden = selected !== 'tournament';
+      const casual = selected === 'arcade';
+      gamesDescription.textContent = casual ? 'Pick a game for three solo puzzles, or mix three different games.' :
+        'Choose three rounds from one game, or mix different games with a group vote.';
+      const verdict = library.querySelector('[data-game="verdict"]');
+      verdict.hidden = casual;
+      if (casual && playlist === 'verdict') gameButtons[0].click();
       [launch.textContent, next.textContent] = descriptions[selected];
       updateMask(selected);
       showScene();
     };
   });
+  modes[0].click();
+  if (location.hash === '#game-modes') enter();
+  if (location.hash === '#brain-games') hero.querySelector('.hero-arcade').click();
   launch.disabled = false;
   launch.onclick = () => {
-    if (selected === 'solo') start(true);
-    else host(selected === 'crew', selected === 'tournament' ? document.querySelector('#table-playlist').value : null);
+    if (selected === 'arcade') startArcade(playlist);
+    else if (selected === 'solo') start(true);
+    else host(selected === 'crew', selected === 'tournament' ? playlist : null);
   };
+}
+
+function startArcade(playlist) {
+  const mixed = playlist === 'mixed';
+  const lineup = mixed ? shuffled(Object.keys(challenges).filter(key => key !== 'verdict')).slice(0, 3)
+    .map(key => buildChallenges(key, shuffled)[0]) : buildChallenges(playlist, shuffled);
+  const results = [];
+  let round = 0;
+  let hits = 0;
+  let recapTimer;
+  let recapTicker;
+
+  function question() {
+    clearTimeout(recapTimer);
+    clearInterval(recapTicker);
+    const item = lineup[round];
+    const puzzle = getPuzzle(item.key, item.index, item.seed);
+    stage(`<span class="eyebrow">BRAIN GAMES · ROUND ${round + 1} OF ${lineup.length} · ${escape(item.title)}</span>
+      <h2>${escape(puzzle.prompt)}</h2>${puzzle.note ? `<p class="muted">${escape(puzzle.note)}</p>` : ''}${puzzle.board}
+      <div class="options">${item.options.map((option, i) => `<button type="button" data-answer="${i}">${escape(option)}</button>`).join('')}</div>
+      ${homeButton}`, false, 'scene focused-turn arcade', '', `arcade:${round}:pick`);
+    app.querySelectorAll('[data-answer]').forEach(button => {
+      button.onclick = () => {
+        const answer = item.options[Number(button.dataset.answer)];
+        const correct = answer === puzzle.right;
+        hits += Number(correct);
+        results.push(`<h4>${escape(item.title)}</h4><p>${escape(puzzle.prompt)}</p>
+          <p>You chose <strong>${escape(answer)}</strong>. Correct answer <strong>${escape(puzzle.right)}</strong>.</p>`);
+        revealArcade(correct, puzzle.right);
+      };
+    });
+  }
+
+  function revealArcade(correct, right, paused = false) {
+    const last = round === lineup.length - 1;
+    const won = last && hits >= 2;
+    const title = last ? won ? 'You won the brain games.' : 'Three rounds complete.' : correct ? 'You got it.' : 'That one got away.';
+    stage(`<span class="eyebrow">${won ? 'VICTORY' : `ROUND ${round + 1} · RESULT`}</span>
+      <div class="cinematic-title"><h2>${title}</h2>${relic}</div>
+      <p>${correct ? 'Correct' : 'Correct answer'} <strong>${escape(right)}</strong> · ${hits} of ${round + 1} right</p>
+      ${last ? `${won ? victoryControls() : ''}${sideScreen('arcade-results', 'Round history', roundPages(results))} ${homeButton}` :
+        roundAdvance(round + 2, true, paused)}`, false, `scene arcade${won ? ' victory' : ''}`, '', `arcade:${round}:result`);
+    if (last) return;
+    const nextRound = () => {
+      round++;
+      question();
+    };
+    app.querySelector('#next').onclick = nextRound;
+    if (paused) return;
+    const end = performance.now() + recapDelay;
+    recapTimer = setTimeout(nextRound, recapDelay);
+    recapTicker = setInterval(() => tickRecap(app, end), 200);
+    app.querySelector('#hold-round').onclick = () => {
+      clearTimeout(recapTimer);
+      clearInterval(recapTicker);
+      revealArcade(correct, right, true);
+    };
+  }
+
+  question();
 }
 
 function maskSeats(state) {
@@ -979,7 +1123,7 @@ function draw(state) {
   if (previous?.phase === state.phase && previous?.round === state.round && previous?.locked === state.locked &&
       previous.copied === state.copied && previous.peekAnswer === state.peekAnswer && previous.secret?.name === state.secret?.name &&
       JSON.stringify(previous.bank) === JSON.stringify(state.bank) &&
-      previous.extensions === state.extensions &&
+      previous.extensions === state.extensions && previous.recapPaused === state.recapPaused &&
       !app.querySelector('[data-choice][data-sending]')) return;
   const {
     phase, round, scores, records, prompt, options, locked,
@@ -1096,11 +1240,20 @@ function draw(state) {
       record.cards.every(card => card === 'Trust') ? 'The pact held.' :
       record.cards.every(card => card === 'Betray') ? 'Two masterminds. Zero pact points.' :
       record.cards.includes('Betray') ? 'Someone broke the pact.' : 'The pact went unanswered.';
-    const nextNumber = round + 2;
-    stage(`${score}<span class="eyebrow">ROUND ${round + 1} · UNSEALED</span><h2>${result}</h2><div class="pact-cards">${pactCards(record, state)}</div>${giftReveal(record)}${sideScreen('round-results', 'Round results', `<ul class="receipt"><li>${receipt(record)}</li></ul>${!state.solo ? debrief(round) : ''}`)}
-      ${seat === 0 ? `<button class="primary" id="next">Start Round ${nextNumber} ↗</button>${solo ? '' : `<p class="muted">${scenario ? 'Both players see the briefing before the clock starts.' : 'This starts the timer for both players.'}</p>`}` : `<p class="waiting">Waiting for the host to start Round ${nextNumber}.</p>`}`, false, `scene scene-reveal${locationTone}`, locationStyle);
+    stage(`${score}<span class="eyebrow">ROUND ${round + 1} · UNSEALED</span><h2>${result}</h2>
+      ${roundAdvance(round + 2, seat === 0, state.recapPaused)}
+      <div class="pact-cards">${pactCards(record, state)}</div>${giftReveal(record)}
+      ${sideScreen('round-results', 'Round results', `<ul class="receipt"><li>${receipt(record)}</li></ul>${!state.solo ? debrief(round) : ''}`)}`, false,
+      `scene scene-reveal${locationTone}`, locationStyle, `duo:recap:${round}`);
     const next = document.querySelector('#next');
     if (next) next.onclick = nextRound;
+    const hold = document.querySelector('#hold-round');
+    if (hold) hold.onclick = () => {
+      clearTimeout(hostTimer);
+      game.ends = 0;
+      sync();
+    };
+    tickRecap(app, clockEnd);
     return;
   }
   const [you, them] = [scores[seat], scores[1 - seat]];
@@ -1110,6 +1263,7 @@ function draw(state) {
   if (!won && previous?.phase !== 'verdict') playCue('verdict');
 }
 function tick() {
+  if (shown?.phase === 'reveal') tickRecap(app, clockEnd);
   const clock = document.querySelector('#clock');
   if (!clock) return;
   const remaining = Math.max(0, clockEnd - performance.now());
