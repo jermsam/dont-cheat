@@ -115,7 +115,7 @@ function poker() {
   };
 }
 
-const finish = 56;
+const finish = 57;
 export function ludo(roll = () => 1 + random(6), tokens = [range(4).map(() => -1), range(4).map(() => -1)]) {
   let active = 0, die = 0, streak = 0, lastRoll = 0, rollCount = 0;
   const trackSquare = (pos, side) => (pos + side * 26) % 52;
@@ -148,7 +148,7 @@ export function ludo(roll = () => 1 + random(6), tokens = [range(4).map(() => -1
   }
   return {
     turn: () => active,
-    view: () => ({tokens, die, lastRoll, rollCount}),
+    view: () => ({tokens, die, lastRoll, rollCount, finish}),
     legal,
     move(action) {
       if (action.roll) {

@@ -1,10 +1,10 @@
-import { icon } from './icons.js?v=2';
+import { icon } from './icons.js?v=3';
 
 const views = new WeakMap();
 let preferPhysicalTable = true;
 let handCovered = false;
 
-export function mountTableObjects(app, board) {
+export function mountTableObjects(app, board, changedMove) {
   const holder = app.querySelector('.table-objects');
   const button = app.querySelector('[data-table-objects]');
   if (!holder || !button) return;
@@ -40,7 +40,7 @@ export function mountTableObjects(app, board) {
     })),
     ludoTokens:[...app.querySelectorAll('[data-ludo-token]')].map(item=>{
       const [side,token]=item.dataset.ludoToken.split(',').map(Number);
-      return {side,level:Number(item.dataset.level),from:item.dataset.from.split(',').map(Number),to:item.dataset.to.split(',').map(Number),
+      return {side,crowning:item.dataset.crowning==='true',level:Number(item.dataset.level),from:item.dataset.from.split(',').map(Number),to:item.dataset.to.split(',').map(Number),
         button:app.querySelector(`[data-token="${token}"][data-token-side="${side}"]:enabled`)};
     }),
     pits:[...app.querySelectorAll('.live-pits button')].map(button=>({count:Number(button.textContent),button:button.disabled?null:button})),
@@ -110,6 +110,16 @@ export function mountTableObjects(app, board) {
     button.setAttribute('aria-label',label);
     button.setAttribute('aria-pressed',String(open));
     if (open) {
+      const crowned = changedMove && board.key==='ludo' && board.last?.to===(board.finish ?? 56);
+      if (crowned && holder.dataset.crownedSerial!==String(board.serial)) {
+        holder.dataset.crownedSerial=String(board.serial);
+        const burst=document.createElement('span');
+        burst.className='ludo-crown-burst';
+        burst.innerHTML=icon('crown');
+        burst.setAttribute('aria-hidden','true');
+        holder.append(burst);
+        setTimeout(()=>burst.remove(),950);
+      }
       const model=describe();
       const canPlay=model.cards.some(card=>card.button);
       hint.textContent=stock?'Tap the deck to draw.':'Gold corners show playable cards.';
@@ -124,7 +134,7 @@ export function mountTableObjects(app, board) {
   async function start() {
     button.disabled=true;
     try {
-      const {createTableObjects}=await import('./table-objects-3d.js?v=12');
+      const {createTableObjects}=await import('./table-objects-3d.js?v=13');
       if (!holder.isConnected) return;
       view=createTableObjects(holder);
       views.set(holder,view);

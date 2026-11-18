@@ -1,5 +1,5 @@
 import { buildChallenges } from './challenges.js';
-import { createMatch, matchTitles } from './match-rules.js?v=10';
+import { createMatch, matchTitles } from './match-rules.js?v=11';
 
 export const seasonLength = 9;
 const social = ['signal', 'dare'];
