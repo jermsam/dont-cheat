@@ -34,6 +34,11 @@ export function cleanDisplayName(value) {
   return Array.from(name).slice(0, 24).join('').trim();
 }
 
+function displayNameFor(character,value) {
+  const id=maskId(character);
+  return id ? cleanDisplayName(value) || masks[id].name : '';
+}
+
 const statuses = ['Ready', 'Thinking', 'I trust you', 'Well played'];
 const phases = ['draft', 'clue', 'final', 'pact'];
 const gifts = {'Gift coin':'coins','Gift time':'time'};
@@ -49,7 +54,7 @@ const tablePowers = [
 const signals = ['Let’s work together','I have a plan','You have the advantage'];
 
 export function hostTournament(env) {
-  const players = [{ mask: maskId(env.mask), displayName:cleanDisplayName(env.displayName), friends:true, moves: {}, score: 0, online: true, status: '' }];
+  const players = [{ mask: maskId(env.mask), displayName:displayNameFor(env.mask,env.displayName), friends:true, moves: {}, score: 0, online: true, status: '' }];
   const requests = new Map();
   const quickChat = [];
   let chatId = 0;
@@ -611,7 +616,7 @@ export function hostTournament(env) {
       if (phase !== 'lobby' || players.filter(p => p.online).length >= capacity()) throw Error('Room full');
       const vacant = players.findIndex(p => !p.online);
       const seat = vacant === -1 ? players.length : vacant;
-      player = { mask: maskId(hello.mask), displayName:cleanDisplayName(hello.displayName), quickChat:hello.quickChat===true, friends:hello.friends===true, moves: {}, score: 0, online: true, status: '', link, queue: Promise.resolve() };
+      player = { mask: maskId(hello.mask), displayName:displayNameFor(hello.mask,hello.displayName), quickChat:hello.quickChat===true, friends:hello.friends===true, moves: {}, score: 0, online: true, status: '', link, queue: Promise.resolve() };
       players[seat] = player;
       wallet.set(seat, {coins:5,time:1});
       if (id) requests.delete(id);
@@ -963,7 +968,7 @@ function makeView(env, send) {
     const changedMove = phaseIsNewMove(board,matchId,previousMatch);
     if (board) {
       if (changedMove && board.key==='ludo' && board.last?.to===(board.finish ?? 56)) env.cue('crown');
-      else if (changedMove && board.key==='chess' && board.result?.reason==='Checkmate') env.cue('checkmate');
+      else if (changedMove && board.key==='chess' && board.result?.reason==='Checkmate') env.cue('checkmate',state.players[board.seats[board.result.winner]]?.mask);
       else if (changedMove && board.result) env.cue(board.result.winner===null ? 'reveal' :
         (board.result.winners?.includes(board.side) ?? board.result.winner===board.side) ? 'crown' : 'pass');
       if (changedMove && board.toss?.serial === board.serial) env.cue('dice');
