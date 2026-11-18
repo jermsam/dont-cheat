@@ -36,6 +36,8 @@ Other card combinations yield zero pact points. Round two doubles pact points. T
 
 In the tournament lobby, the host can choose **Solo**, **2v2**, or **3v3**. In team formats, each player picks Gold or Violet and both sides must fill before the host can start. Head-to-head tables pair across teams. Each team's season score is the sum of its players' points.
 
+Tap a player's name in the lobby to offer a friendly game. They can accept or decline. After a friendly or an eligible head-to-head season table, **Rematch** offers the same game against the same player. Friendlies leave season points and balances unchanged.
+
 The live tables also support five-card draw, Matatu, Card Draft, Go Fish, Blackjack, Pig, Liar’s Dice, Ship, Captain, Crew, Farkle, Five Dice, Cee-Lo, Cheat, Craps, and Snakes and Ladders. Hold’em is heads-up fixed-limit with 1/2 blinds. Blackjack is a hit-or-stand comparison against the same dealer. Matatu uses its 52-card Classic rules. Liar’s Dice uses wild ones and ascending bids. Craps uses pass-line outcomes. Chips, coins and time tokens exist inside the game.
 
 After a round, a losing player gets first choice of the next table for one coin. The offer rotates among eligible players, and a free pass or an expired timer hands it off. If everyone passes, the suggested table stays. Other players can back a game for free, and a unanimous pick can reserve an encore when a later table is available. Each player gains two coins per event and one time token every third event. During an active table turn, a time token adds 30 seconds, once per table.

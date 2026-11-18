@@ -8,7 +8,7 @@ import { masks, maskId } from './masks.js?v=2';
 
 import { seasonLength, seasonLineup, seasonMatches } from './season.js?v=14';
 import { bestHoldem } from './card-dice-rules.js?v=7';
-import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=12';
+import { createMatch, matchTitles, rankHand, pokerRanks } from './match-rules.js?v=12';
 import { matchMarkup, mountMatch } from './match-view.js?v=20';
 
 const limit = 6;
@@ -24,6 +24,8 @@ const pickWindow = 30_000;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
 const quickLines = ['Hey!', 'Nice move!', 'Well played!', 'Good luck!', 'That was close!', 'Rematch?'];
 const chatLimit = 12;
+const friendGames = ['chess','draughts','matatu','mweso','ludo','snakes','gin','holdem','pig'];
+const friendPhases = ['lobby','reveal','verdict'];
 
 export function cleanDisplayName(value) {
   if (typeof value !== 'string') return '';
@@ -47,7 +49,7 @@ const tablePowers = [
 const signals = ['Let’s work together','I have a plan','You have the advantage'];
 
 export function hostTournament(env) {
-  const players = [{ mask: maskId(env.mask), displayName:cleanDisplayName(env.displayName), moves: {}, score: 0, online: true, status: '' }];
+  const players = [{ mask: maskId(env.mask), displayName:cleanDisplayName(env.displayName), friends:true, moves: {}, score: 0, online: true, status: '' }];
   const requests = new Map();
   const quickChat = [];
   let chatId = 0;
@@ -59,6 +61,9 @@ export function hostTournament(env) {
   if(openingStop>0)route.unshift(...route.splice(openingStop,1));
   let phase = 'lobby', round = 0, deadline = 0, timer, requestId = 0;
   let matches = [], teamSize=0;
+  let offer, offerId=0, offerTimer, friendly, friendlyTimer, pausedRecap;
+  const friendFeedback=new Map();
+  const lastRivals=new Map();
   const capacity = () => teamSize ? teamSize*2 : limit;
   const wallet = new Map();
   const powers = new Map();
@@ -106,6 +111,92 @@ export function hostTournament(env) {
   wallet.set(0, {coins:5,time:1});
   const view = makeView(env, intent => handle(0, intent));
 
+  function clearOffer(message) {
+    clearTimeout(offerTimer);
+    if (message && offer) friendFeedback.set(offer.from,message);
+    offer=undefined;
+  }
+
+  function endFriendly() {
+    clearTimeout(friendlyTimer);
+    clearOffer();
+    friendly=undefined;
+    if (phase==='reveal' && awaitingPick() && !players[tablePick.captain]?.online) {
+      pausedRecap=0;
+      passPick();
+      return;
+    }
+    if (pausedRecap) {
+      deadline=Date.now()+pausedRecap;
+      timer=setTimeout(awaitingPick()?passPick:nextRound,pausedRecap);
+    }
+    pausedRecap=0;
+    publish();
+  }
+
+  function updateFriendly() {
+    clearTimeout(friendlyTimer);
+    friendly.match.expire();
+    friendlyTimer=friendly.match.done ? setTimeout(endFriendly,30_000) :
+      setTimeout(updateFriendly,Math.max(1,friendly.match.deadline()-Date.now()));
+    publish();
+  }
+
+  function friendIntent(seat,intent) {
+    if (!friendPhases.includes(phase)) return;
+    const player=players[seat];
+    switch(intent.type) {
+      case 'friend-offer': {
+        const {target,key}=intent;
+        if (offer || !friendGames.includes(key) || !Number.isInteger(target) || target===seat ||
+          !players[target]?.online || !players[target].friends || !player.friends ||
+          friendly && (!friendly.match.done || !friendly.match.seats.includes(seat) ||
+            !friendly.match.seats.includes(target) || key!==friendly.key)) return;
+        const now=Date.now();
+        if (now-(player.lastOffer ?? 0)<2000) return;
+        player.lastOffer=now;
+        friendFeedback.delete(seat);
+        offer={id:++offerId,from:seat,target,key};
+        offerTimer=setTimeout(()=>{clearOffer('Challenge expired.');publish();},30_000);
+        if (friendly) {
+          clearTimeout(friendlyTimer);
+          friendlyTimer=setTimeout(endFriendly,35_000);
+        }
+        break;
+      }
+      case 'friend-answer': {
+        if (offer?.id!==intent.id || offer.target!==seat || !players[offer.from]?.online) return;
+        if (intent.accept!==true) {
+          clearOffer('Challenge declined.');
+          break;
+        }
+        const {id,key,from}=offer;
+        const previous=friendly?.match.seats ?? lastRivals.get(from)?.seats;
+        const seats=previous?.includes(from) && previous.includes(seat) ? [...previous].reverse() : [from,seat];
+        if (!friendly && phase==='reveal') {
+          pausedRecap=deadline?Math.max(1,deadline-Date.now()):0;
+          clearTimeout(timer);
+          deadline=0;
+        }
+        clearOffer();
+        friendly={id,key,match:createMatch(key,seats)};
+        updateFriendly();
+        return;
+      }
+      case 'friend-cancel':
+        if (offer?.from!==seat || offer.id!==intent.id) return;
+        clearOffer();
+        break;
+      case 'friend-back':
+        if (!friendly?.match.done || friendly.id!==intent.id || !friendly.match.seats.includes(seat)) return;
+        endFriendly();
+        return;
+      default:
+        return;
+    }
+    publish();
+  }
+
   function state(seat) {
     const exposeClues = ['final', 'pact'].includes(phase);
     return {
@@ -120,8 +211,15 @@ export function hostTournament(env) {
       lead:phase==='match'?lead:undefined,
       powers:phase==='match'?[...powers.values()].filter(power=>power.seat===seat||power.target===seat):undefined,
       quickChat:[...quickChat],
-      players: players.map(({ mask, displayName, score, online, status, moves, team }) => ({
-        mask, displayName, score, online, status, team,
+      friendOfferBusy:Boolean(offer),
+      friendOffer:offer && (offer.from===seat || offer.target===seat) ? offer : undefined,
+      friendFeedback:friendFeedback.get(seat),
+      friendly:friendly?.match.seats.includes(seat)?{id:friendly.id,key:friendly.key,board:friendly.match.snapshot(seat)}:undefined,
+      friendlyBusy:Boolean(friendly),
+      rematch:lastRivals.get(seat)?.offer,
+
+      players: players.map(({ mask, displayName, score, online, status, moves, team, friends }) => ({
+        mask, displayName, score, online, status, team, friends,
         clue: exposeClues ? moves.clue?.option : undefined,
       })),
       own: players[seat].moves.draft?.option,
@@ -145,7 +243,14 @@ export function hostTournament(env) {
   function disconnect(player) {
     if (!player.online) return;
     player.online = false;
-    if (phase==='reveal' && awaitingPick() && tablePick.captain===players.indexOf(player)) {
+    const left=players.indexOf(player);
+    if (offer && (offer.from===left || offer.target===left)) clearOffer('Player left the room.');
+    if (friendly?.match.seats.includes(left) && !friendly.match.done) {
+      friendly.match.resign(left,'Opponent disconnected');
+      updateFriendly();
+      return;
+    }
+    if (phase==='reveal' && !friendly && awaitingPick() && tablePick.captain===players.indexOf(player)) {
       passPick();
       return;
     }
@@ -229,6 +334,8 @@ export function hostTournament(env) {
   }
 
   function beginEvent() {
+    clearOffer();
+    friendFeedback.clear();
     powers.clear();
     if (!lineup[round].match) {
       enter('draft');
@@ -245,9 +352,13 @@ export function hostTournament(env) {
 
   function finishMatches() {
     if (phase !== 'match' || matches.some(match => !match.done)) return;
+    lastRivals.clear();
     const entries = players.map(() => ({points:0, answer:'Did not play'}));
     matches.forEach(match => match.seats.forEach((seat, side) => {
       if (seat < 0) return;
+      if (match.seats.length===2 && match.seats.every(id=>id>=0) && friendGames.includes(lineup[round].key)) {
+        lastRivals.set(seat,{offer:{target:match.seats[1-side],key:lineup[round].key},seats:match.seats});
+      }
       const {winner, winners, reason} = match.result;
       const won=winners?.includes(side) ?? winner===side;
       const base=winner===null ? 2 : won ? 4 : 0;
@@ -302,7 +413,7 @@ export function hostTournament(env) {
   }
 
   function nextRound() {
-    if (phase !== 'reveal' || awaitingPick()) return;
+    if (phase !== 'reveal' || awaitingPick() || friendly) return;
     if (tablePick && !tablePick.locked) nextCaptain=(tablePick.captain+1)%players.length;
     lead=tablePick?.bait ?? undefined;
     round++;
@@ -321,6 +432,20 @@ export function hostTournament(env) {
       if (quickChat.length>chatLimit) quickChat.shift();
       view.updateChat(quickChat, 0);
       broadcast(id=>players[id].quickChat ? {kind:'table-chat', messages:quickChat} : null);
+      return;
+    }
+    if (typeof type==='string' && type.startsWith('friend-')) {
+      friendIntent(seat,intent);
+      return;
+    }
+    if (friendly) {
+      const match=friendly.match;
+      if (intent.friendly!==friendly.id || match.done || !match.seats.includes(seat)) return;
+      if (type==='match-move' && match.move(seat,intent)) updateFriendly();
+      if (type==='match-resign' && intent.serial===match.snapshot(seat).serial) {
+        match.resign(seat);
+        updateFriendly();
+      }
       return;
     }
     if (type === 'status' && statuses.includes(intent.value) && ['lobby', 'reveal', 'verdict'].includes(phase)) {
@@ -486,7 +611,7 @@ export function hostTournament(env) {
       if (phase !== 'lobby' || players.filter(p => p.online).length >= capacity()) throw Error('Room full');
       const vacant = players.findIndex(p => !p.online);
       const seat = vacant === -1 ? players.length : vacant;
-      player = { mask: maskId(hello.mask), displayName:cleanDisplayName(hello.displayName), quickChat:hello.quickChat===true, moves: {}, score: 0, online: true, status: '', link, queue: Promise.resolve() };
+      player = { mask: maskId(hello.mask), displayName:cleanDisplayName(hello.displayName), quickChat:hello.quickChat===true, friends:hello.friends===true, moves: {}, score: 0, online: true, status: '', link, queue: Promise.resolve() };
       players[seat] = player;
       wallet.set(seat, {coins:5,time:1});
       if (id) requests.delete(id);
@@ -548,6 +673,11 @@ function isTableState(state) {
       (player.displayName===undefined || typeof player.displayName==='string' && player.displayName===cleanDisplayName(player.displayName))) &&
     (state.teamSize===undefined || teamSizes.includes(state.teamSize)) &&
     state.players.every(player=>player.team===undefined || integer(player.team,0,teamNames.length-1)) &&
+    (!state.friendOffer || friendGames.includes(state.friendOffer.key) &&
+      integer(state.friendOffer.id,1,Number.MAX_SAFE_INTEGER) &&
+      integer(state.friendOffer.from,0,state.players.length-1) && integer(state.friendOffer.target,0,state.players.length-1)) &&
+    (!state.friendly || friendGames.includes(state.friendly.key) && integer(state.friendly.id,1,Number.MAX_SAFE_INTEGER) &&
+      state.friendly.board && validBoard(state.friendly.board,{...state,challenge:{key:state.friendly.key}})) &&
     (state.quickChat===undefined || validChat(state.quickChat)) &&
     Array.isArray(state.approvals) && state.approvals.length === 0 &&
     Array.isArray(state.records) && state.records.length <= seasonLength &&
@@ -585,7 +715,7 @@ export async function joinTournament(env, link, key) {
   if (key === null) env.stage(`<h2>Waiting for the host</h2><p>Ask the host to match this code.</p><p class="pair-code">${code}</p>`, true);
   let state;
   try {
-    await link.send(JSON.stringify({ kind: 'table-join', key, code, mask: env.mask, displayName:env.displayName, quickChat:true }));
+    await link.send(JSON.stringify({ kind: 'table-join', key, code, mask: env.mask, displayName:env.displayName, quickChat:true, friends:true }));
     state = JSON.parse(await env.timeout(link.receive(), key === null ? 68_000 : 18_000));
     for (;;) {
       if (state?.kind === 'table-chat' && validChat(state.messages)) {
@@ -667,6 +797,38 @@ function makeView(env, send) {
     if (state.seat!==0) return size?`<p class="team-mode-label">${mode} · Pick a side</p>`:'';
     return `<div class="team-mode" role="group" aria-label="Season format">${teamSizes.map(value=>
       button(value?`${value}v${value}`:'Solo','team-size',`type="button" data-size="${value}" aria-pressed="${value===size}" ${value && seated>value*2?'disabled':''}`)).join('')}</div>`;
+  }
+
+  let friendTarget;
+  function friendOptions(state) {
+    if (!state.players[state.seat].friends) return '';
+    const names=state.players.flatMap((player,id)=>player.online && player.friends && id!==state.seat?
+      [`<button type="button" class="quiet" data-friend-target="${id}" aria-haspopup="dialog">${esc(name(state,id))}</button>`]:[]);
+    const games=friendGames.map(key=>`<option value="${key}">${esc(matchTitles[key])}</option>`).join('');
+    return names.length?`<div class="friend-picker">
+      <span class="muted">Challenge a friend</span><div class="row">${names.join('')}</div>
+      ${sideScreen('friend-picker','Challenge a friend',`<p id="friend-target-name">${friendTarget===undefined?'':esc(name(state,friendTarget))}</p>
+        <label for="friend-game">Game</label><select id="friend-game">${games}</select>
+        <p>Friendly match · No season points</p>${button('Send challenge','friend-send','type="button" class="primary"')}`)}
+    </div>`:'';
+  }
+  function friendRequest(state) {
+    const offer=state.friendOffer;
+    if (!offer) return state.friendFeedback?`<p class="friend-feedback" role="status">${esc(state.friendFeedback)}</p>`:'';
+    return `<section class="friend-request" aria-label="Friend challenge">
+      <p role="status">${offer.target===state.seat?
+        `<strong>${esc(name(state,offer.from))}</strong> challenges you to <strong>${esc(matchTitles[offer.key])}</strong>.`:
+        `Waiting for <strong>${esc(name(state,offer.target))}</strong> · ${esc(matchTitles[offer.key])}`}</p>
+      <div class="row">${offer.target===state.seat?
+        button('Accept','friend-accept',`type="button" class="primary" data-id="${offer.id}"`)+
+        button('Decline','friend-decline',`type="button" class="quiet" data-id="${offer.id}"`):
+        button('Cancel challenge','friend-cancel',`type="button" class="quiet" data-id="${offer.id}"`)}</div>
+    </section>`;
+  }
+  function rematchButton(state, rival) {
+    return rival && state.players[state.seat].friends && state.players[rival.target]?.online &&
+      state.players[rival.target].friends && !state.friendOfferBusy?
+      button('Rematch','friend-rematch',`type="button" class="quiet" data-target="${rival.target}" data-key="${esc(rival.key)}"`):'';
   }
 
   function roster(state) {
@@ -779,12 +941,12 @@ function makeView(env, send) {
     }
   }
 
-  let previousMatch;
+  let previousMatch, previousOffer;
   let rewardedRound = -1;
   let lastBait, lastEncore;
   let profile;
-  const phaseIsNewMove = (state, previous) => state.phase === 'match' &&
-    state.board && previous?.round === state.round && state.board.serial > previous.serial;
+  const phaseIsNewMove = (board, matchId, previous) => board &&
+    previous?.id===matchId && board.serial>previous.serial;
   function render(state) {
     ends = performance.now() + state.endsIn;
     const summary = state.phase === 'match' ? {
@@ -796,9 +958,10 @@ function makeView(env, send) {
     if (previousPhase !== state.phase || previousRound !== state.round) {
       env.cue(({ draft: 'trivia', clue: 'claim', final: 'choice', pact: 'choice', verdict: undefined })[state.phase]);
     }
-    const board = state.board;
-    const changedMove = phaseIsNewMove(state, previousMatch);
-    if (state.phase === 'match' && board) {
+    const board = state.friendly?.board ?? state.board;
+    const matchId=state.friendly?`friendly:${state.friendly.id}`:`season:${state.round}`;
+    const changedMove = phaseIsNewMove(board,matchId,previousMatch);
+    if (board) {
       if (changedMove && board.key==='ludo' && board.last?.to===(board.finish ?? 56)) env.cue('crown');
       else if (changedMove && board.result) env.cue(board.result.winner===null ? 'reveal' :
         (board.result.winners?.includes(board.side) ?? board.result.winner===board.side) ? 'crown' : 'pass');
@@ -807,7 +970,7 @@ function makeView(env, send) {
         if (board.last?.drawCount > 0) env.cue(board.last.forced ? 'penalty' : 'draw');
         else if (board.last?.passed) env.cue('pass');
       }
-      previousMatch = {round:state.round,serial:board.serial};
+      previousMatch = {id:matchId,serial:board.serial};
     }
     prior = signature;
     previousPhase = state.phase;
@@ -821,16 +984,25 @@ function makeView(env, send) {
     let won = false;
     let earned = false;
 
-    if (phase === 'lobby') {
+    if (state.friendly) {
+      const rival=board.seats.find(id=>id!==seat);
+      const result=board.result;
+      content=`<span class="eyebrow">FRIENDLY MATCH · ${esc(matchTitles[state.friendly.key])}</span>
+        ${result?`<h2>${result.winner===null?'Table drawn':result.winner===board.side?'You won this table':'You lost this table'}</h2>
+        <p class="table-moment">${esc(result.reason)}</p><p>No season points awarded.</p>
+        <div class="row">${rematchButton(state,{target:rival,key:state.friendly.key})}
+        ${button('Back to room','friend-back',`type="button" class="quiet" data-id="${state.friendly.id}"`)}</div>`:matchMarkup(board,undefined,players)}`;
+    } else if (phase === 'lobby') {
       const seated = players.filter(player => player.online).length;
       const size=state.teamSize ?? 0;
       content = `${header}<h2>Seats are open.</h2><p>${seated} of ${size?size*2:limit} seats filled</p>
         ${lobbyMode(state,seated)}${teamsMarkup(state,true)}
+        ${!state.friendlyBusy && !state.friendOfferBusy?friendOptions(state):''}
         ${host ? `<div class="row"><button id="share" class="primary icon-tool" aria-label="Share to WhatsApp" data-hint>${icon('share-2')} WhatsApp</button><button id="copy" class="icon-tool" aria-label="Copy invite" data-hint>${icon('copy')}</button></div>
           <div hidden><label for="invite">Invite link</label><input id="invite" class="invite" readonly value="${esc(env.invite)}"></div>
           ${state.approvals.map(request => `<div class="table-admission"><p>Match this code with your guest <strong>${esc(request.code)}</strong></p>
             <div class="row">${button('Let them in', 'admit', `data-id="${request.id}"`)}${button('Decline', 'decline', `data-id="${request.id}"`)}</div></div>`).join('')}
-          <p>${button('Start tournament', 'start', `class="primary" ${readyToStart(players,size) ? '' : 'disabled'}`)}</p>
+          <p>${button('Start tournament', 'start', `class="primary" ${!state.friendlyBusy && readyToStart(players,size) ? '' : 'disabled'}`)}</p>
           <p class="muted">Keep this tab open. Start when everyone is in.</p>` :
           '<p class="waiting">Waiting for the host to start.</p>'}
         <div class="screen-links">${sideScreen('table-seats', 'See who’s here', roster(state))}${statusOptions(state)}</div>${back}`;
@@ -876,9 +1048,10 @@ function makeView(env, send) {
         ${won ? env.victoryControls() : ''}</div>
         <div class="recap-next">
         ${phase === 'verdict' ? `<div class="row">${button('Share result', 'share-result', 'class="quiet"')}<a class="another-season" href="./?season=new#brain-games">New season ${icon('arrow-right')}</a></div>` :
-          tableDraft(state) + (state.tablePick && !state.tablePick.locked &&
+          state.friendlyBusy ? '' : tableDraft(state) + (state.tablePick && !state.tablePick.locked &&
             !state.tablePick.closed && !(state.tablePick.chosen ?? state.tablePick.picks[state.tablePick.captain]) ?
             '' : roundAdvance(round + 2, host, state.recapPaused))}
+        ${!state.friendlyBusy?rematchButton(state,state.rematch):''}
         ${phase==='verdict'?progressMarkup(profile):''}</div></div>
         <div class="screen-links recap-links">
           ${sideScreen('table-scores', 'Scoreboard', teamsMarkup(state,false,true) + roster(state) + (phase==='reveal'?progressMarkup(profile):''))}
@@ -935,11 +1108,17 @@ function makeView(env, send) {
         '<p class="waiting">Locked in. Waiting for the other seats.</p>' : actions}`;
     }
 
+    if (state.friendlyBusy && !state.friendly) content += '<p class="muted">A friendly match is in progress.</p>';
+    content = friendRequest(state) + content;
     content += `<div class="screen-links quick-chat-link">${quickChatPanel()}</div>`;
     clearInterval(ticker);
     const art = (phases.includes(phase) || phase === 'match') && place?.art ? `--place-art:url(places/${place.art}.jpg)` : '';
-    env.stage(content, false, `scene focused-turn tournament${phase === 'match' ? ' live-table-stage' : phase === 'lobby' ? ' arena-lobby' : phase === 'reveal' || phase === 'verdict' ? ' season-recap' : ''}${won ? ' victory' : ''}${art ? ' with-place' : ''}`, art, `table:${round}:${phase}`);
+    env.stage(content, false, `scene focused-turn tournament${phase === 'match' || state.friendly ? ' live-table-stage' : phase === 'lobby' ? ' arena-lobby' : phase === 'reveal' || phase === 'verdict' ? ' season-recap' : ''}${won ? ' victory' : ''}${art ? ' with-place' : ''}`, art, `table:${round}:${phase}:${state.friendly?.id ?? 0}:${state.friendly?.board.result?'result':''}`);
     const app = document.querySelector('#app');
+    if (state.friendOffer?.target===seat && state.friendOffer.id!==previousOffer) {
+      app.querySelector('.friend-request')?.scrollIntoView({block:'nearest'});
+    }
+    previousOffer=state.friendOffer?.id;
     chatSeat=seat;
     updateChat(state.quickChat ?? []);
     app.querySelector('[data-open-screen="table-chat"]').addEventListener('click',()=>{
@@ -947,6 +1126,13 @@ function makeView(env, send) {
       const trigger=app.querySelector('[data-open-screen="table-chat"]');
       trigger.removeAttribute('data-unread');
       trigger.setAttribute('aria-label','Chat');
+    });
+    app.querySelectorAll('[data-friend-target]').forEach(control=>control.onclick=()=>{
+      friendTarget=Number(control.dataset.friendTarget);
+      app.querySelector('#friend-target-name').textContent=name(state,friendTarget);
+      const panel=app.querySelector('#friend-picker');
+      panel.addEventListener('close',()=>control.focus({preventScroll:true}),{once:true});
+      app.querySelector('[data-open-screen="friend-picker"]').click();
     });
     app.querySelector('.another-season')?.addEventListener('click', event=>{
       if (location.search === '?season=new') {
@@ -975,12 +1161,12 @@ function makeView(env, send) {
     }
     app.querySelector('#next')?.addEventListener('click', () => send({type: 'next'}));
     app.querySelector('#hold-round')?.addEventListener('click', () => send({type: 'hold'}));
-    if (phase === 'match') {
-      const tick = mountMatch(app, state.board, intent => send({...intent, round}), changedMove);
+    if (phase === 'match' || state.friendly && !board.result) {
+      const tick = mountMatch(app, board, intent => send({...intent, round, friendly:state.friendly?.id}), changedMove);
       tick();
       ticker = setInterval(tick, 200);
     }
-    if (phase === 'reveal') {
+    if (phase === 'reveal' && !state.friendlyBusy) {
       const bait=state.tablePick?.bait;
       const encore=state.tablePick?.encore;
       const freshBait=bait!=null && lastBait!==round;
@@ -1019,6 +1205,14 @@ function makeView(env, send) {
           control.closest('dialog')?.close();
           send({type,round,key});
         }
+        else if (type === 'friend-send' || type === 'friend-rematch') {
+          const key=control.dataset.key ?? app.querySelector('#friend-game')?.value;
+          const target=control.dataset.target===undefined?friendTarget:Number(control.dataset.target);
+          control.closest('dialog')?.close();
+          send({type:'friend-offer',key,target});
+        }
+        else if (type === 'friend-accept' || type === 'friend-decline') send({type:'friend-answer',id:Number(id),accept:type==='friend-accept'});
+        else if (type === 'friend-cancel' || type === 'friend-back') send({type,id:Number(id)});
         else if (type === 'team-size' || type === 'pick-team') send({type,value:Number(control.dataset.size ?? control.dataset.team)});
         else if (type === 'call-bait' || type === 'pass-pick') send({type,round});
         else if (type === 'table-power') send({type,round,card,target:Number(app.querySelector('#power-target').value),signal:app.querySelector('#power-signal').value});
