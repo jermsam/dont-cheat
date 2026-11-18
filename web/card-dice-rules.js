@@ -87,7 +87,7 @@ export function matatu(deck = shuffledDeck()) {
   const hands = [draw(stock, 7), draw(stock, 7)];
   const table = [stock.pop()];
   const openingSuit = suit(table[0]);
-  let active = 0, called = openingSuit, penalty = 0, drawn;
+  let active = 0, called = openingSuit, penalty = 0, drawn, emptyDraws = 0;
   const points = cards => total(cards.map(card => rank(card) === 2 ? 20 : rank(card) === 14 ? 15 : rank(card)));
   function take(count) {
     while (count-- > 0) {
@@ -111,7 +111,7 @@ export function matatu(deck = shuffledDeck()) {
   }
   return {
     turn: () => active, legal,
-    view: side => ({hand:hands[side], count:hands[1-side].length, top:table.at(-1), called, openingSuit, penalty,
+    view: side => ({hand:hands[side], count:hands[1-side].length, top:table.at(-1), called, openingSuit, penalty, stockEmpty:!stock.length && table.length===1,
       drawn: side === active && drawn !== undefined ? drawn : null}),
     move(action) {
       if (action.take) {
@@ -119,6 +119,13 @@ export function matatu(deck = shuffledDeck()) {
         const size = hands[active].length;
         take(penalty || 1);
         penalty = 0;
+        // With both hands blocked and no cards left to recycle, finish on hand points.
+        emptyDraws = hands[active].length === size && !forced ? emptyDraws + 1 : 0;
+        if (emptyDraws === 2) {
+          const difference = points(hands[0]) - points(hands[1]);
+          return {winner:difference === 0 ? null : difference < 0 ? 0 : 1,
+            reason:'No playable cards or draws · Lowest hand total',last:{drew:false,passed:true}};
+        }
         drawn = !forced && hands[active].length > size ? hands[active].at(-1) : undefined;
         if (drawn !== undefined && legal().some(move => move.card !== undefined)) return {last:{drew:true}};
         drawn = undefined;
@@ -130,6 +137,7 @@ export function matatu(deck = shuffledDeck()) {
         active = 1-active;
         return {last:{passed:true}};
       }
+      emptyDraws = 0;
       const card = action.card, face = rank(card);
       hands[active].splice(hands[active].indexOf(card),1);
       table.push(card);

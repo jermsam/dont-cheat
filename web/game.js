@@ -2,10 +2,10 @@ import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
-import { hostTournament, joinTournament } from './tournament.js?v=26';
+import { hostTournament, joinTournament } from './tournament.js?v=27';
 
 import { challenges } from './challenges.js';
-import { matchTitles } from './match-rules.js?v=7';
+import { matchTitles } from './match-rules.js?v=8';
 import { mountPuzzleBoard } from './puzzle-board.js';
 
 const app = document.querySelector('#app');
