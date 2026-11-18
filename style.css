@@ -325,3 +325,14 @@ body:has(.side-screen[open]){overflow:hidden}
   .focused-turn .options>.decoy-options{grid-column:1/-1}
   .scene-choice .crew-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+.victory{border-color:#b58b52;background:radial-gradient(ellipse at 80% 6%,#654127,#2c1c30 58%,#1c1424)}
+.victory h2{color:#ffe3a5;text-shadow:0 0 26px #ffb04550}
+.victory-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;margin:12px 0}
+.victory-actions small{color:var(--dim)}
+.victory-actions a{text-decoration:underline;text-underline-offset:2px}
+.victory-confetti{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
+.victory-confetti i{position:absolute;top:-12px;left:var(--left);width:6px;height:10px;background:#ffcf79;opacity:0;animation:victory-fall 1.35s var(--delay) cubic-bezier(.17,.62,.52,.96) both}
+.victory-confetti i:nth-child(3n){background:#ff9db6;border-radius:50%}
+.victory-confetti i:nth-child(4n){background:#fff1c0;width:4px}
+@keyframes victory-fall{15%{opacity:.95}100%{opacity:0;transform:translate(var(--drift),360px) rotate(480deg)}}

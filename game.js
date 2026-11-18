@@ -2,7 +2,7 @@ import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { drawRelic, stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages } from './screens.js';
-import { hostTournament, joinTournament, tournamentMenu } from './tournament.js?v=2';
+import { hostTournament, joinTournament, tournamentMenu } from './tournament.js?v=3';
 
 const app = document.querySelector('#app');
 const notice = document.querySelector('#notice');
@@ -106,24 +106,106 @@ function playCue(name) {
   if (cue) chime(cue.notes, cue);
 }
 
-document.querySelector('#sound').onclick = async event => {
-  const button = event.currentTarget;
+const soundButton = document.querySelector('#sound');
+let fanfare;
+let fanfareRequest = 0;
+
+async function prepareAudio() {
+  if (!audio) {
+    audio = new AudioContext();
+    audioOut = audio.createGain();
+    audioOut.connect(audio.destination);
+  }
+  return audio.resume();
+}
+
+function updateFanfareButton() {
+  const control = app.querySelector('#victory-music');
+  if (control) control.textContent = fanfare && !fanfare.paused && !fanfare.ended ? 'Stop fanfare' : 'Play fanfare';
+}
+
+function setSound(value) {
+  enabled = value;
+  if (audioOut) audioOut.gain.setTargetAtTime(enabled ? 1 : 0, audio.currentTime, .02);
+  soundButton.textContent = enabled ? 'Sound on' : 'Sound off';
+  soundButton.setAttribute('aria-pressed', enabled);
+  if (!enabled && fanfare) {
+    fanfareRequest++;
+    fanfare.pause();
+    updateFanfareButton();
+  }
+}
+
+async function playFanfare() {
+  if (!fanfare) {
+    fanfare = new Audio('music/the-curtain-rises.mp3');
+    fanfare.volume = .68;
+    for (const event of ['play', 'pause', 'ended']) fanfare.addEventListener(event, updateFanfareButton);
+  }
+  const request = ++fanfareRequest;
+  fanfare.currentTime = 0;
   try {
-    if (!audio) {
-      audio = new AudioContext();
-      audioOut = audio.createGain();
-      audioOut.connect(audio.destination);
-    }
-    await audio.resume();
-    enabled = !enabled;
-    audioOut.gain.setTargetAtTime(enabled ? 1 : 0, audio.currentTime, .02);
-    button.textContent = enabled ? 'Sound on' : 'Sound off';
-    button.setAttribute('aria-pressed', enabled);
-    if (enabled) chime();
+    await fanfare.play();
+  } catch (error) {
+    if (request !== fanfareRequest) return;
+    updateFanfareButton();
+    if (error.name !== 'NotAllowedError') say('The victory fanfare could not play.');
+  }
+}
+
+soundButton.onclick = async () => {
+  if (enabled) {
+    setSound(false);
+    return;
+  }
+  try {
+    const resuming = prepareAudio();
+    setSound(true);
+    const victoryScreen = app.querySelector('#victory-music');
+    if (victoryScreen) void playFanfare();
+    await resuming;
+    if (!victoryScreen) chime();
   } catch {
     say('Audio is unavailable in this browser.');
   }
 };
+
+function victoryControls() {
+  return `<div class="victory-actions"><button class="quiet" id="victory-music" type="button">Play fanfare</button>
+    <small><a href="https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1500011">The Curtain Rises</a> by Kevin MacLeod · <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a></small></div>`;
+}
+
+function celebrate(stageElement, fresh) {
+  const control = stageElement.querySelector('#victory-music');
+  if (!control) return;
+  control.onclick = () => {
+    if (fanfare && !fanfare.paused && !fanfare.ended) {
+      fanfareRequest++;
+      fanfare.pause();
+    } else {
+      void prepareAudio().catch(() => {});
+      setSound(true);
+      void playFanfare();
+    }
+  };
+  updateFanfareButton();
+  if (!fresh) return;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const shower = document.createElement('div');
+    shower.className = 'victory-confetti';
+    shower.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i < 24; i++) {
+      const piece = document.createElement('i');
+      piece.style.setProperty('--left', `${(i * 31 % 97) + 1}%`);
+      piece.style.setProperty('--delay', `${(i % 8) * 55}ms`);
+      piece.style.setProperty('--drift', `${i % 2 ? -21 : 28}px`);
+      shower.append(piece);
+    }
+    stageElement.prepend(shower);
+    setTimeout(() => shower.remove(), 1_900);
+  }
+  if (enabled) void playFanfare();
+}
 
 const relic = '<div class="relic" aria-hidden="true"><canvas width="260" height="260"></canvas></div>';
 
@@ -139,6 +221,7 @@ function stage(content, summons = false, scene = '', placeArt = '', screen = nul
   stopRelic = undefined;
   app.innerHTML = `<section class="stage ${summons ? 'summons' : ''} ${scene}"${placeArt ? ` style="${placeArt}"` : ''}><div class="board">${content}</div></section>`;
   mountSideScreens(app, restore);
+  celebrate(app.firstElementChild, !sameScreen);
   if (!sameScreen) {
     arrive(app.querySelector('.board'));
     window.scrollTo(0, 0);
@@ -249,7 +332,7 @@ async function approveGuest(code) {
 
 function tableEnvironment(playlist) {
   return { arena, key, invite: invitation, mask: chosenMask, playlist, stage, timeout, share, copy,
-    notice: say, escape, relic, shuffle: shuffled, cue: playCue, destination: chosenDestination };
+    notice: say, escape, relic, victoryControls, shuffle: shuffled, cue: playCue, destination: chosenDestination };
 }
 
 async function host(crew = false, playlist = null) {
@@ -905,7 +988,7 @@ function draw(state) {
   if (previous?.phase !== phase || previous?.round !== round) {
     lastAlarm = -1;
     const maskFlared = (phase === 'reveal' || phase === 'verdict') && records.at(-1)?.gifts?.some(Boolean);
-    playCue(maskFlared ? 'gift' : phase);
+    if (phase !== 'verdict') playCue(maskFlared ? 'gift' : phase);
   }
   if (secret && previous?.secret?.name !== secret.name) playCue('passage');
   const scenario = scenarioFor(round, state.route?.[round]);
@@ -1021,8 +1104,10 @@ function draw(state) {
     return;
   }
   const [you, them] = [scores[seat], scores[1 - seat]];
+  const won = crew ? teamScore >= crewTarget : you > them;
   const verdict = crew ? (teamScore >= crewTarget ? 'Your crew got away.' : 'The host kept the loot.') : you === them ? 'The trial ends in a draw.' : you > them ? 'You won the trial.' : 'The other seat won.';
-  stage(`${score}<div class="cinematic-title"><div><span class="eyebrow">FINAL VERDICT · RECORD UNSEALED</span><h2>${verdict}</h2></div>${relic}</div><div class="pact-cards">${pactCards(record, state)}</div>${giftReveal(record)}<div class="row">${sideScreen('round-results', 'Round history', roundPages(records.map(result => `<ul class="receipt"><li>${receipt(result)}</li></ul>`)) + (!state.solo ? debrief(round) : ''))}${homeButton}</div>`, false, `scene scene-verdict${locationTone}`, locationStyle);
+  stage(`${score}<div class="cinematic-title"><div><span class="eyebrow">${won ? 'VICTORY' : 'FINAL VERDICT'}</span><h2>${verdict}</h2></div>${relic}</div>${won ? victoryControls() : ''}<div class="pact-cards">${pactCards(record, state)}</div>${giftReveal(record)}<div class="row">${sideScreen('round-results', 'Round history', roundPages(records.map(result => `<ul class="receipt"><li>${receipt(result)}</li></ul>`)) + (!state.solo ? debrief(round) : ''))}${homeButton}</div>`, false, `scene scene-verdict${won ? ' victory' : ''}${locationTone}`, locationStyle, 'duo:verdict');
+  if (!won && previous?.phase !== 'verdict') playCue('verdict');
 }
 function tick() {
   const clock = document.querySelector('#clock');

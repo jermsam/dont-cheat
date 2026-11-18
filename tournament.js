@@ -290,7 +290,7 @@ function makeView(env, send) {
     const signature = JSON.stringify({ ...state, endsIn: 0 });
     if (signature === prior) return;
     if (previousPhase !== state.phase || previousRound !== state.round) {
-      env.cue(({ draft: 'trivia', clue: 'claim', final: 'choice', pact: 'choice', reveal: 'reveal', verdict: 'verdict' })[state.phase]);
+      env.cue(({ draft: 'trivia', clue: 'claim', final: 'choice', pact: 'choice', reveal: 'reveal', verdict: undefined })[state.phase]);
     }
     prior = signature;
     previousPhase = state.phase;
@@ -301,6 +301,7 @@ function makeView(env, send) {
     const back = '<a class="quiet" href="./">Back to the lobby ↗</a>';
     const header = '<span class="eyebrow">THE MIDNIGHT TRIAL · SEASON</span>';
     let content;
+    let won = false;
 
     if (phase === 'lobby') {
       const seated = players.filter(player => player.online).length;
@@ -315,10 +316,13 @@ function makeView(env, send) {
         <div class="screen-links">${sideScreen('table-seats', 'See who’s here', roster(state))}${statusOptions(state)}</div>${back}`;
     } else if (phase === 'reveal' || phase === 'verdict') {
       const best = Math.max(...players.map(player => player.score));
-      const winners = players.filter(player => player.score === best).length;
-      const headline = phase === 'reveal' ? 'The round is unsealed.' : players[seat].score === best ?
-        winners === 1 ? 'You won the table.' : 'You tied for first.' : 'The table has spoken.';
-      content = `${header}<div class="cinematic-title"><h2>${headline}</h2>${env.relic}</div><p>Your score <strong>${players[seat].score} pts</strong></p>
+      const winners = players.flatMap((player, i) => player.score === best ? [name(state, i)] : []);
+      won = phase === 'verdict' && players[seat].score === best;
+      const headline = phase === 'reveal' ? 'The round is unsealed.' : won ?
+        winners.length === 1 ? 'You won the table.' : 'You tied for first.' : 'The table has spoken.';
+      content = `${won ? '<span class="eyebrow">VICTORY</span>' : header}<div class="cinematic-title"><h2>${headline}</h2>${env.relic}</div>
+        ${phase === 'verdict' ? `<p>${winners.length === 1 ? 'Winner' : 'Joint winners'} <strong>${winners.map(esc).join(' / ')}</strong> · ${best} pts</p>` : ''}
+        <p>Your score <strong>${players[seat].score} pts</strong></p>${won ? env.victoryControls() : ''}
         ${phase === 'verdict' ? `<div class="row">${button('Share result', 'share-result', 'class="primary"')}${back}</div>` :
           host ? button(`Start Round ${round + 2}`, 'next', 'class="primary"') : '<p class="waiting">Waiting for the next round.</p>'}
         <div class="screen-links">
@@ -369,7 +373,7 @@ function makeView(env, send) {
 
     clearInterval(ticker);
     const art = phases.includes(phase) && place ? `--place-art:url(places/${place.art}.jpg)` : '';
-    env.stage(content, false, `scene focused-turn tournament${art ? ' with-place' : ''}`, art, `table:${round}:${phase}`);
+    env.stage(content, false, `scene focused-turn tournament${won ? ' victory' : ''}${art ? ' with-place' : ''}`, art, `table:${round}:${phase}`);
     const app = document.querySelector('#app');
     clock = app.querySelector('#table-clock');
     if (clock) {
