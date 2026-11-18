@@ -27,3 +27,29 @@
 .pact-card small{color:var(--dim)}
 @media(max-width:680px){.scene::before{background-position:65% center}.transmission{margin-top:18px}.clock-track{margin:14px 0}.pact-card .eyebrow{font-size:.65rem}}
 .board .pair-code{display:inline-block;padding:10px 14px;background:#140e19;border:1px solid #9d7254;border-radius:6px;color:var(--gold);font:700 clamp(1.4rem,6vw,2.1rem) ui-monospace,monospace;letter-spacing:.2em}
+
+.quick-rules,.route{list-style:none;display:grid;grid-template-columns:repeat(3,1fr);padding:0;gap:8px}
+.quick-rules{margin:15px 0}
+.quick-rules li{background:var(--panel);border:1px solid var(--stroke);border-radius:7px;padding:12px 15px;font-size:.86rem;font-weight:700}
+.quick-rules span{color:var(--gold);margin-right:5px}
+.route{margin:0 0 24px}
+.route li{display:flex;gap:7px;align-items:center;border-bottom:2px solid #6c4c61;padding-bottom:8px;color:var(--dim);font-size:.75rem}
+.route li span{display:grid;place-items:center;flex:0 0 19px;height:19px;border:1px solid currentColor;border-radius:50%;font-size:.67rem}
+.route li[aria-current]{color:var(--gold);border-color:currentColor;font-weight:800}
+.route li.passed{border-color:#805e47}
+.options.card-options{grid-template-columns:repeat(2,minmax(0,1fr))}
+.options .play-card{display:grid;justify-items:start;align-content:start;gap:6px;padding:12px}
+.play-card.trust{color:#ffe0a5;background:#30261f;border-color:#a88655}
+.play-card.betray{color:#ffa6b7;background:#462536;border-color:#ae6378}
+.play-card strong{font-size:1.15rem}
+.play-card small{display:grid;gap:2px;font-size:.75rem;line-height:1.2}
+.play-card small b{color:var(--ink)}
+@media(max-width:680px){.quick-rules li{padding:9px;font-size:.72rem}.quick-rules span{display:block;margin:0 0 4px}.route li{font-size:.67rem;gap:4px}}
+.play-card.call,.pact-card.call{color:#e0ddff;background:#29263c;border-color:#77729d}
+.card-options .play-card.call{grid-column:1/-1;grid-template-columns:auto minmax(0,1fr);align-items:center}
+.play-card.call .pact-mark{grid-row:span 3}
+.claim-banner,.secret-note{background:#211927;border-left:2px solid #ae93b7;padding:8px 12px;color:var(--ink);font-size:.86rem}
+.secrets{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.secrets:empty{display:none}
+.debrief{margin:16px 0;padding:10px 12px;border:1px solid #755965;border-radius:6px;color:var(--dim);background:#201727}
+.debrief summary{cursor:pointer;color:var(--gold);font-weight:700}

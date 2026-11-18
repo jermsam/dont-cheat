@@ -15,8 +15,8 @@
 <meta property="og:image:alt" content="Don't Cheat: The Midnight Trial">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="icon.png">
-<link rel="stylesheet" href="style.css">
-<script type="module" src="game.js?v=3"></script>
+<link rel="stylesheet" href="style.css?v=2">
+<script type="module" src="game.js?v=4"></script>
 </head>
 <body>
 <header class="mast"><a class="brand" href="./"><span class="sigil">✦</span> DON'T CHEAT</a><button id="sound" class="quiet" type="button" aria-pressed="false">Sound off</button></header>
@@ -24,13 +24,13 @@
 <section class="hero">
 <div class="hero-content"><span class="eyebrow">THE MIDNIGHT TRIAL</span><h1>DON'T<br>CHEAT<span>.</span></h1>
 <p>Give the right answer.<br>Trust the right person.</p>
-<div class="row"><button class="primary" id="host">Invite a friend <span aria-hidden="true">↗</span></button><button id="solo">Play solo</button></div>
+<div class="row"><button class="primary" id="host">Duel a friend <span aria-hidden="true">↗</span></button><button id="crew">Team up</button><button id="solo">Play solo</button></div>
 </div></section>
-<section class="rules" aria-label="How to play">
-<div><span>01</span><h2>Answer under pressure</h2><p>Lock in your trivia answer before the clock runs out.</p></div>
-<div><span>02</span><h2>Make a secret choice</h2><p>Trust each other for a shared bonus, or betray them to take more.</p></div>
-<div><span>03</span><h2>Face the verdict</h2><p>After three rounds, the host opens the record.</p></div>
-</section>
+<ol class="quick-rules" aria-label="How to play">
+<li><span aria-hidden="true">?</span> Answer a question</li>
+<li><span aria-hidden="true">✦</span> Play a secret card</li>
+<li><span aria-hidden="true">◆</span> See who played whom</li>
+</ol>
 </main>
 <div id="notice" role="status" aria-live="polite"></div>
 <footer><span>THE MIDNIGHT TRIAL</span><a href="https://github.com/jermsam/dont-cheat">Project on GitHub ↗</a></footer>
