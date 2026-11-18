@@ -583,3 +583,23 @@ select, .destination-picker select, .table-menu select, .table-accuse select {
 .career-badges li{display:grid;grid-template-columns:auto 1fr;gap:.1rem .35rem;align-items:center;padding:.3rem .45rem;border:1px solid #6f5669;border-radius:5px;background:#221826;font-size:.72rem}
 .career-badges li[data-earned="true"]{border-color:#a7814c;color:#ffe2a8}
 .badge-state{grid-column:2;color:#e4cedb;font-size:.66rem}
+
+.season-recap .board{width:min(100%,800px);max-width:none}
+.recap-layout{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:clamp(16px,4vw,48px);align-items:start;margin-top:10px}
+.recap-layout p{margin:.45rem 0;line-height:1.4}
+.recap-layout .round-loot{margin:.85rem 0 .4rem}
+.recap-layout .recap-total{color:var(--dim);font-size:.88rem}
+.recap-total strong{color:var(--ink)}
+.recap-next{padding-inline-start:clamp(12px,2vw,24px);border-inline-start:1px solid var(--stroke)}
+.recap-next .career-track{width:100%;margin:0 0 .75rem}
+.recap-links{border-top:1px solid var(--stroke);padding-top:.75rem;margin:1rem 0 0}
+.live-table-stage .board>h2{margin:.2rem 0 .5rem}
+.live-table-stage .match-clocks{margin:.25rem 0 .55rem}
+.live-table-stage .physical-table{margin:.65rem 0 .45rem}
+.live-table-stage .table-tools{margin:.5rem 0 0}
+@media(max-width:640px){
+  .recap-layout{grid-template-columns:1fr;gap:1rem}
+  .recap-next{padding:.8rem 0 0;border-inline-start:0;border-top:1px solid var(--stroke)}
+  .live-table-stage{padding:12px clamp(8px,2.75vw,16px)}
+  .recap-links{gap:.35rem}
+}
