@@ -722,7 +722,70 @@ function mountLobby() {
     crew: ['Open team room ↗', 'Play together across three rounds. Use the time bank when you need longer to think.'],
     solo: ['Start solo game ↗', 'Your first round starts after a short briefing.'],
   };
+  const lobby = document.querySelector('#game-modes');
+  const hero = document.querySelector('.hero');
+  const entry = hero.querySelector('.hero-start');
+  const panels = [...lobby.querySelectorAll('.setup-section')];
+  const progress = lobby.querySelector('#setup-progress');
+  const back = lobby.querySelector('#setup-back');
+  const forward = lobby.querySelector('#setup-continue');
+  const visual = lobby.querySelector('.setup-visual');
   let selected = 'tournament';
+  let step = 0;
+  let scene;
+  let sceneLoading = false;
+
+  function showScene() {
+    const place = routes.flat().find(location => location.id === chosenDestination);
+    visual.style.setProperty('--setup-art', step === 2 && place?.art ? `url(places/${place.art}.jpg)` : '');
+    visual.dataset.step = step;
+    scene?.update(step, selected, chosenMask, place?.id);
+  }
+
+  function showStep(index) {
+    step = index;
+    panels.forEach((panel, i) => { panel.hidden = i !== step; });
+    progress.textContent = `Step ${step + 1} of ${panels.length}`;
+    launch.hidden = next.hidden = step !== panels.length - 1;
+    forward.hidden = !launch.hidden;
+    forward.textContent = step === 1 ? (chosenMask ? 'Continue →' : 'Continue without a mask →') : 'Continue →';
+    panels[step].querySelector('h2').focus({ preventScroll: true });
+    window.scrollTo(0, 0);
+    showScene();
+  }
+
+  function enter() {
+    hero.hidden = true;
+    lobby.hidden = false;
+    showStep(0);
+    if (sceneLoading) return;
+    sceneLoading = true;
+    import('./setup-scene.js?v=1').then(({ mountSetupScene }) => {
+      if (visual.isConnected) scene = mountSetupScene(visual);
+      showScene();
+    }).catch(() => {});
+  }
+
+  entry.onclick = event => {
+    event.preventDefault();
+    enter();
+  };
+  if (location.hash === '#game-modes') enter();
+  back.onclick = () => {
+    if (step > 0) showStep(step - 1);
+    else {
+      lobby.hidden = true;
+      hero.hidden = false;
+      entry.focus();
+    }
+  };
+  forward.onclick = () => showStep(step + 1);
+  lobby.querySelector('#destination').addEventListener('change', showScene);
+  lobby.querySelector('#mask-picker').addEventListener('click', event => {
+    if (!event.composedPath().some(node => node.matches?.('[data-mask], [data-starter], #remove-mask'))) return;
+    forward.textContent = chosenMask ? 'Continue →' : 'Continue without a mask →';
+    showScene();
+  });
   modes.forEach(button => {
     button.onclick = () => {
       selected = button.dataset.mode;
@@ -730,6 +793,7 @@ function mountLobby() {
       playlist.hidden = selected !== 'tournament';
       [launch.textContent, next.textContent] = descriptions[selected];
       updateMask(selected);
+      showScene();
     };
   });
   launch.disabled = false;
