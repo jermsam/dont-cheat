@@ -420,3 +420,31 @@ button.table-card:hover,button.table-card:focus-visible{background:#ffd6a0;color
 .stage > .board{min-width:0}
 .board h2[tabindex="-1"]:focus{outline:none}
 .table-objects canvas,.live-3d canvas,.puzzle-3d canvas{display:block;width:100%;height:100%}
+
+.live-table-stage{padding:clamp(13px,2.5vw,30px)}
+.live-table-stage .board{width:min(100%,850px);max-width:none}
+.live-table-stage .board h2{font-size:clamp(1.45rem,4.4vw,2.3rem)}
+.live-table-stage .board p{margin:8px 0;line-height:1.35}
+.live-table-stage .match-clocks{justify-content:flex-start;gap:6px}
+.live-table-stage .match-clocks span{padding:4px 8px;background:#241923c7;border-radius:5px;border:1px solid #694b59}
+.live-table-stage .match-clocks .clock-active{border-color:#cd9e61;background:#3c2b30}
+.table-objects.physical-table{position:relative;width:100%;height:clamp(220px,56vw,420px);margin:10px 0;background:radial-gradient(ellipse at 49% 14%,#302725,#100e16 75%);border-color:#806148;box-shadow:0 12px 35px #110a19c9}
+.table-objects.physical-table:has(canvas){touch-action:manipulation}
+.immersive-table .table-caption{display:none}
+.immersive-table :is(.shown-cards,.draw-hand,.dice-row):not(:focus-within){position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@media(max-width:480px){
+  .live-table-stage .board .eyebrow{font-size:.65rem;letter-spacing:.1em}
+  .live-table-stage .match-clocks span{font-size:.72rem}
+  .table-objects.physical-table{height:clamp(228px,64vw,305px)}
+}
+.physical-table[data-cards="true"]::before,.physical-table[data-hand="true"]::after{position:absolute;left:10px;z-index:1;color:#ffe2ac;background:#162724d6;border:1px solid #ac824d77;border-radius:3px;padding:3px 6px;font:700 .57rem ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;pointer-events:none}
+.physical-table[data-cards="true"]::before{content:"Table";top:8px}
+.physical-table[data-hand="true"]::after{content:"Your hand";bottom:8px}
+@media (min-width:850px){
+  .physical-table[data-cards="true"]::before,.physical-table[data-hand="true"]::after{left:17px;font-size:.65rem}
+}
+.live-table-stage .match-clocks>span{display:flex;align-items:center;gap:6px;min-height:37px}
+.live-table-stage .match-clocks img,.live-table-stage .match-clocks i{width:24px;height:24px;border-radius:4px;object-fit:cover}
+.live-table-stage .match-clocks i{display:grid;place-items:center;background:#342430;color:#edc584;font-style:normal}
+.clock-player{line-height:1.08;font-weight:650}.clock-player small{display:block;font-size:.63rem;font-weight:500;color:#ccaab9}
+.live-table-stage .board .table-input-hint{margin:3px 0 10px;color:#e7c894;font-size:.74rem}

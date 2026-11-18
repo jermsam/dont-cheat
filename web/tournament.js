@@ -6,7 +6,7 @@ import { masks, maskId } from './masks.js?v=2';
 import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=3';
 import { bestHoldem } from './card-dice-rules.js?v=3';
 import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=3';
-import { matchMarkup, mountMatch, cardName } from './match-view.js?v=3';
+import { matchMarkup, mountMatch, cardName } from './match-view.js?v=4';
 
 const limit = 6;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
@@ -496,7 +496,7 @@ function makeView(env, send) {
         <div class="screen-links">${sideScreen('table-seats', 'See who’s here', roster(state))}${statusOptions(state)}</div>${back}`;
     } else if (phase === 'match') {
       content = `<span class="eyebrow">SEASON EVENT ${round + 1} OF ${seasonLength} · ${esc(challenge.title)}</span>
-        ${matchMarkup(state.board, state.wallet)}`;
+        ${matchMarkup(state.board, state.wallet, state.players)}`;
     } else if (phase === 'reveal' || phase === 'verdict') {
       const best = Math.max(...players.map(player => player.score));
       const winners = players.flatMap((player, i) => player.score === best ? [name(state, i)] : []);
@@ -556,7 +556,7 @@ function makeView(env, send) {
 
     clearInterval(ticker);
     const art = (phases.includes(phase) || phase === 'match') && place?.art ? `--place-art:url(places/${place.art}.jpg)` : '';
-    env.stage(content, false, `scene focused-turn tournament${won ? ' victory' : ''}${art ? ' with-place' : ''}`, art, `table:${round}:${phase}`);
+    env.stage(content, false, `scene focused-turn tournament${phase === 'match' ? ' live-table-stage' : ''}${won ? ' victory' : ''}${art ? ' with-place' : ''}`, art, `table:${round}:${phase}`);
     const app = document.querySelector('#app');
     app.querySelector('#next')?.addEventListener('click', () => send({type: 'next'}));
     app.querySelector('#hold-round')?.addEventListener('click', () => send({type: 'hold'}));
