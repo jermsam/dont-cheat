@@ -57,7 +57,7 @@ export function mountRoomWindow(app, players, place, openButton, board) {
     if(entry.loading)return;
     entry.loading=true;
     try{
-      const {createArenaRoom}=await import('./arena-room.js?v=10');
+      const {createArenaRoom}=await import('./arena-room.js?v=11');
       if(!holder.isConnected)return;
       entry.scene=createArenaRoom(holder,entry.state.theme,entry.state.place);
       holder.dataset.rendered='true';

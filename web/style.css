@@ -489,3 +489,9 @@ button.table-card:hover,button.table-card:focus-visible{background:#ffd6a0;color
 .room-profiles:not([hidden]){position:absolute;right:10px;top:10px;display:flex;gap:3px}
 .room-profiles .quiet{padding:4px 7px;min-height:32px;background:#170f1be9;font-size:.72rem}
 .room-profiles [aria-pressed=true]{outline:1px solid #efbf84;outline-offset:-2px;color:#ffdbab}
+
+#arena-view:has(.room-window[data-room-model="midnight-kitchen"]){width:min(calc(100% - 24px),980px)}
+#arena-view .room-window[data-room-model="midnight-kitchen"]{height:clamp(245px,56vh,540px)}
+@media(max-width:600px){
+  #arena-view .room-window[data-room-model="midnight-kitchen"]{height:clamp(230px,72vw,360px)}
+}

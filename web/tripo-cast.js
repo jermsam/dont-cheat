@@ -1,6 +1,6 @@
 import * as THREE from './vendor/three.module.min.js';
-import { digits,posePinch,cardContact } from './card-pinch.js';
-import { addPortraitDetail } from './portrait-detail.js?v=2';
+import { arrangeHeldCards,digits,posePinch,cardContact } from './card-pinch.js?v=2';
+import { addPortraitDetail } from './portrait-detail.js?v=3';
 import { fitPortraitGeometry } from './portrait-fit.js';
 import { GLTFLoader } from './vendor/GLTFLoader-r169.js';
 
@@ -20,7 +20,7 @@ export async function loadTripoCast(mask,root,source) {
   const loadTexture=path=>textureLoader.loadAsync(new URL(path,import.meta.url).href).catch(()=>null);
   const [{scene},portrait,left,right]=await Promise.all([
     loader.loadAsync(new URL(`characters/the-${mask}-tripo.glb`,import.meta.url).href),
-    loadTexture(`masks/${mask}.jpg`),
+    loadTexture(`characters/${mask}-registered.webp`),
     loadTexture(`characters/${mask}-profile-left.webp`),
     loadTexture(`characters/${mask}-profile-right.webp`),
   ]);
@@ -62,11 +62,11 @@ export async function loadTripoCast(mask,root,source) {
     return {arm,elbow,wrist,finger,thumb,index,thigh,knee,foot};
   });
   const paint=original.material;
-  paint.metalness=.12;
+  paint.metalness=.04;
   paint.roughness=.82;
-  paint.normalScale.setScalar(.12);
-  if(portrait)addPortraitDetail(paint,portrait,left&&right?[left,right]:[portrait,portrait],mask,meters);
-  paint.envMapIntensity=.55;
+  paint.normalScale.setScalar(.055);
+  if(portrait)addPortraitDetail(paint,portrait,left&&right?[left,right]:[portrait,portrait],meters);
+  paint.envMapIntensity=.37;
   const skin=new THREE.SkinnedMesh(geometry,paint);
   skin.name=mask;
   skin.castShadow=true;
@@ -133,11 +133,35 @@ export async function loadTripoCast(mask,root,source) {
   const leftGrip=new THREE.Group();
   source.cardGrip.name='Held cards';
   limbs[0].wrist.add(leftGrip);
-  const palmOffset=(side)=>limbs[side].finger.position.clone().multiplyScalar(.85);
-  leftGrip.position.copy(palmOffset(0));
-  function sync(pinch=0,lean=0){
+  const workingHand=limbs[1];
+  function steerToCard(target,amount){
+    const {arm,elbow,wrist,finger,thumb,index}=workingHand;
+    const current=cardContact(thumb,index,wrist).position;
+    const wristStart=wrist.getWorldPosition(vec());
+    const handOffset=current.clone().sub(wristStart);
+    const shoulderPoint=arm.getWorldPosition(vec());
+    const desired=target.clone().addScaledVector(
+      new THREE.Vector3(0,0,1).applyQuaternion(root.getWorldQuaternion(quat())),-.064
+    );
+    desired.y+=.004;
+    const wristGoal=wristStart.clone().lerp(desired.sub(handOffset),amount);
+    const direction=wristGoal.sub(shoulderPoint);
+    const upper=shoulderPoint.distanceTo(elbow.getWorldPosition(vec()));
+    const lower=elbow.getWorldPosition(vec()).distanceTo(wristStart);
+    const length=THREE.MathUtils.clamp(direction.length(),Math.abs(upper-lower)+.008,upper+lower-.003);
+    direction.normalize();
+    const bend=down.clone().addScaledVector(direction,-down.dot(direction)).normalize();
+    const projection=(upper*upper-lower*lower+length*length)/(2*length);
+    const bendDistance=Math.sqrt(Math.max(0,upper*upper-projection*projection));
+    const toElbow=direction.clone().multiplyScalar(projection).addScaledVector(bend,bendDistance);
+    const toWrist=direction.clone().multiplyScalar(length).sub(toElbow);
+    align(arm,axisTo(elbow),toElbow);
+    align(elbow,axisTo(wrist),toWrist);
+    align(wrist,axisTo(finger),toWrist);
+  }
+  function sync(pinch=0,lean=0,target){
     pelvis.position.copy(bindHip).add(new THREE.Vector3(0,source.hip.position.y-.93,0));
-    pelvis.rotation.x=.12*lean;
+    pelvis.rotation.x=.23*lean;
     skull.quaternion.copy(source.head.quaternion);
     limbs.forEach(({arm,elbow,wrist,finger,thumb,index,thigh,knee,foot},i)=>{
       const driver=source.shoulder[i];
@@ -146,18 +170,23 @@ export async function loadTripoCast(mask,root,source) {
       align(elbow,axisTo(wrist),limbDirection(driver.elbow));
       align(wrist,axisTo(finger),limbDirection(driver.elbow));
       finger.rotation.x=i===0?-.30:-.24*pinch;
-      posePinch(thumb,index,i===0?.58:pinch);
+      posePinch(thumb,index,i===0?.91:pinch);
       align(thigh,axisTo(knee),limbDirection(leg.thigh));
       align(knee,axisTo(foot),limbDirection(leg.knee));
       foot.quaternion.copy(knee.getWorldQuaternion(quat()).invert().multiply(root.getWorldQuaternion(quat())));
     });
-    const gripRotation=source.gripParent.getWorldQuaternion(quat());
-    leftGrip.quaternion.copy(limbs[0].wrist.getWorldQuaternion(quat()).invert().multiply(gripRotation));
+    if(target&&lean>0)steerToCard(target,lean);
+    const {thumb,index,wrist}=limbs[0];
+    const contact=cardContact(thumb,index,wrist);
+    leftGrip.position.copy(wrist.worldToLocal(contact.position));
+    leftGrip.quaternion.copy(wrist.getWorldQuaternion(quat()).invert().multiply(contact.rotation));
   }
   function mount(){
     root.add(skin);
     leftGrip.add(source.cardGrip);
     source.cardGrip.position.set(0,0,0);
+    source.cardGrip.userData.pinchFrame=true;
+    arrangeHeldCards(source.cardGrip);
     sync();
   }
   function dispose(){
@@ -169,6 +198,5 @@ export async function loadTripoCast(mask,root,source) {
     for(const value of Object.values(original.material))if(value?.isTexture)value.dispose();
     original.material.dispose();
   }
-  const workingHand=limbs[1];
   return {mount,sync,dispose,contact:()=>cardContact(workingHand.thumb,workingHand.index,workingHand.wrist)};
 }

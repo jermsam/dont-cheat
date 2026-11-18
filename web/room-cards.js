@@ -1,4 +1,5 @@
 import * as THREE from './vendor/three.module.min.js';
+import { arrangeHeldCards } from './card-pinch.js?v=2';
 import { cardTexture } from './table-art.js';
 
 export function makeRoomCards(scene, geometries, materials, textures) {
@@ -24,8 +25,8 @@ export function makeRoomCards(scene, geometries, materials, textures) {
     prop.castShadow=true;
     return prop;
   }
-  const stock=new THREE.Vector3(0,.906,-.99);
-  const center=new THREE.Vector3(0,.895,-.49);
+  const stock=new THREE.Vector3(0,.902,-.92);
+  const center=new THREE.Vector3(0,.885,-.55);
   for(let i=0;i<5;i++){
     const prop=cardMesh();
     prop.position.copy(stock);
@@ -56,6 +57,7 @@ export function makeRoomCards(scene, geometries, materials, textures) {
       prop.rotation.z=offset*.13;
       actor.cardGrip.add(prop);
     }
+    if(actor.cardGrip.userData.pinchFrame)arrangeHeldCards(actor.cardGrip);
   }
   function deal(actors,progress) {
     const count=actors.length;

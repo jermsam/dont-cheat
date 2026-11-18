@@ -115,3 +115,5 @@ The Midnight Kitchen is modeled in Three.js, including the stove, cabinets, wind
 The Midnight Kitchen uses three additional CC0 Poly Haven assets for its close-ups and table view. [Painted Wooden Chair 01](https://polyhaven.com/a/painted_wooden_chair_01), [Painted Plaster Wall](https://polyhaven.com/a/painted_plaster_wall), and [Kitchen Wood](https://polyhaven.com/a/kitchen_wood).
 
 Rock terrain uses [Rock Face 01](https://polyhaven.com/a/rock_face_01), also CC0.
+
+The Midnight Kitchen's dining table, electric stove, kettle, cookware, cutting board, apples, cabinet, lantern, wall tile and nighttime window panorama are [Poly Haven CC0 assets](https://polyhaven.com/license). The Saint and Prince use project-owned portrait artwork registered to their existing mesh landmarks. The card animation uses the live Matatu actions and keeps private card values out of the room animation.

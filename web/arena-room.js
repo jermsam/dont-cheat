@@ -1,9 +1,10 @@
 import { surfaceMaps,studioLight } from './physical-materials.js';
 import * as THREE from './vendor/three.module.min.js';
-import { makeCast } from './room-cast.js?v=8';
+import { makeCast } from './room-cast.js?v=11';
 import { buildDestination } from './destination-sets.js?v=2';
-import { buildKitchen } from './midnight-kitchen.js?v=3';
-import { makeRoomCards } from './room-cards.js?v=4';
+import { placeKitchenProps } from './kitchen-props.js';
+import { buildKitchen } from './midnight-kitchen.js?v=7';
+import { makeRoomCards } from './room-cards.js?v=6';
 import { feltTexture } from './table-art.js';
 
 const arenaSeats = [
@@ -20,14 +21,17 @@ const themes={
 
 export function createArenaRoom(holder,kind='hall',place){
   const kitchen=place?.id==='midnight-kitchen';
-  const seats=kitchen?[[-1.76,-.86,1.11],[1.76,-.86,-1.11],...arenaSeats.slice(2)]:arenaSeats;
+  const seats=kitchen?[
+    [-.98,-.81,1.18],[.98,-.51,-1.18],[-.58,-1.64,.28],
+    [.58,-1.64,-.28],[-.57,.38,2.91],[.57,.38,-2.91]
+  ]:arenaSeats;
   const theme=themes[kind]??themes.hall;
   const renderer=new THREE.WebGLRenderer({alpha:false,antialias:true});
   renderer.shadowMap.enabled=true;
   renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   renderer.setPixelRatio(Math.min(devicePixelRatio,1.35));
   renderer.toneMapping=THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure=kitchen?1.01:1.16;
+  renderer.toneMappingExposure=kitchen?1.07:1.16;
   const scene=new THREE.Scene();
   scene.background=new THREE.Color(theme.sky);
   scene.fog=new THREE.FogExp2(theme.sky,.047);
@@ -38,7 +42,7 @@ export function createArenaRoom(holder,kind='hall',place){
   const cast=makeCast(render,kitchen);
   const castStates=new Map();
   const motion=matchMedia('(prefers-reduced-motion: reduce)');
-  let angle=.06, cameraAnimation, ready=true, focusSeat=null, closeup=0, portraitAngle=0;
+  let angle=kitchen?.06:.06, cameraAnimation, ready=true, focusSeat=null, closeup=0, portraitAngle=0;
   const material=(color,options={})=>{
     const use=new THREE.MeshStandardMaterial({color,roughness:.78,...options});
     materialSet.add(use);return use;
@@ -70,10 +74,10 @@ export function createArenaRoom(holder,kind='hall',place){
   }
   const block=(mat,x,y,z,sx,sy,sz,parent)=>mesh(cube,mat,x,y,z,sx,sy,sz,parent);
 
-  scene.add(new THREE.HemisphereLight(0xffead7,0x6e6493,kitchen?.40:1.30));
-  const front=new THREE.DirectionalLight(0xffd7a7,kitchen?.84:2.3);
+  scene.add(new THREE.HemisphereLight(0xffead7,0x6e6493,kitchen?.37:1.30));
+  const front=new THREE.DirectionalLight(0xffd7a7,kitchen?.46:2.3);
   front.position.set(-4,7,6);
-  front.castShadow=true;
+  front.castShadow=!kitchen;
   front.shadow.mapSize.set(1024,1024);
   Object.assign(front.shadow.camera,{left:-6,right:6,top:6,bottom:-6,near:.5,far:23});
   front.shadow.bias=-.0006;
@@ -82,7 +86,7 @@ export function createArenaRoom(holder,kind='hall',place){
   scene.add(front,front.target);
   if(kitchen){
     const faceFill=new THREE.PointLight(0xf4e6da,3.8,5);
-    faceFill.position.set(0,1.84,1.18);
+    faceFill.position.set(0,1.9,.7);
     scene.add(faceFill);
   }
   const rim=new THREE.PointLight(theme.light,kitchen?8:50,16,2);
@@ -90,7 +94,7 @@ export function createArenaRoom(holder,kind='hall',place){
 
   const doors=[];
   let threshold;
-  const kit={scene,block,mesh,round,ball,material,wood,bronze,warm,geometries,render,alive:()=>ready};
+  const kit={scene,block,mesh,round,ball,material,wood,bronze,warm,geometries,textures,render,alive:()=>ready};
   const modeled=kitchen||buildDestination(place?.id,kit);
   if(modeled){
     holder.dataset.roomModel=place.id;
@@ -188,16 +192,28 @@ export function createArenaRoom(holder,kind='hall',place){
     }));
   }
 
-  // Edge trim, chairs and real upholstered seats surround the felt table.
-  const felt=feltTexture(); textures.add(felt);
-  const feltMat=material(0xffffff,{map:felt,roughness:.92});
-  mesh(round,wood,0,.32,-.66,.43,.65,.59);
-  mesh(round,bronze,0,.54,-.66,.48,.07,.63);
-  mesh(round,wood,0,.73,-.66,1.69,.25,1.93);
-  mesh(round,bronze,0,.837,-.66,1.70,.042,1.94);
-  const tableTop=mesh(round,feltMat,0,.86,-.66,1.60,.038,1.84);
-  tableTop.castShadow=true;
-  tableTop.receiveShadow=true;
+  const table=new THREE.Group();
+  scene.add(table);
+  if(kitchen){
+    const top=block(wood,0,.857,-.66,1.55,.047,1.51,table);
+    top.receiveShadow=true;
+    top.castShadow=true;
+    for(const x of [-.64,.64])for(const z of [-1.28,-.04])
+      block(wood,x,.43,z,.10,.86,.10,table).castShadow=true;
+    void placeKitchenProps(loadProp,scene,render,()=>ready,table).then(loaded=>{
+      if(loaded&&ready)holder.dataset.kitchenProps='furnished';
+    });
+  }else{
+    const felt=feltTexture();textures.add(felt);
+    const feltMat=material(0xffffff,{map:felt,roughness:.92});
+    mesh(round,wood,0,.32,-.66,.43,.65,.59);
+    mesh(round,bronze,0,.54,-.66,.48,.07,.63);
+    mesh(round,wood,0,.73,-.66,1.69,.25,1.93);
+    mesh(round,bronze,0,.837,-.66,1.70,.042,1.94);
+    const tableTop=mesh(round,feltMat,0,.86,-.66,1.60,.038,1.84);
+    tableTop.castShadow=true;
+    tableTop.receiveShadow=true;
+  }
   const cards=kitchen?makeRoomCards(scene,geometries,materialSet,textures):null;
   let moveAnimation, dealAnimation, dealingActors=[], lastMove, tableActive=false;
   if(!kitchen)for(let i=0;i<7;i++)block(i%2?bronze:leather,0,.898+i*.012,-1.11,.20,.012,.31);
@@ -240,9 +256,13 @@ export function createArenaRoom(holder,kind='hall',place){
   if(kitchen){
     void loadProp('props/painted-chair/chair.gltf').then(chairModel=>{
       if(!chairModel)return;
+      chairModel.traverse(part=>{
+        if(part.isMesh)part.material.color.set(0xd2bba1);
+      });
       kitchenChairs.forEach(chair=>{
         const furniture=chairModel.clone();
-        furniture.scale.set(1.26,1.06,1.16);
+        furniture.scale.set(1.13,1.04,1.13);
+        furniture.position.z=-.10;
         chair.clear();
         chair.add(furniture);
       });
@@ -298,13 +318,13 @@ export function createArenaRoom(holder,kind='hall',place){
   function render(){
     if(!ready || !holder.clientWidth || !holder.clientHeight)return;
     const narrow=camera.aspect<1.4;
-    const distance=kitchen?(narrow?6.1:5.1):(narrow?8.2:7.7);
-    const position=new THREE.Vector3(Math.sin(angle)*distance,kitchen?(narrow?2.62:2.36):(narrow?3.25:3.08),Math.cos(angle)*distance-.7);
-    const target=new THREE.Vector3(0,kitchen?1.31:1.54,kitchen?-1.09:-1.48);
+    const distance=kitchen?(narrow?4.65:4.05):(narrow?8.2:7.7);
+    const position=new THREE.Vector3(Math.sin(angle)*distance,kitchen?(narrow?1.98:1.91):(narrow?3.25:3.08),Math.cos(angle)*distance-.7);
+    const target=new THREE.Vector3(0,kitchen?1.23:1.54,kitchen?-.81:-1.48);
     if(focusSeat!==null){
       const [x,z,rotation]=seats[focusSeat];
-      position.lerp(new THREE.Vector3(x+Math.sin(rotation+portraitAngle)*2.2,1.62,z+Math.cos(rotation+portraitAngle)*2.2),closeup);
-      target.lerp(new THREE.Vector3(x,1.31,z),closeup);
+      position.lerp(new THREE.Vector3(x+Math.sin(rotation+portraitAngle)*(kitchen?1.78:2.2),1.55,z+Math.cos(rotation+portraitAngle)*(kitchen?1.78:2.2)),closeup);
+      target.lerp(new THREE.Vector3(x,kitchen?1.38:1.31,z),closeup);
     }
     camera.position.copy(position);
     camera.lookAt(target);
@@ -411,6 +431,9 @@ export function createArenaRoom(holder,kind='hall',place){
         cards.showTop(table.top);
       }
     }
+    if(kitchen){
+      for(const sideSeat of [2,3])kitchenChairs[sideSeat].visible=Boolean(users[sideSeat]?.online);
+    }
     holder.dataset.actors=String(castStates.size);
     render();
   }
@@ -439,7 +462,7 @@ export function createArenaRoom(holder,kind='hall',place){
         onUpdate:value=>{closeup=value;render();},onComplete:()=>{focusSeat=null;}});
       return;
     }
-    const target=angle> .2?-.28:.34;
+    const target=kitchen?(angle>.08?-.31:.34):(angle>.2?-.28:.34);
     cameraAnimation?.stop();
     if(motion.matches){angle=target;render();return;}
     cameraAnimation=globalThis.Motion.animate(angle,target,{type:'spring',stiffness:100,damping:22,onUpdate:value=>{angle=value;render();}});

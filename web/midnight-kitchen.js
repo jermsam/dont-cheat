@@ -1,11 +1,12 @@
 import * as THREE from './vendor/three.module.min.js';
+import { RGBELoader } from './vendor/RGBELoader-r169.js';
 import { surfaceMaps } from './physical-materials.js?v=2';
 
-export function buildKitchen({scene, block, mesh, round, ball, material, wood, bronze, warm, render, alive}) {
+export function buildKitchen({scene, block, mesh, round, ball, material, wood, bronze, warm, geometries, textures, render, alive}) {
   const plaster=material(0x837265,{roughness:.93});
   const boards=material(0x8d6d53,{roughness:.65});
   const glass=material(0x708eab,{transparent:true,opacity:.16,roughness:.13,depthWrite:false});
-  const tile=material(0x938571,{roughness:.62});
+  const tile=material(0xbcb7aa,{roughness:.64});
   const cabinet=material(0x28403a,{roughness:.43});
   const panel=material(0x162b26);
   const stone=material(0x9b8f7c,{roughness:.31});
@@ -15,7 +16,6 @@ export function buildKitchen({scene, block, mesh, round, ball, material, wood, b
   const foliage=material(0x485628);
   const midnight=material(0x12192a);
   const sky=material(0x243f62,{emissive:0x24456b,emissiveIntensity:.55});
-  surfaceMaps(tile,'stone',render,alive);
   surfaceMaps(stone,'stone',render,alive);
 
   surfaceMaps(plaster,'kitchen-plaster',render,alive,[4,2]);
@@ -25,13 +25,17 @@ export function buildKitchen({scene, block, mesh, round, ball, material, wood, b
   block(plaster,0,4.68,-6.08,11.6,1.52,.35);
   block(plaster,0,1.03,-6.08,11.6,2.06,.35);
   for(const x of [-4.19,0,4.19])block(plaster,x,3.06,-6.08,x===0?2.8:3.2,2.0,.35);
-  block(sky,0,3.1,-10,13,4.9,.12);
-  for(let i=0;i<23;i++){
-    const x=-6.1+i*.54;
-    const height=1.3+(i%7)*.19;
-    block(midnight,x,height/2+.75,-8.7,.45,height,.42);
-    if(i%3!==0)block(warm,x,.93+height*.65,-8.45,.065,.085,.022);
-  }
+  const outside=block(sky,0,3.1,-10,13,4.9,.12);
+  void new RGBELoader().loadAsync('materials/kitchen-night.hdr').then(photo=>{
+    if(!alive()){photo.dispose();return;}
+    photo.mapping=THREE.EquirectangularReflectionMapping;
+    textures.add(photo);
+    scene.background=photo;
+    scene.backgroundIntensity=.24;
+    scene.backgroundRotation.y=2.30;
+    outside.visible=false;
+    render();
+  }).catch(()=>{});
   for(const x of [-2.1,2.1]){
     for(const y of [2.05,2.96,3.93])block(wood,x,y,-5.85,1.47,.08,.19);
     for(const dx of [-.69,0,.69])block(wood,x+dx,2.99,-5.85,.055,1.94,.19);
@@ -39,17 +43,18 @@ export function buildKitchen({scene, block, mesh, round, ball, material, wood, b
     const pane=block(glass,x,3.00,-5.91,1.36,1.77,.012);
     pane.renderOrder=1;
   }
-  const moon=new THREE.PointLight(0x8ebdff,75,13);
+  const moon=new THREE.PointLight(0x9cb6dd,52,13);
   moon.position.set(2.55,3.25,-5.85);
   const stoveGlow=new THREE.PointLight(0xffa353,18,8);
   stoveGlow.position.set(-3,2,-4.7);
   scene.add(moon,stoveGlow);
 
-  for(let row=0;row<3;row++)for(let i=0;i<27;i++){
-    block(tile,(i-13)*.414+(row%2)*.19,1.19+row*.22,-5.85,.405,.209,.03);
-  }
+  surfaceMaps(tile,'kitchen-tile',render,alive,[8,.64]);
+  const backsplash=block(tile,0,1.49,-5.83,10.34,.72,.052);
+  backsplash.receiveShadow=true;
   for(let i=0;i<12;i++){
     const x=(i-5.5)*.84;
+    if(i===2)continue;
     block(cabinet,x,.53,-5.48,.83,1,.75);
     block(panel,x,.59,-5.095,.69,.72,.035);
     block(cabinet,x,.53,-5.068,.55,.47,.03);
@@ -59,17 +64,8 @@ export function buildKitchen({scene, block, mesh, round, ball, material, wood, b
     }
     block(bronze,x,.89,-5.021,.19,.026,.063);
   }
-  block(stone,0,1.06,-5.43,10.3,.13,.94).receiveShadow=true;
-  block(iron,-2.96,.60,-4.986,1.32,.8,.089);
-  block(midnight,-2.96,.53,-4.923,1.13,.46,.06);
-  block(bronze,-2.96,.84,-4.873,1.12,.045,.065);
-  block(warm,-2.96,.658,-4.878,.14,.022,.018);
-  block(iron,-2.96,1.136,-5.4,1.3,.039,.72);
-  for(const x of [-3.31,-2.61])for(const z of [-5.57,-5.25])mesh(round,iron,x,1.162,z,.135,.021,.135);
-  mesh(ball,copper,-2.67,1.255,-5.45,.19,.13,.18);
-  mesh(round,bronze,-2.67,1.389,-5.45,.045,.041,.045);
-  const spout=mesh(round,copper,-2.49,1.29,-5.45,.046,.23,.048);
-  spout.rotation.z=-.91;
+  block(stone,-4.27,1.06,-5.43,1.77,.13,.94).receiveShadow=true;
+  block(stone,1.30,1.06,-5.43,7.67,.13,.94).receiveShadow=true;
   block(iron,2.78,1.132,-5.38,1.08,.044,.58);
   mesh(round,bronze,2.78,1.31,-5.68,.038,.34,.038);
   block(bronze,2.78,1.475,-5.54,.075,.061,.31);
@@ -95,7 +91,8 @@ export function buildKitchen({scene, block, mesh, round, ball, material, wood, b
     }
   }
   // The side walls stay in frame when a player switches to a close-up.
-  for(const side of [-1,1]){
+  {
+    const side=1;
     block(cabinet,side*5.39,.56,-3.15,.68,1.12,4.63);
     block(stone,side*5.34,1.12,-3.15,.79,.125,4.79);
     for(let i=0;i<5;i++){
@@ -113,18 +110,31 @@ export function buildKitchen({scene, block, mesh, round, ball, material, wood, b
       }
     }
   }
-  // Cups and a saucer give the table a familiar scale.
-  for(const x of [-1.03,1.03]){
-    mesh(round,porcelain,x,.899,-1.41,.129,.018,.129);
-    mesh(round,porcelain,x,.965,-1.41,.079,.122,.079);
-    mesh(round,iron,x,1.028,-1.41,.061,.006,.061);
+  // A small ceramic cup has a recessed interior, a separate handle and a saucer.
+  const cup=new THREE.LatheGeometry([
+    [.038,0],[.058,0],[.066,.018],[.066,.096],[.061,.102],
+    [.056,.098],[.055,.027],[.039,.018],[0,.018]
+  ].map(([r,y])=>new THREE.Vector2(r,y)),32);
+  const handle=new THREE.TorusGeometry(.037,.009,10,24);
+  const saucer=new THREE.LatheGeometry([
+    [0,0],[.085,0],[.119,.014],[.120,.020],[.110,.022],[.073,.013],[0,.013]
+  ].map(([r,y])=>new THREE.Vector2(r,y)),40);
+  geometries.add(cup);geometries.add(handle);geometries.add(saucer);
+  for(const x of [-.58,.58]){
+    const z=x<0?-.99:-.25;
+    mesh(saucer,porcelain,x,.883,z).receiveShadow=true;
+    mesh(cup,porcelain,x,.898,z).castShadow=true;
+    mesh(handle,porcelain,x+Math.sign(x)*.077,.954,z).castShadow=true;
+    mesh(round,iron,x,.977,z,.052,.005,.052);
   }
-  for(const x of [-.98,.98]){
-    mesh(round,bronze,x,4.08,-.8,.018,1.7,.018);
-    mesh(round,copper,x,3.16,-.8,.30,.18,.30);
-    mesh(ball,warm,x,3.075,-.8,.214,.062,.213);
-    const lamp=new THREE.PointLight(0xffd3a3,16,7);
-    lamp.position.set(x,2.96,-.8);
-    scene.add(lamp);
-  }
+  const ceiling=block(plaster,0,4.92,-2.46,11.5,.15,7.45);
+  ceiling.receiveShadow=true;
+  const key=new THREE.SpotLight(0xffdfb8,23,10,.81,.75,2);
+  key.position.set(0,2.95,-.78);
+  key.target.position.set(0,.62,-.72);
+  key.castShadow=true;
+  key.shadow.mapSize.set(1024,1024);
+  key.shadow.normalBias=.012;
+  key.shadow.bias=-.00015;
+  scene.add(key,key.target);
 }
