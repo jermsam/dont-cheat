@@ -1,7 +1,7 @@
 import { masks, maskId } from './masks.js?v=2';
 import { jumps, squarePosition } from './snakes.js';
-import { diceCategories } from './card-dice-rules.js?v=3';
-import { pokerRanks, rankHand } from './match-rules.js?v=6';
+import { diceCategories } from './card-dice-rules.js?v=4';
+import { pokerRanks, rankHand } from './match-rules.js?v=7';
 import { mountTableObjects } from './table-objects.js?v=7';
 import { mountLiveBoard } from './live-board.js';
 
@@ -213,6 +213,7 @@ function cardDiceMarkup(board) {
     const canDraw=legal.some(move=>move.take);
     content = `${draft ? '<p>Draft five cards from the shared pool. Best poker hand wins.</p>' :
       `<p>Rival has ${Number(board.count)} cards · Match ${suits[board.called]}${board.penalty ? ` · Draw penalty ${Number(board.penalty)}` : ''}</p>
+      ${Number.isInteger(board.openingSuit) ? `<p class="muted">Cut card · 7${'♣♦♥♠'[board.openingSuit]}</p>` : ''}
       ${canDraw ? `<div class="stock-action"><button type="button" class="primary" data-stock data-take>Draw ${board.penalty ? Number(board.penalty) : 1}</button>
         <p>${board.penalty ? (legal.some(move=>move.card!==undefined)?'Take the penalty cards and pass, or stack a 2.':'Take the penalty cards and pass.') : 'Draw from the pile. You pass if the card cannot play.'}</p></div>` : ''}
       ${lineOfCards([board.top])}`}

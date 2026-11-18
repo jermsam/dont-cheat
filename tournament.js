@@ -3,10 +3,10 @@ import { getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { masks, maskId } from './masks.js?v=2';
 
-import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=6';
-import { bestHoldem } from './card-dice-rules.js?v=3';
-import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=6';
-import { matchMarkup, mountMatch } from './match-view.js?v=9';
+import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=7';
+import { bestHoldem } from './card-dice-rules.js?v=4';
+import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=7';
+import { matchMarkup, mountMatch } from './match-view.js?v=10';
 
 const limit = 6;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
@@ -512,6 +512,7 @@ function makeView(env, send) {
         winners.length === 1 ? 'You won the table.' : 'You tied for first.' : 'The table has spoken.';
       content = `${won ? '<span class="eyebrow">VICTORY</span>' : header}<div class="cinematic-title"><h2>${headline}</h2></div>
         ${phase === 'verdict' ? `<p>${winners.length === 1 ? 'Winner' : 'Joint winners'} <strong>${winners.map(esc).join(' / ')}</strong> · ${best} pts</p>` : ''}
+        ${state.records[round]?.match ? `<p>${esc(state.records[round].entries[seat]?.answer ?? '')}</p>` : ''}
         <p>Your score <strong>${players[seat].score} pts</strong></p>${won ? env.victoryControls() : ''}
         ${phase === 'verdict' ? `<div class="row">${button('Share result', 'share-result', 'class="primary"')}${back}</div>` :
           roundAdvance(round + 2, host, state.recapPaused) + shop(state)}
