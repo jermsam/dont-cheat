@@ -1,8 +1,10 @@
 const app = document.querySelector('#app');
 const notice = document.querySelector('#notice');
 const pendingInvite = new URLSearchParams(location.hash.slice(1));
-const roomId = new URLSearchParams(location.search).get('room') ?? pendingInvite.get('room');
+const roomAddress = new URLSearchParams(location.search);
+const roomId = roomAddress.get('room') ?? pendingInvite.get('room');
 const roomSeal = pendingInvite.get('seal');
+const roomRelay = roomAddress.get('relay');
 const approvalWindow = 60_000;
 const soloNames = ['Mara', 'Vale'];
 const acts = ['The First Tell', 'The Double Stake', 'The Last Word'];
@@ -108,8 +110,8 @@ function timeout(promise, ms = 18_000) {
   })]).finally(() => clearTimeout(timer));
 }
 async function network() {
-  const { default: init, Arena } = await import('./link/dont_cheat_link.js');
-  await init();
+  const { default: init, Arena } = await import('./link/dont_cheat_link.js?v=2');
+  await init({ module_or_path: new URL('./link/dont_cheat_link_bg.wasm?v=2', import.meta.url) });
   arena = await Arena.start();
 }
 async function share() {
@@ -178,6 +180,8 @@ async function host() {
     key = Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2, '0')).join('');
     const url = new URL('./', location.href);
     url.searchParams.set('room', id);
+    const relay = arena.relay_host();
+    if (relay) url.searchParams.set('relay', relay);
     url.hash = new URLSearchParams({ seal: key });
     invitation = url.href;
     waitingRoom();
@@ -222,7 +226,7 @@ async function join(id, seal) {
   connecting('Taking your seat');
   try {
     await timeout(network());
-    link = await timeout(arena.dial(id));
+    link = await timeout(arena.dial(id, roomRelay ?? undefined));
     const code = (crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).toString().padStart(6, '0');
     if (!seal) {
       stage(`<span class="eyebrow">SEALED SUMMONS</span><h2>Waiting for your friend</h2>
@@ -309,11 +313,13 @@ function apply(player, phase, round, choice) {
   } else sync();
   return true;
 }
+const pactMultiplier = round => round === 1 ? 2 : 1;
+
 function reveal() {
   clearTimeout(hostTimer);
   const { round, cards, answers, scores } = game;
   const question = game.questions[round];
-  const bonus = round === 1 ? 2 : 1;
+  const bonus = pactMultiplier(round);
   const gains = cards.map((action, index) => {
     const other = cards[1 - index];
     const trivia = question.options[answers[index]] === question.answer ? 2 : 0;
@@ -390,9 +396,10 @@ function draw(state) {
   const score = `<div class="score"><span>YOU · ${scores[seat]}</span><span>${opponent} · ${scores[1 - seat]}</span></div>`;
   const label = `<span class="eyebrow">ROUND ${round + 1} / 3 · ${acts[round]} · ${phase === 'trivia' ? 'THE QUESTION' : 'THE PACT'}</span>`;
   if (phase === 'trivia' || phase === 'choice') {
+    const bonus = pactMultiplier(round);
     const actions = phase === 'trivia' ? options.map((option, index) =>
       `<button data-choice="${index}">${escape(option)}</button>`).join('') :
-      '<button data-choice="Trust">✦ Trust <small>Both trust: +2 each.</small></button><button data-choice="Betray">◆ Betray <small>Take +3 if they trust. Both betray: +0.</small></button>';
+      `<button data-choice="Trust">✦ Trust <small>Both trust: +${2 * bonus} each.</small></button><button data-choice="Betray">◆ Betray <small>Take +${3 * bonus} if they trust. Both betray: +0.</small></button>`;
     const announcement = round === 1 && phase === 'choice' ? 'Rule change · Double pact points' :
       round === 2 ? 'Final round · 12 seconds per decision' : '';
     const twist = announcement ? `<p class="twist">${announcement}</p>` : '';
