@@ -2,10 +2,10 @@ import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
-import { hostTournament, joinTournament } from './tournament.js?v=27';
+import { hostTournament, joinTournament } from './tournament.js?v=28';
 
 import { challenges } from './challenges.js';
-import { matchTitles } from './match-rules.js?v=8';
+import { matchTitles } from './match-rules.js?v=9';
 import { mountPuzzleBoard } from './puzzle-board.js';
 
 const app = document.querySelector('#app');
@@ -84,6 +84,9 @@ const soundCues = {
   reveal: { notes: [82, 123, 185], wave: 'triangle', volume: .1, length: .52 },
   verdict: { notes: [98, 147, 196, 294, 392], wave: 'triangle', length: .63 },
   gift: { notes: [82, 123, 207, 370, 554], wave: 'sine', length: .71 },
+  draw: { notes: [147, 220], wave: 'sine', volume: .07, length: .28 },
+  pass: { notes: [146, 98], wave: 'triangle', volume: .065, length: .32 },
+  penalty: { notes: [92, 69], wave: 'triangle', volume: .09, length: .4 },
   passage: { notes: [98, 147, 110], wave: 'triangle', length: .58 },
 };
 
@@ -108,6 +111,28 @@ function chime(notes = [147, 220, 294], { wave = 'triangle', volume = .08, lengt
 function playCue(name) {
   const cue = soundCues[name];
   if (cue) chime(cue.notes, cue);
+  if (!enabled || !audio || audio.state !== 'running' || !['dice','draw','penalty'].includes(name)) return;
+  const dice = name === 'dice';
+  const duration = dice ? .72 : .24;
+  const sample = audio.createBuffer(1, Math.ceil(audio.sampleRate * duration), audio.sampleRate);
+  const data = sample.getChannelData(0);
+  const strikes = dice ? [.09,.27,.42,.55,.63] : name === 'penalty' ? [.02,.11] : [.02];
+  for (let i=0; i<data.length; i++) {
+    const time = i / audio.sampleRate;
+    const envelope = strikes.reduce((level, strike) => {
+      const elapsed = time - strike;
+      return elapsed < 0 ? level : level + Math.exp(-elapsed / (dice ? .012 : .035));
+    }, 0);
+    data[i] = (Math.random() * 2 - 1) * envelope * .22;
+  }
+  const source = audio.createBufferSource();
+  const filter = audio.createBiquadFilter();
+  source.buffer = sample;
+  filter.type = 'bandpass';
+  filter.frequency.value = dice ? 1800 : 1100;
+  filter.Q.value = .65;
+  source.connect(filter).connect(audioOut);
+  source.start();
 }
 
 const soundButton = document.querySelector('#sound');

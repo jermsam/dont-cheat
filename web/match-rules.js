@@ -4,7 +4,7 @@ import { partyRules, partyTitles } from './party-rules.js';
 import { gin } from './gin.js?v=2';
 import { trickGame, trickTitles } from './tricks.js';
 import { race } from './snakes.js';
-import { cardAndDiceRules, cardAndDiceTitles } from './card-dice-rules.js?v=5';
+import { cardAndDiceRules, cardAndDiceTitles } from './card-dice-rules.js?v=6';
 import { Chess } from './vendor/chess-1.4.0.js';
 
 const files = 'abcdefgh';
@@ -245,6 +245,7 @@ export function createMatch(key, seats) {
   let result;
   let last;
   let roomAction;
+  let toss;
   const added = new Set();
   const active = () => rules.turn();
   const clockSide = () => rules.realtime ? 0 : active();
@@ -263,7 +264,7 @@ export function createMatch(key, seats) {
     snapshot(seat) {
       const side = seats.indexOf(seat);
       return {
-        key, seats, side, active: active(), realtime:!!rules.realtime, serial, last, roomAction, result, boosted:added.has(seat),
+        key, seats, side, active: active(), realtime:!!rules.realtime, serial, last, roomAction, toss, result, boosted:added.has(seat),
         ...rules.view(side),
         legal: !result && (rules.realtime || active() === side) ? legal(side) : [],
         time: bank.map((amount, i) => !result && (rules.realtime || i === active()) ? Math.max(0, remaining()) :
@@ -299,8 +300,11 @@ export function createMatch(key, seats) {
       const {winner, winners, reason, last: played} = rules.move(action,side);
       last = played;
       // This event describes only public moves. Drawn cards remain in each player's own view.
-      if (key==='matatu' && (action.take || Number.isInteger(action.card))) {
-        roomAction={serial:serial+1,seat,kind:action.take?'draw':'play',card:action.card};
+      if (key === 'matatu' && (action.take || Number.isInteger(action.card))) {
+        roomAction = {serial:serial+1, seat, kind:action.take ? 'draw' : 'play', card:action.card};
+      }
+      if (action.roll || /^(Roll|Accept and roll)$/.test(action.choice) || key === 'yahtzee' && action.mask !== undefined) {
+        toss = {serial:serial+1, seat};
       }
       if (winner !== undefined) result = {winner, winners, reason};
       serial++;

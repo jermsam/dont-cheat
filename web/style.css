@@ -499,3 +499,24 @@ button.table-card:hover,button.table-card:focus-visible{background:#ffd6a0;color
 .room-window[data-rendered=false]{background:linear-gradient(#17111a45,#17111abc),var(--room-fallback,url(arena.jpg)) center/cover}
 .room-window[data-rendered=false] :is(canvas,.room-orbit,.room-profiles,.room-cast-controls){visibility:hidden}
 .room-render-status{position:absolute;inset:auto 10px 8px;margin:0;padding:7px 10px;border-radius:5px;background:#170f1be9;color:#f8e7d4;font-size:.8rem}
+
+/* Table actions pair a readable label with the object or gesture it controls. */
+.table-action{display:inline-flex;align-items:center;justify-content:center;gap:.7rem;min-height:48px;padding:.6rem 1rem;border:1px solid #94714f;background:linear-gradient(145deg,#503622,#291c1b);color:#ffedce;box-shadow:0 3px 0 #170f13;font-weight:750}
+.table-action:hover,.table-action:focus-visible{border-color:#ffd387;background-color:#674934;filter:brightness(1.17)}
+.table-action:active{transform:translateY(2px);box-shadow:0 1px 0 #170f13}
+.table-action-pass{border-color:#7c6b94;background:linear-gradient(145deg,#382a48,#241a31);color:#f1ddff}
+.table-action-penalty,.table-beat[data-table-beat="penalty"]{border-color:#b86d73;background:linear-gradient(145deg,#512836,#2c1728)}
+.table-action-icon{position:relative;display:inline-grid;place-items:center;width:1.55rem;height:1.65rem;flex:none;font-size:1.55rem;line-height:1}
+.icon-draw::before,.icon-draw::after{content:"";position:absolute;width:.77rem;height:1.09rem;border:1px solid #ffda99;border-radius:2px;background:#774239;transform:translateX(-3px) rotate(-16deg)}
+.icon-draw::after{background:repeating-linear-gradient(45deg,#6b3634 0 2px,#be855a 2px 3px);transform:translateX(3px) rotate(10deg)}
+.table-beat{display:flex;align-items:center;gap:.6rem;width:max-content;max-width:100%;padding:.22rem .75rem;margin:.6rem 0;color:#f8dcad;background:#322418;border:1px solid #7c5e45;border-radius:6px}
+.table-beat[data-table-beat="pass"]{background:#30243d;color:#f1ddff;border-color:#7c6b94}
+.stock-action small{color:var(--dim)}
+@media(prefers-reduced-motion:reduce){.table-action:active{transform:none}}
+
+.immersive-table .ludo-die,.ludo-die[hidden]{display:none}
+.matatu-state{display:flex;flex-wrap:wrap;gap:.38rem;margin:.6rem 0}
+.matatu-state span{display:inline-flex;align-items:center;gap:.32rem;padding:.2rem .5rem;border:1px solid var(--stroke);border-radius:5px;background:#211923;color:#ffe7bb;font-weight:700}
+.matatu-state i{font-style:normal}
+.matatu-state .suit-1,.matatu-state .suit-2{color:#ffa9a7}
+.matatu-state small{color:#e4cbd5;font-weight:500}

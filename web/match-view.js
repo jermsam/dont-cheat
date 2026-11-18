@@ -1,8 +1,8 @@
 import { masks, maskId } from './masks.js?v=2';
 import { jumps, squarePosition } from './snakes.js';
-import { diceCategories } from './card-dice-rules.js?v=5';
-import { pokerRanks, rankHand } from './match-rules.js?v=8';
-import { mountTableObjects } from './table-objects.js?v=8';
+import { diceCategories } from './card-dice-rules.js?v=6';
+import { pokerRanks, rankHand } from './match-rules.js?v=9';
+import { mountTableObjects } from './table-objects.js?v=9';
 import { mountLiveBoard } from './live-board.js';
 
 const glyph = {p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', m:'●'};
@@ -67,6 +67,10 @@ const cell = ([row,col]) => `grid-row:${row + 1};grid-column:${col + 1}`;
 const diePips=[[4],[0,8],[0,4,8],[0,2,6,8],[0,2,4,6,8],[0,2,3,5,6,8]];
 const dieFace=face=>Array.from({length:9},(_,i)=>`<i${diePips[face-1]?.includes(i)?' class="pip"':''}></i>`).join('');
 
+const rolledDie = value => `<div class="ludo-die" data-die="${Number(value)}" aria-hidden="true"><div class="die-cube">
+        ${Array.from({length:6},(_,i)=>`<span class="die-face">${dieFace(i+1)}</span>`).join('')}</div>
+        <b class="die-face">${dieFace(value)}</b></div>`;
+
 function ludo(board) {
   const where = pos => pos === -1 ? 'Yard' : pos === 56 ? 'Home' : pos > 50 ? `Home lane ${pos - 50}` : `Track ${pos + 1}`;
   const tokens = board.tokens.flatMap((positions, side) => positions.map((pos,i) => {
@@ -77,10 +81,8 @@ function ludo(board) {
   })).join('');
   return `<p>A six lets you leave the yard and roll again. Bring all four tokens home with exact rolls.</p>
     <div class="ludo-roll">
-      ${board.legal.some(action => action.roll) ? '<button type="button" class="primary" data-roll>Roll die</button>' : ''}
-      ${board.lastRoll ? `<div class="ludo-die" data-die="${Number(board.lastRoll)}" aria-hidden="true"><div class="die-cube">
-        ${Array.from({length:6},(_,i)=>`<span class="die-face">${dieFace(i+1)}</span>`).join('')}</div>
-        <b class="die-face">${dieFace(board.lastRoll)}</b></div><p role="status">Last roll <strong>${Number(board.lastRoll)}</strong></p>` : ''}
+      ${board.legal.some(action => action.roll) ? `<button type="button" ${actionSkin('roll')} data-roll>${tableIcon('roll')}Roll die</button>` : ''}
+      ${board.lastRoll ? `${rolledDie(board.lastRoll)}<p role="status">Last roll <strong>${Number(board.lastRoll)}</strong></p>` : ''}
       ${board.die && board.legal.some(move=>move.token!==undefined) ? '<p>Choose a token.</p>' : ''}
     </div>
     <div class="ludo-layout" aria-hidden="true">
@@ -111,7 +113,7 @@ function snakes(board) {
     <div class="race-board" aria-hidden="true">${cells}${positions.map((square,side) => square ?
       `<b class="race-pawn lane-${side}" style="${cell(squarePosition(square))}">${side + 1}</b>` : '').join('')}</div>
     <p>${positions.map((square,side) => `${side === board.side ? 'You' : sideName(board,side)} · ${Number(square) || 'Start'}`).join(' / ')}</p>
-    <p class="turn-note">${describe}</p>${board.legal.length ? '<button type="button" class="primary" data-choice-label="Roll">Roll</button>' : ''}`;
+    ${last?.rolled ? rolledDie(last.rolled) : ''}<p class="turn-note">${describe}</p>${board.legal.length ? `<button type="button" ${actionSkin('roll')} data-choice-label="Roll">${tableIcon('roll')}Roll</button>` : ''}`;
 }
 
 function mweso(board) {
@@ -136,9 +138,24 @@ const handCards = cards => cards.map(card => `<span class="table-card" data-tabl
 function pickCard(card) {
   return `<button type="button" class="table-card" data-table-card="${Number(card)}" data-play-card="${Number(card)}" aria-label="Play ${cardName(card)}">${cardName(card)}</button>`;
 }
+const tableIcon = kind => `<span class="table-action-icon icon-${kind}" aria-hidden="true">${kind === 'roll' ? '⚄' : kind === 'pass' ? '↪' : ''}</span>`;
+const actionSkin = kind => `class="table-action table-action-${kind}"`;
+
+function matatuBeat(board) {
+  const move = board.roomAction?.serial === board.serial ? board.roomAction : null;
+  const count = board.last?.drawCount;
+  const draw = move?.kind === 'draw' && count > 0;
+  if (!draw && !board.last?.passed) return '';
+  const kind = draw ? 'draw' : 'pass';
+  const side = move ? board.seats.indexOf(move.seat) : 1 - board.active;
+  const who = side === board.side ? 'You' : sideName(board, side);
+  const label = draw ? `${who} drew ${Number(count)}${board.last?.passed ? ' and passed' : ''}` : `${who} passed`;
+  return `<div class="table-beat" data-table-beat="${draw && board.last.forced ? 'penalty' : kind}" role="status">${tableIcon(kind)}<strong>${label}</strong></div>`;
+}
+
 const stockActions = {gin:'Draw stock', kings:'Draw'};
 const options = board => `<div class="row">${board.legal.filter(move=>typeof move.choice==='string'&&move.choice!=='Send three').map(move =>
-  `<button type="button" ${stockActions[board.key]===move.choice?'data-stock class="primary"':board.key==='gin'&&move.choice==='Take discard'?'data-discard-pile':''} data-choice-label="${escape(move.choice)}">${escape(move.choice)}${['Call','Raise','Bet'].includes(move.choice) ? ` ${board.gap * Number(move.choice!=='Bet') + Number(board.bet) * Number(move.choice!=='Call')}` : ''}</button>`).join('')}</div>`;
+  `<button type="button" ${stockActions[board.key]===move.choice?'data-stock class="primary"':board.key==='gin'&&move.choice==='Take discard'?'data-discard-pile':''} ${move.choice==='Roll'?actionSkin('roll'):board.key==='matatu'&&move.choice==='Pass'?actionSkin('pass'):''} data-choice-label="${escape(move.choice)}">${move.choice==='Roll'?tableIcon('roll'):board.key==='matatu'&&move.choice==='Pass'?tableIcon('pass'):''}${escape(move.choice)}${['Call','Raise','Bet'].includes(move.choice) ? ` ${board.gap * Number(move.choice!=='Bet') + Number(board.bet) * Number(move.choice!=='Call')}` : ''}</button>`).join('')}</div>`;
 
 function cardDiceMarkup(board) {
   const {key, hand, legal} = board;
@@ -212,16 +229,19 @@ function cardDiceMarkup(board) {
     const draft = key === 'carddraft';
     const canDraw=legal.some(move=>move.take);
     content = `${draft ? '<p>Draft five cards from the shared pool. Best poker hand wins.</p>' :
-      `<p>Rival has ${Number(board.count)} cards · Match ${suits[board.called]}${board.penalty ? ` · Draw penalty ${Number(board.penalty)}` : ''}</p>
-      ${Number.isInteger(board.openingSuit) ? `<p class="muted">Cut card · 7${'♣♦♥♠'[board.openingSuit]}</p>` : ''}
-      ${canDraw ? `<div class="stock-action"><button type="button" class="primary" ${board.stockEmpty ? '' : 'data-stock'} data-take>${board.stockEmpty ? 'Pass · stock empty' : `Draw ${board.penalty || 1}`}</button>
-        <p>${board.stockEmpty ? 'There are no cards left to draw.' : board.penalty ? (legal.some(move=>move.card!==undefined)?'Take the penalty cards and pass, or stack a 2.':'Take the penalty cards and pass.') : 'Draw from the pile. You pass if the card cannot play.'}</p></div>` : ''}
+      `<div class="matatu-state"><span title="Rival’s cards"><i aria-hidden="true">▤</i> ${Number(board.count)} <small>rival cards</small></span>
+        <span title="Match ${suits[board.called]}"><i class="suit-${Number(board.called)}" aria-hidden="true">${'♣♦♥♠'[board.called]}</i> <small>Match</small></span>
+        ${Number.isInteger(board.openingSuit) ? `<span title="Cut card"><i class="suit-${board.openingSuit}">7${'♣♦♥♠'[board.openingSuit]}</i> <small>Cut</small></span>` : ''}</div>
+      ${canDraw ? `<div class="stock-action"><button type="button" ${actionSkin(board.stockEmpty ? 'pass' : board.penalty ? 'penalty' : 'draw')} ${board.stockEmpty ? '' : 'data-stock'} data-take>
+        ${tableIcon(board.stockEmpty ? 'pass' : 'draw')}${board.stockEmpty ? 'Pass · stock empty' : `Draw ${board.penalty || 1}`}</button>
+        ${board.penalty && legal.some(move=>move.card!==undefined) ? '<small>Or stack a 2</small>' : ''}</div>` : ''}
+      ${matatuBeat(board)}
       ${lineOfCards([board.top])}`}
       <p class="table-caption">${draft ? 'Available cards' : 'Your hand'}</p><div class="shown-cards" data-card-zone="${draft ? 'table' : 'hand'}">
         ${(draft ? board.display : hand).map(card=>legal.some(move=>move.card===card) ? pickCard(card) : handCards([card])).join('')}</div>
       ${draft ? `<p>Your picks</p>${lineOfCards(hand,'hand')}` : ''}
       <div class="row suit-picks" hidden></div>
-      ${board.drawn != null ? '<p>Play the card you drew or pass.</p>' : board.last?.passed ? '<p>Turn passed after the draw.</p>' : ''}
+      ${board.drawn != null ? '<p class="turn-note">Play it or pass.</p>' : ''}
       ${options(board)}`;
   } else if (key === 'cheat') {
     const canClaim=legal.some(move=>move.choice==='Claim');
@@ -296,11 +316,8 @@ export function matchMarkup(board, wallet, players = []) {
     ${!result ? '<div class="match-resign"><button type="button" class="quiet" data-resign>Resign this table</button><button type="button" class="quiet" data-resign-confirm hidden>Confirm resignation</button></div>' : ''}`;
 }
 
-let lastLudoRoll;
-
-export function mountMatch(app, board, send) {
+export function mountMatch(app, board, send, changedMove) {
   if (!board) return () => {};
-  if(board.key==='ludo' && board.rollCount===0)lastLudoRoll=0;
   const begin = performance.now();
   const tick = () => app.querySelectorAll('[data-match-clock]').forEach(node => {
     const side = Number(node.dataset.matchClock);
@@ -374,8 +391,12 @@ export function mountMatch(app, board, send) {
     };
   });
   if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    if (board.key==='ludo' && board.last?.rolled && board.rollCount!==lastLudoRoll) {
-      lastLudoRoll=board.rollCount;
+    const beat = changedMove && app.querySelector('[data-table-beat]');
+    if (beat) {
+      globalThis.Motion.animate(beat, {opacity:[.3,1],x:[-14,0],scale:[.98,1]}, {type:'spring',stiffness:270,damping:24});
+      globalThis.Motion.animate(beat.querySelector('.table-action-icon'), {rotate:[-22,8,0]}, {duration:.4});
+    }
+    if (changedMove && board.last?.rolled && ['ludo','snakes'].includes(board.key)) {
       app.querySelector('.ludo-die')?.classList.add('rolling');
     }
     const hand = [...app.querySelectorAll('.draw-hand button')];
