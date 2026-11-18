@@ -29,7 +29,8 @@ export function createArenaRoom(holder,kind='hall',place){
   const renderer=new THREE.WebGLRenderer({alpha:false,antialias:true});
   renderer.shadowMap.enabled=true;
   renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-  renderer.setPixelRatio(Math.min(devicePixelRatio,1.35));
+  const compact=matchMedia('(max-width: 600px)').matches;
+  renderer.setPixelRatio(Math.min(devicePixelRatio,compact?1:1.35));
   renderer.toneMapping=THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure=kitchen?1.07:1.16;
   const scene=new THREE.Scene();
@@ -474,13 +475,18 @@ export function createArenaRoom(holder,kind='hall',place){
     ready=false;
     resize.disconnect();removal.disconnect();
     cameraAnimation?.stop();
-    castStates.forEach(entry=>entry.animation?.stop());
+    castStates.forEach(entry=>{
+      entry.animation?.stop();
+      entry.actor.release();
+    });
+    castStates.clear();
     geometries.forEach(geo=>geo.dispose());materialSet.forEach(mat=>mat.dispose());textures.forEach(texture=>texture.dispose());
     moveAnimation?.controls.stop();
     dealAnimation?.stop();
     dealer.release();
     cast.dispose();
     renderer.dispose();
+    renderer.forceContextLoss();
   });
   removal.observe(holder.closest('main'),{childList:true,subtree:true});
   adjust();

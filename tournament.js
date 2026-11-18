@@ -1,4 +1,4 @@
-import { roomMarkup, mountRoomWindow } from './room-window.js?v=11';
+import { roomMarkup, mountRoomWindow } from './room-window.js?v=12';
 import { sideScreen, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
 import { getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
