@@ -2,7 +2,7 @@ import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
-import { hostTournament, joinTournament } from './tournament.js?v=24';
+import { hostTournament, joinTournament } from './tournament.js?v=25';
 
 import { challenges } from './challenges.js';
 import { matchTitles } from './match-rules.js?v=6';
@@ -266,7 +266,8 @@ function stage(content, summons = false, scene = '', placeArt = '', screen = nul
   } : null;
   const choices = sameScreen ? [...app.querySelectorAll('select[id]')].map(select=>[select.id,select.value]) : [];
   const resignOpen = sameScreen && app.querySelector('[data-resign-confirm]:not([hidden])');
-  const liveBoard = sameScreen ? [...app.querySelectorAll('.live-3d, .table-objects, .room-window')] : [];
+  const liveBoard = sameScreen ? [...app.querySelectorAll('.live-3d, .table-objects')] : [];
+  if (!sameScreen) notice.replaceChildren();
   currentScreen = screen;
   app.innerHTML = `<section class="stage ${summons ? 'summons' : ''} ${scene}"${placeArt ? ` style="${placeArt}"` : ''}><div class="board">${content}</div></section>`;
   choices.forEach(([id,value])=>{

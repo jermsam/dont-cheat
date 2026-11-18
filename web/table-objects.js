@@ -48,7 +48,6 @@ export function mountTableObjects(app, board) {
   let view=views.get(holder);
   const hint=document.createElement('p');
   hint.className='table-input-hint';
-  hint.textContent='Tap a card with a gold corner to select it.';
   hint.hidden=true;
   holder.after(hint);
   function updateCover() {
@@ -75,7 +74,9 @@ export function mountTableObjects(app, board) {
     button.setAttribute('aria-pressed',String(open));
     if (open) {
       const model=describe();
-      hint.hidden=!model.cards.some(card=>card.button);
+      const canPlay=model.cards.some(card=>card.button);
+      hint.textContent=stock?'Tap the face-down pile to draw.':'Tap a card with a gold corner to select it.';
+      hint.hidden=!stock&&!canPlay;
       holder.dataset.hand=String(model.cards.some(card=>card.zone==='hand'));
       holder.dataset.stock=String(Boolean(stock));
       holder.dataset.cards=String(model.cards.some(card=>card.zone==='table'));
@@ -86,7 +87,7 @@ export function mountTableObjects(app, board) {
   async function start() {
     button.disabled=true;
     try {
-      const {createTableObjects}=await import('./table-objects-3d.js?v=6');
+      const {createTableObjects}=await import('./table-objects-3d.js?v=7');
       if (!holder.isConnected) return;
       view=createTableObjects(holder);
       views.set(holder,view);

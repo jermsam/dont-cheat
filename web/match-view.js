@@ -2,7 +2,7 @@ import { masks, maskId } from './masks.js?v=2';
 import { jumps, squarePosition } from './snakes.js';
 import { diceCategories } from './card-dice-rules.js?v=3';
 import { pokerRanks, rankHand } from './match-rules.js?v=6';
-import { mountTableObjects } from './table-objects.js?v=6';
+import { mountTableObjects } from './table-objects.js?v=7';
 import { mountLiveBoard } from './live-board.js';
 
 const glyph = {p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', m:'●'};
