@@ -1,4 +1,4 @@
-import { tableIdentity, tableMoment } from './table-moments.js';
+import { tableIdentity, tableMoment } from './table-moments.js?v=2';
 import { recordProgress, progressMarkup } from './progress.js';
 import { icon } from './icons.js?v=3';
 import { sideScreen, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=3';
@@ -9,7 +9,7 @@ import { masks, maskId } from './masks.js?v=2';
 import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=13';
 import { bestHoldem } from './card-dice-rules.js?v=7';
 import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=12';
-import { matchMarkup, mountMatch } from './match-view.js?v=18';
+import { matchMarkup, mountMatch } from './match-view.js?v=19';
 
 const limit = 6;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
@@ -649,7 +649,7 @@ function makeView(env, send) {
     if (signature === prior) return;
     const arrived = previousRound !== state.round || previousPhase === 'lobby';
     if (previousPhase !== state.phase || previousRound !== state.round) {
-      env.cue(({ draft: 'trivia', clue: 'claim', final: 'choice', pact: 'choice', reveal: 'reveal', verdict: undefined })[state.phase]);
+      env.cue(({ draft: 'trivia', clue: 'claim', final: 'choice', pact: 'choice', verdict: undefined })[state.phase]);
     }
     const board = state.board;
     const changedMove = phaseIsNewMove(state, previousMatch);
@@ -713,7 +713,7 @@ function makeView(env, send) {
       const headline = phase === 'reveal' ? points>0 ? 'Points earned' : 'Round complete' : won ?
         winners.length === 1 ? 'You won the table.' : 'You tied for first.' : 'The table has spoken.';
       content = `${won ? '<span class="eyebrow">VICTORY</span>' : header}
-        <div class="recap-layout"><div class="recap-result">${won ? `<div class="season-trophy" aria-hidden="true">${icon('trophy')}</div>` : ''}<h2>${headline}</h2>
+        <div class="recap-layout"><div class="recap-result">${phase==='verdict' ? `<div class="season-trophy" aria-hidden="true">${icon('trophy')}</div>` : ''}<h2>${headline}</h2>
         ${phase === 'verdict' ? `<p>${winners.length === 1 ? 'Winner' : 'Joint winners'} <strong>${winners.map(esc).join(' / ')}</strong> · ${best} pts</p>` : ''}
         ${settled ? `<p class="resolved-table">${icon(settled.match?'flag':'users')} <strong>${esc(settled.title)}</strong></p>` : ''}
         ${state.records[round]?.match ? `<p>${esc(state.records[round].entries[seat]?.answer ?? '')}</p>` : ''}
@@ -794,6 +794,11 @@ function makeView(env, send) {
         location.reload();
       }
     });
+    if(earned){
+      const reward=state.records[round]?.entries[seat]?.points ?? 0;
+      if(phase==='reveal')env.cue(reward>=3?'reward':'reveal');
+      else if(!won)env.cue('verdict');
+    }
     if(earned && !matchMedia('(prefers-reduced-motion: reduce)').matches){
       const trophy=app.querySelector('.season-trophy');
       if(trophy)globalThis.Motion.animate(trophy,{scale:[.25,1.16,1],rotate:[-16,8,0],opacity:[.2,1,1]}, {duration:.6});
