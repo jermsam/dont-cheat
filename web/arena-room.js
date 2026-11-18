@@ -1,8 +1,8 @@
 import { surfaceMaps,studioLight } from './physical-materials.js';
 import * as THREE from './vendor/three.module.min.js';
-import { makeCast } from './room-cast.js?v=4';
-import { buildKitchen } from './midnight-kitchen.js';
-import { makeRoomCards } from './room-cards.js';
+import { makeCast } from './room-cast.js?v=7';
+import { buildKitchen } from './midnight-kitchen.js?v=2';
+import { makeRoomCards } from './room-cards.js?v=4';
 import { feltTexture } from './table-art.js';
 
 const arenaSeats = [
@@ -26,7 +26,7 @@ export function createArenaRoom(holder,kind='hall',place){
   renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   renderer.setPixelRatio(Math.min(devicePixelRatio,1.35));
   renderer.toneMapping=THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure=1.16;
+  renderer.toneMappingExposure=kitchen?1.01:1.16;
   const scene=new THREE.Scene();
   scene.background=new THREE.Color(theme.sky);
   scene.fog=new THREE.FogExp2(theme.sky,.047);
@@ -34,7 +34,7 @@ export function createArenaRoom(holder,kind='hall',place){
   holder.append(renderer.domElement);
   renderer.domElement.setAttribute('aria-hidden','true');
   const geometries=new Set(),materialSet=new Set(),textures=new Set();
-  const cast=makeCast(render);
+  const cast=makeCast(render,kitchen);
   const castStates=new Map();
   const motion=matchMedia('(prefers-reduced-motion: reduce)');
   let angle=.06, cameraAnimation, ready=true, focusSeat=null, closeup=0;
@@ -69,8 +69,8 @@ export function createArenaRoom(holder,kind='hall',place){
   }
   const block=(mat,x,y,z,sx,sy,sz,parent)=>mesh(cube,mat,x,y,z,sx,sy,sz,parent);
 
-  scene.add(new THREE.HemisphereLight(0xffead7,0x6e6493,kitchen?.76:1.30));
-  const front=new THREE.DirectionalLight(0xffd7a7,kitchen?1.59:2.3);
+  scene.add(new THREE.HemisphereLight(0xffead7,0x6e6493,kitchen?.40:1.30));
+  const front=new THREE.DirectionalLight(0xffd7a7,kitchen?.84:2.3);
   front.position.set(-4,7,6);
   front.castShadow=true;
   front.shadow.mapSize.set(1024,1024);
@@ -79,7 +79,12 @@ export function createArenaRoom(holder,kind='hall',place){
   front.shadow.normalBias=.022;
   front.target.position.set(0,0,-1.3);
   scene.add(front,front.target);
-  const rim=new THREE.PointLight(theme.light,kitchen?22:50,16,2);
+  if(kitchen){
+    const faceFill=new THREE.PointLight(0xf4e6da,3.8,5);
+    faceFill.position.set(0,1.84,1.18);
+    scene.add(faceFill);
+  }
+  const rim=new THREE.PointLight(theme.light,kitchen?8:50,16,2);
   rim.position.set(0,3.7,-3);scene.add(rim);
 
   const doors=[];
@@ -269,6 +274,7 @@ export function createArenaRoom(holder,kind='hall',place){
     camera.position.copy(position);
     camera.lookAt(target);
     holder.dataset.portraits=[...castStates.values()].map(entry=>entry.actor.root.userData.portrait).filter(Boolean).join(',');
+    holder.dataset.tripoModels=[...castStates.values()].map(entry=>entry.actor.root.userData.tripo).filter(Boolean).join(',');
     renderer.render(scene,camera);
   }
   function adjust(){
@@ -361,7 +367,7 @@ export function createArenaRoom(holder,kind='hall',place){
         if(motion.matches){cards.turn(actor,action.kind,action.card,1);cards.showTop(table.top);}
         else{
           holder.dataset.roomAnimating='true';
-          moveAnimation={seat:action.seat,controls:globalThis.Motion.animate(0,1,{duration:.76,ease:'linear',
+          moveAnimation={seat:action.seat,controls:globalThis.Motion.animate(0,1,{duration:1.12,ease:'linear',
             onUpdate:value=>{cards.turn(actor,action.kind,action.card,value);render();},
             onComplete:()=>{cards.showTop(table.top);holder.dataset.roomAnimating='false';render();}
           })};

@@ -3,7 +3,7 @@ import { surfaceMaps } from './physical-materials.js';
 
 export function buildKitchen({scene, block, mesh, round, ball, material, wood, bronze, warm, render, alive}) {
   const plaster=material(0x3b3027);
-  const tile=material(0xa79577,{roughness:.38});
+  const tile=material(0x938571,{roughness:.62});
   const cabinet=material(0x28403a,{roughness:.43});
   const panel=material(0x162b26);
   const stone=material(0x9b8f7c,{roughness:.31});
@@ -13,12 +13,13 @@ export function buildKitchen({scene, block, mesh, round, ball, material, wood, b
   const foliage=material(0x485628);
   const midnight=material(0x12192a);
   const sky=material(0x243f62,{emissive:0x24456b,emissiveIntensity:.55});
+  surfaceMaps(tile,'stone',render,alive);
   surfaceMaps(stone,'stone',render,alive);
 
   block(wood,0,-.14,-2,12,.27,13).receiveShadow=true;
   for(let row=0;row<14;row++)for(let plank=0;plank<4;plank++){
     const x=(plank-1.5)*3+(row%2)*.52;
-    block(plank%3===1?wood:plaster,x,-.019,4-row*.81,2.981,.038,.799).receiveShadow=true;
+    block(wood,x,-.019,4-row*.81,2.981,.038,.799).receiveShadow=true;
   }
   for(const side of [-1,1])block(plaster,side*5.75,2.72,-2,.25,5.44,13);
   block(plaster,0,4.68,-6.08,11.6,1.52,.35);
@@ -36,7 +37,7 @@ export function buildKitchen({scene, block, mesh, round, ball, material, wood, b
     for(const dx of [-.69,0,.69])block(wood,x+dx,2.99,-5.85,.055,1.94,.19);
     block(stone,x,2.04,-5.72,1.64,.10,.44);
   }
-  const moon=new THREE.PointLight(0x8ebdff,53,13);
+  const moon=new THREE.PointLight(0x8ebdff,75,13);
   moon.position.set(2.55,3.25,-5.85);
   const stoveGlow=new THREE.PointLight(0xffa353,18,8);
   stoveGlow.position.set(-3,2,-4.7);
@@ -116,5 +117,8 @@ export function buildKitchen({scene, block, mesh, round, ball, material, wood, b
     mesh(round,bronze,x,4.08,-.8,.018,1.7,.018);
     mesh(round,copper,x,3.16,-.8,.30,.18,.30);
     mesh(ball,warm,x,3.075,-.8,.214,.062,.213);
+    const lamp=new THREE.PointLight(0xffd3a3,12,7);
+    lamp.position.set(x,2.96,-.8);
+    scene.add(lamp);
   }
 }
