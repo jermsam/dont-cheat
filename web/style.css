@@ -520,3 +520,7 @@ button.table-card:hover,button.table-card:focus-visible{background:#ffd6a0;color
 .matatu-state i{font-style:normal}
 .matatu-state .suit-1,.matatu-state .suit-2{color:#ffa9a7}
 .matatu-state small{color:#e4cbd5;font-weight:500}
+.deck-cue{position:absolute;left:clamp(64px,var(--deck-x,20%),calc(100% - 64px));top:var(--deck-y,27%);transform:translate(-50%,0);z-index:2;padding:.33rem .48rem;border-radius:4px;border:1px solid #f9d081;background:#2b1916;color:#fff0c7;box-shadow:0 0 15px #f1b8518c;font:800 clamp(.57rem,1.6vw,.76rem) ui-monospace,monospace;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;pointer-events:none}
+.deck-cue::before{content:"";position:absolute;left:calc(50% - 4px);top:-5px;width:8px;height:8px;background:inherit;border-top:1px solid;border-left:1px solid;transform:rotate(45deg)}
+.deck-cue:not([data-count="1"]){background:#4b202c;color:#ffe1e3;border-color:#ffa9ad;box-shadow:0 0 19px #ef6467a8}
+.immersive-table .stock-stakes{display:none}

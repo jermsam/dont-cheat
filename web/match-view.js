@@ -2,7 +2,7 @@ import { masks, maskId } from './masks.js?v=2';
 import { jumps, squarePosition } from './snakes.js';
 import { diceCategories } from './card-dice-rules.js?v=6';
 import { pokerRanks, rankHand } from './match-rules.js?v=9';
-import { mountTableObjects } from './table-objects.js?v=9';
+import { mountTableObjects } from './table-objects.js?v=10';
 import { mountLiveBoard } from './live-board.js';
 
 const glyph = {p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', m:'●'};
@@ -232,9 +232,11 @@ function cardDiceMarkup(board) {
       `<div class="matatu-state"><span title="Rival’s cards"><i aria-hidden="true">▤</i> ${Number(board.count)} <small>rival cards</small></span>
         <span title="Match ${suits[board.called]}"><i class="suit-${Number(board.called)}" aria-hidden="true">${'♣♦♥♠'[board.called]}</i> <small>Match</small></span>
         ${Number.isInteger(board.openingSuit) ? `<span title="Cut card"><i class="suit-${board.openingSuit}">7${'♣♦♥♠'[board.openingSuit]}</i> <small>Cut</small></span>` : ''}</div>
-      ${canDraw ? `<div class="stock-action"><button type="button" ${actionSkin(board.stockEmpty ? 'pass' : board.penalty ? 'penalty' : 'draw')} ${board.stockEmpty ? '' : 'data-stock'} data-take>
+      ${canDraw ? `<div class="stock-action" data-draw-count="${board.stockEmpty ? 0 : Number(board.penalty || 1)}"><button type="button" ${actionSkin(board.stockEmpty ? 'pass' : board.penalty ? 'penalty' : 'draw')} ${board.stockEmpty ? '' : 'data-stock'} data-take>
         ${tableIcon(board.stockEmpty ? 'pass' : 'draw')}${board.stockEmpty ? 'Pass · stock empty' : `Draw ${board.penalty || 1}`}</button>
-        ${board.penalty && legal.some(move=>move.card!==undefined) ? '<small>Or stack a 2</small>' : ''}</div>` : ''}
+        ${board.stockEmpty ? '' : `<small class="stock-stakes">${board.penalty ?
+          legal.some(move=>move.card!==undefined) ? 'Pay the penalty or stack a 2.' : 'Pay the penalty. Your turn ends.' :
+          'Draw one. If it can’t play, your turn ends.'}</small>`}</div>` : ''}
       ${matatuBeat(board)}
       ${lineOfCards([board.top])}`}
       <p class="table-caption">${draft ? 'Available cards' : 'Your hand'}</p><div class="shown-cards" data-card-zone="${draft ? 'table' : 'hand'}">

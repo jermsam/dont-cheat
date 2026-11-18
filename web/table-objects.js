@@ -48,6 +48,20 @@ export function mountTableObjects(app, board) {
       button:item.matches('button:not(:disabled)')&&!(handCovered&&item.closest('[data-card-zone="hand"]'))?item:item.closest('[data-card-zone="discard"]')?discard:null,
     })),
   });
+  const drawCount = Number(stock?.closest('[data-draw-count]')?.dataset.drawCount);
+  const previousCue = holder.querySelector('.deck-cue');
+  if (drawCount > 0 && previousCue?.dataset.count !== String(drawCount)) {
+    previousCue?.remove();
+    const cue = document.createElement('span');
+    cue.className = 'deck-cue';
+    cue.dataset.count = String(drawCount);
+    cue.setAttribute('aria-hidden', 'true');
+    cue.textContent = drawCount > 1 ? `Pay up · Draw ${drawCount}` : 'Draw 1 · Take a chance';
+    holder.append(cue);
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      globalThis.Motion.animate(cue, {opacity:[0,1],scale:[.85,1]}, {type:'spring',stiffness:240,damping:19});
+    }
+  } else if (!(drawCount > 0)) previousCue?.remove();
   let view=views.get(holder);
   const hint=document.createElement('p');
   hint.className='table-input-hint';
@@ -83,7 +97,7 @@ export function mountTableObjects(app, board) {
       const model=describe();
       const canPlay=model.cards.some(card=>card.button);
       hint.textContent=stock?'Tap the deck to draw.':'Gold corners show playable cards.';
-      hint.hidden=!stock&&!canPlay;
+      hint.hidden=drawCount > 0 || !stock&&!canPlay;
       holder.dataset.hand=String(model.cards.some(card=>card.zone==='hand'));
       holder.dataset.stock=String(Boolean(stock));
       holder.dataset.cards=String(model.cards.some(card=>card.zone==='table'));
@@ -94,7 +108,7 @@ export function mountTableObjects(app, board) {
   async function start() {
     button.disabled=true;
     try {
-      const {createTableObjects}=await import('./table-objects-3d.js?v=9');
+      const {createTableObjects}=await import('./table-objects-3d.js?v=10');
       if (!holder.isConnected) return;
       view=createTableObjects(holder);
       views.set(holder,view);

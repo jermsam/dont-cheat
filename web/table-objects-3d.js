@@ -169,6 +169,11 @@ export function createTableObjects(holder) {
     camera.top=camera.right/aspect;
     camera.bottom=-camera.top;
     camera.updateProjectionMatrix();
+    if (holder.querySelector('.deck-cue')) {
+      const point = new THREE.Vector3(-2.28,.04,-1.03).project(camera);
+      holder.style.setProperty('--deck-x', `${(1+point.x)*50}%`);
+      holder.style.setProperty('--deck-y', `${(1-point.y)*50}%`);
+    }
     renderer.setSize(w,h,false);
     render();
   }
