@@ -5,7 +5,7 @@ import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=3';
-import { hostTournament, joinTournament, cleanDisplayName } from './tournament.js?v=47';
+import { hostTournament, joinTournament, cleanDisplayName } from './tournament.js?v=48';
 
 import { challenges } from './challenges.js';
 import { matchTitles } from './match-rules.js?v=12';
@@ -113,9 +113,9 @@ function chime(notes = [147, 220, 294], { wave = 'triangle', volume = .08, lengt
   });
 }
 
-function playCue(name) {
+function playCue(name, character) {
   if (name === 'checkmate') {
-    if (enabled && audio) void playCheckmate();
+    if (enabled && audio) void playCheckmate(character);
     return;
   }
   const cue = soundCues[name];
@@ -162,22 +162,26 @@ async function prepareAudio() {
   return audio.resume();
 }
 
-let checkmateBuffer;
+const checkmateBuffers = new Map();
 
-function loadCheckmate() {
-  checkmateBuffer ??= fetch('music/checkmate.mp3').then(response => {
-    if (!response.ok) throw new Error('Checkmate voice unavailable');
-    return response.arrayBuffer();
-  }).then(buffer => audio.decodeAudioData(buffer)).catch(error => {
-    checkmateBuffer = null;
-    throw error;
-  });
-  return checkmateBuffer;
+function loadCheckmate(character) {
+  const id=maskId(character);
+  if (!checkmateBuffers.has(id)) {
+    const path=id?`music/checkmate/${id}.mp3`:'music/checkmate.mp3';
+    checkmateBuffers.set(id,fetch(path).then(response => {
+      if (!response.ok) throw new Error('Checkmate voice unavailable');
+      return response.arrayBuffer();
+    }).then(buffer => audio.decodeAudioData(buffer)).catch(error => {
+      checkmateBuffers.delete(id);
+      throw error;
+    }));
+  }
+  return checkmateBuffers.get(id);
 }
 
-async function playCheckmate() {
+async function playCheckmate(character) {
   try {
-    const buffer = await loadCheckmate();
+    const buffer = await loadCheckmate(character).catch(()=>loadCheckmate());
     if (!enabled || audio.state !== 'running') return;
     const source = audio.createBufferSource();
     source.buffer = buffer;
@@ -449,6 +453,16 @@ try { displayName = cleanDisplayName(localStorage.getItem(displayNameKey)); } ca
 function saveDisplayName(input) {
   displayName = cleanDisplayName(input?.value);
   try { localStorage.setItem(displayNameKey, displayName); } catch {}
+}
+
+function acceptIdentity(input) {
+  if (cleanDisplayName(input.value) && !chosenMask) {
+    say('Choose a character to use your custom name.');
+    document.querySelector('#mask-picker button')?.focus();
+    return false;
+  }
+  saveDisplayName(input);
+  return true;
 }
 
 function tableEnvironment(playlist) {
@@ -907,6 +921,8 @@ function mountMaskPicker(mode) {
 
   function showSelection() {
     const mask = chosenMask && masks[chosenMask];
+    const input=document.querySelector('#invite-name, #setup-name input');
+    if (input) input.placeholder=mask?.name ?? '';
     full.forEach(button => button.setAttribute('aria-pressed', button.dataset.mask === chosenMask));
     starters.forEach((button, index) => {
       button.setAttribute('aria-pressed', button.dataset.starter === chosenMask);
@@ -914,7 +930,7 @@ function mountMaskPicker(mode) {
         starterMasks[index].crewHint :
         starterMasks[index].hint;
     });
-    const gift = mode === 'tournament' ? 'Other players see your mask before they answer.' :
+    const gift = mode === 'tournament' ? `Default name: ${mask?.name ?? ''}` :
       `${mask?.gift} · +2 once per match. ${mask?.rule}`;
     summary.innerHTML = mask ? `<div><strong>${mask.title}</strong><small>${gift}</small></div>
       <button class="quiet" type="button" id="remove-mask">Remove</button>` :
@@ -1055,7 +1071,10 @@ function mountLobby() {
       entry.focus();
     }
   };
-  forward.onclick = () => showStep(step + 1);
+  forward.onclick = () => {
+    if (selected==='tournament' && flow()[step]===1 && !acceptIdentity(nameField.querySelector('input'))) return;
+    showStep(step + 1);
+  };
   lobby.querySelector('#destination').addEventListener('change', showScene);
   lobby.querySelector('#mask-picker').addEventListener('click', event => {
     if (!event.composedPath().some(node => node.matches?.('[data-mask], [data-starter], #remove-mask'))) return;
@@ -1082,7 +1101,7 @@ function mountLobby() {
   launch.onclick = () => {
     if (selected === 'solo') start(true);
     else {
-      if (selected === 'tournament') saveDisplayName(nameField.querySelector('input'));
+      if (selected === 'tournament' && !acceptIdentity(nameField.querySelector('input'))) return;
       host(selected === 'crew', selected === 'tournament' ? playlist : null);
     }
   };
@@ -1323,7 +1342,7 @@ if (roomId !== null || roomSeal !== null) {
       stage(maskStep ?
         `<span class="eyebrow">INVITE · STEP 2 OF 2</span><h2>${mode === 'tournament' ? 'Make it yours' : 'Choose a mask'}</h2>
           ${mode === 'tournament' ? `<label class="room-name">Display name <small>Optional</small>
-          <input id="invite-name" maxlength="24" autocomplete="off" value="${escape(displayName)}"></label><p>Pick a mask or join without one.</p>` : '<p>Optional. You can join without one.</p>'}<section class="invite-masks"><div id="mask-picker"></div></section>
+          <input id="invite-name" maxlength="24" autocomplete="off" value="${escape(displayName)}"></label><p>Pick a character to use a custom name. Leave the name blank to use theirs.</p>` : '<p>Optional. You can join without one.</p>'}<section class="invite-masks"><div id="mask-picker"></div></section>
           <div class="row"><button class="quiet" id="invite-back">Back</button><button class="primary" id="enter">Join game ↗</button></div>` :
         `<span class="eyebrow">INVITE · STEP 1 OF 2</span><h2>${title}</h2><p>${intro}</p>
           <div class="row"><button class="primary" id="invite-continue">Continue →</button>${homeButton}</div>`,
@@ -1332,7 +1351,7 @@ if (roomId !== null || roomSeal !== null) {
         mountMaskPicker(mode);
         document.querySelector('#invite-back').onclick = () => inviteStep(false);
         document.querySelector('#enter').onclick = () => {
-          if (mode === 'tournament') saveDisplayName(document.querySelector('#invite-name'));
+          if (mode === 'tournament' && !acceptIdentity(document.querySelector('#invite-name'))) return;
           join(roomId, roomSeal);
         };
       } else document.querySelector('#invite-continue').onclick = () => inviteStep(true);
