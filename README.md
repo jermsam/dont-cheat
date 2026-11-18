@@ -42,6 +42,10 @@ Choose a mask in the lobby or on the invite screen. Each mask can award +2 point
 
 Tap **Team up** to play on the same side. Both players earn crew points for correct answers. The briefing shows how many. Then one player must **Distract** the host while the other chooses **Grab**. Picking different jobs earns 4 crew points, doubled in Round 2. Picking the same job or leaving a job unfilled earns zero loot points. Reach 16 crew points after three rounds to escape together.
 
+## Motion and sound
+
+The briefing and verdict show a rendered 3D relic. Scene art shifts with the pointer on desktop, and cards turn over together at the reveal. Player portraits animate at the start of each phase. Tap **Sound off** to enable the synthesized door, countdown, and reveal cues. Reduced-motion settings keep the relic still and skip scene and card animations.
+
 ## Development
 
 Run `python3 -m http.server 8000 --directory web` from the repository root, then open http://localhost:8000. The committed browser build is ready to serve. GitHub Pages serves the `web` contents through the `gh-pages` branch.
