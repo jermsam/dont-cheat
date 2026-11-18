@@ -1,5 +1,5 @@
 import { buildChallenges } from './challenges.js';
-import { createMatch, matchTitles } from './match-rules.js?v=2';
+import { createMatch, matchTitles } from './match-rules.js?v=3';
 
 export const seasonLength = 9;
 const social = ['signal', 'dare'];
@@ -23,6 +23,10 @@ export function seasonLineup(preference, shuffle) {
 export function seasonMatches(key, ranks, round, shuffle) {
   const ranked = round === 0 ? shuffle(ranks) : [...ranks].sort((a, b) => b.score - a.score);
   const seats = ranked.map(player => player.seat);
+  if (['spades','hearts','euchre','president','lcr','kings'].includes(key)) {
+    const split = seats.length <= 4 ? [seats] : [seats.filter((_,i)=>i%2===0), seats.filter((_,i)=>i%2===1)];
+    return split.map(group => createMatch(key,[...group,...Array.from({length:4-group.length},(_,i)=>-1-i)]));
+  }
   if (seats.length % 2) {
     const [bye] = seats.splice(round % seats.length, 1);
     seats.push(bye, -1);

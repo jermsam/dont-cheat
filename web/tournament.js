@@ -3,10 +3,10 @@ import { getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { masks, maskId } from './masks.js?v=2';
 
-import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=2';
-import { bestHoldem } from './card-dice-rules.js?v=2';
-import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=2';
-import { matchMarkup, mountMatch, cardName } from './match-view.js?v=2';
+import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=3';
+import { bestHoldem } from './card-dice-rules.js?v=3';
+import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=3';
+import { matchMarkup, mountMatch, cardName } from './match-view.js?v=3';
 
 const limit = 6;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
@@ -140,8 +140,8 @@ export function hostTournament(env) {
     const entries = players.map(() => ({points:0, answer:'Did not play'}));
     matches.forEach(match => match.seats.forEach((seat, side) => {
       if (seat < 0) return;
-      const {winner, reason} = match.result;
-      const points = winner === null ? 2 : winner === side ? 4 : 0;
+      const {winner, winners, reason} = match.result;
+      const points = winner === null ? 2 : (winners?.includes(side) ?? winner === side) ? 4 : 0;
       const snapshot = match.snapshot(seat);
       const hand = snapshot.showdown?.[side] ?? snapshot.shown?.[side];
       const ranking = hand && (snapshot.community ? bestHoldem([...hand,...snapshot.community]) : rankHand(hand));
@@ -163,19 +163,23 @@ export function hostTournament(env) {
       publish();
       return;
     }
-    const botReady = pending.some(match => match.activeSeat() === -1);
-    const delay = Math.min(...pending.map(match => match.deadline() - Date.now()), botReady ? 750 : Infinity);
+    const botReady = pending.some(match => match.botSeats().length);
+    const delay = Math.min(...pending.map(match => match.deadline() - Date.now()), botReady ? lineup[round].key === 'kings' ? 3_500 : 750 : Infinity);
     timer = setTimeout(() => {
       if (phase !== 'match') return;
       pending.forEach(match => {
         match.expire();
-        if (match.done || match.activeSeat() !== -1) return;
-        const position = match.snapshot(-1);
-        const options = match.legal();
-        const action = options.find(item => item.mask === 0 || item.choice === 'Bank' && position.tally >= 15) ?? env.shuffle(options)[0];
-        if (action) {
-          const move = action.choice === 'Claim' ? {...action,cards:[position.hand[0]]} : action;
-          match.move(-1, {serial:position.serial, action:move});
+        if (match.done) return;
+        for (const botSeat of match.botSeats()) {
+          const position=match.snapshot(botSeat);
+          const options=position.legal;
+          const action = options.find(item=>item.mask===0 || item.knock || item.bid===3 ||
+            item.choice==='Bank'&&position.tally>=15 || item.choice==='Slap'&&position.slappable)
+            ?? env.shuffle(options.filter(item=>item.choice!=='Slap'))[0];
+          if (!action) continue;
+          const move = action.choice === 'Claim' ? {...action,cards:[position.hand[0]]} :
+            action.choice === 'Send three' ? {...action,cards:position.hand.slice(0,3)} : action;
+          match.move(botSeat,{serial:position.serial,action:move});
         }
       });
       updateMatches();
@@ -319,16 +323,16 @@ const integer = (value,min,max) => Number.isInteger(value) && value >= min && va
 const coordinate = value => typeof value === 'string' && /^[a-h][1-8]$/.test(value);
 function validBoard(board, state) {
   if (!board) return true;
-  return board.key === state.challenge.key && integer(board.side,0,1) && integer(board.active,0,1) &&
-    Array.isArray(board.seats) && board.seats.length === 2 &&
-    board.seats.every(seat=>integer(seat,-1,state.players.length-1)) && board.seats[board.side] === state.seat &&
+  return board.key === state.challenge.key && integer(board.side,0,3) && integer(board.active,0,3) &&
+    Array.isArray(board.seats) && [2,4].includes(board.seats.length) &&
+    board.seats.every(seat=>integer(seat,-3,state.players.length-1)) && board.seats[board.side] === state.seat &&
     Number.isSafeInteger(board.serial) &&
     Array.isArray(board.legal) && board.legal.length <= 256 &&
-    Array.isArray(board.time) && board.time.length === 2 && board.time.every(Number.isFinite) &&
+    Array.isArray(board.time) && board.time.length === board.seats.length && board.time.every(Number.isFinite) &&
     (!board.pieces || Array.isArray(board.pieces) && board.pieces.length <= 32 && board.pieces.every(piece=>
       coordinate(piece.square) && /^[pnbrqkm]$/.test(piece.type) && integer(piece.side,0,1))) &&
     (!board.pieces || !board.last || coordinate(board.last.from) && coordinate(board.last.to)) &&
-    (!board.result || board.result.winner === null || integer(board.result.winner,0,1));
+    (!board.result || board.result.winner === null || integer(board.result.winner,0,board.seats.length-1));
 }
 
 function isTableState(state) {

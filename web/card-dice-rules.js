@@ -1,4 +1,4 @@
-import { compare, random, rankHand, shuffledDeck } from './match-rules.js?v=2';
+import { compare, random, rankHand, shuffledDeck } from './deck.js';
 
 const rank = card => card % 13 + 2;
 const suit = card => Math.floor(card / 13);
@@ -82,11 +82,11 @@ function holdem() {
   };
 }
 
-function matatu() {
-  let stock = shuffledDeck();
+export function matatu(deck = shuffledDeck()) {
+  let stock = [...deck];
   const hands = [draw(stock, 7), draw(stock, 7)];
   const table = [stock.pop()];
-  let active = 0, called = suit(table[0]), penalty = 0;
+  let active = 0, called = suit(table[0]), penalty = 0, drawn;
   const points = cards => total(cards.map(card => rank(card) === 2 ? 20 : rank(card) === 14 ? 15 : rank(card)));
   function take(count) {
     while (count-- > 0) {
@@ -99,22 +99,35 @@ function matatu() {
   }
   function legal() {
     const cards = hands[active].flatMap(card => {
+      if (drawn !== undefined && card !== drawn) return [];
       const face = rank(card);
       if (penalty) return face === 2 ? [{card}] : [];
       if (face === 14) return [0,1,2,3].map(call => ({card,call}));
       return suit(card) === called || face === rank(table.at(-1)) ? [{card}] : [];
     });
+    if (drawn !== undefined) return [...cards, {choice:'Pass'}];
     return cards.length && !penalty ? cards : [...cards, {take:true}];
   }
   return {
     turn: () => active, legal,
-    view: side => ({hand:hands[side], count:hands[1-side].length, top:table.at(-1), called, penalty}),
+    view: side => ({hand:hands[side], count:hands[1-side].length, top:table.at(-1), called, penalty,
+      drawn: side === active && drawn !== undefined ? drawn : null}),
     move(action) {
       if (action.take) {
+        const forced = penalty > 0;
+        const size = hands[active].length;
         take(penalty || 1);
         penalty = 0;
+        drawn = !forced && hands[active].length > size ? hands[active].at(-1) : undefined;
+        if (drawn !== undefined && legal().some(move => move.card !== undefined)) return {last:{drew:true}};
+        drawn = undefined;
         active = 1-active;
-        return {last:{drew:true}};
+        return {last:{drew:true, passed:true}};
+      }
+      drawn = undefined;
+      if (action.choice === 'Pass') {
+        active = 1-active;
+        return {last:{passed:true}};
       }
       const card = action.card, face = rank(card);
       hands[active].splice(hands[active].indexOf(card),1);

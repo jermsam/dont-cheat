@@ -1,5 +1,10 @@
+import { range, random, shuffledDeck, rankHand, compare } from './deck.js';
+export { random, shuffledDeck, rankHand, compare, pokerRanks } from './deck.js';
+import { partyRules, partyTitles } from './party-rules.js';
+import { gin } from './gin.js';
+import { trickGame, trickTitles } from './tricks.js';
 import { race } from './snakes.js';
-import { cardAndDiceRules, cardAndDiceTitles } from './card-dice-rules.js?v=2';
+import { cardAndDiceRules, cardAndDiceTitles } from './card-dice-rules.js?v=3';
 import { Chess } from './vendor/chess-1.4.0.js';
 
 const files = 'abcdefgh';
@@ -84,49 +89,6 @@ function draughts() {
       return {last};
     },
   };
-}
-
-const range = n => Array.from({length:n}, (_, i) => i);
-export const random = max => {
-  const ceiling = Math.floor(0x100000000 / max) * max;
-  const sample = new Uint32Array(1);
-  do { crypto.getRandomValues(sample); } while (sample[0] >= ceiling);
-  return sample[0] % max;
-};
-export const compare = (a, b) => {
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    const delta = (a[i] ?? 0) - (b[i] ?? 0);
-    if (delta) return Math.sign(delta);
-  }
-  return 0;
-};
-
-export function rankHand(hand) {
-  const ranks = hand.map(card => card % 13 + 2).sort((a, b) => b - a);
-  const counts = [...new Set(ranks)].map(rank => [ranks.filter(value => value === rank).length, rank])
-    .sort(([countA, a], [countB, b]) => countB - countA || b - a);
-  const flush = hand.every(card => Math.floor(card / 13) === Math.floor(hand[0] / 13));
-  const straight = counts.length === 5 && ranks[0] - ranks[4] === 4 ? ranks[0] :
-    ranks.join() === '14,5,4,3,2' ? 5 : 0;
-  const [top, next] = counts;
-  if (flush && straight) return [8, straight];
-  if (top[0] === 4) return [7, top[1], next[1]];
-  if (top[0] === 3 && next[0] === 2) return [6, top[1], next[1]];
-  if (flush) return [5, ...ranks];
-  if (straight) return [4, straight];
-  const order = counts.map(([,rank]) => rank);
-  return [top[0] === 3 ? 3 : top[0] === 2 ? next[0] === 2 ? 2 : 1 : 0, ...order];
-}
-
-export const pokerRanks = ['High card', 'One pair', 'Two pair', 'Three of a kind', 'Straight', 'Flush', 'Full house', 'Four of a kind', 'Straight flush'];
-
-export function shuffledDeck() {
-  const deck = range(52);
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = random(i + 1);
-    [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
-  return deck;
 }
 
 function poker() {
@@ -264,39 +226,49 @@ function mweso() {
 }
 
 export const matchTitles = {
-  ...cardAndDiceTitles, snakes:'Snakes and Ladders', chess: 'Chess', draughts: 'English draughts', poker: 'Five-card draw', mweso: 'Omweso', ludo: 'Ludo',
+  ...cardAndDiceTitles, ...trickTitles, ...partyTitles, gin:'Gin Rummy', snakes:'Snakes and Ladders', chess: 'Chess', draughts: 'English draughts', poker: 'Five-card draw', mweso: 'Omweso', ludo: 'Ludo',
 };
-export const matchRules = {chess, draughts, poker, mweso, ludo, snakes:()=>race(()=>1+random(6)), ...cardAndDiceRules};
+export const matchRules = {chess, draughts, poker, mweso, ludo, snakes:()=>race(()=>1+random(6)), ...cardAndDiceRules, ...partyRules, gin, ...Object.fromEntries(Object.keys(trickTitles).map(key=>[key,()=>trickGame(key)]))};
 
 export function createMatch(key, seats) {
   const rules = matchRules[key]();
-  const bank = seats.map(() => key === 'chess' || key === 'draughts' ? 300_000 : key === 'poker' ? 90_000 : 420_000);
+  const otherSides = side => seats.flatMap((_, index) => index === side ? [] : [index]);
+  const forfeit = (side,reason) => {
+    const winners = ['spades','euchre'].includes(key) ? otherSides(side).filter(index=>index%2!==side%2) : otherSides(side);
+    result = {winner:winners[0],winners,reason};
+  };
+  const bank = seats.map(() => key === 'chess' || key === 'draughts' ? 300_000 : key === 'poker' ? 90_000 : seats.length === 4 || key === 'gin' ? 900_000 : 420_000);
   let started = Date.now();
   let serial = 0;
   let result;
   let last;
   const added = new Set();
   const active = () => rules.turn();
-  const remaining = () => bank[active()] - (Date.now() - started);
-  const legal = () => rules.legal();
+  const clockSide = () => rules.realtime ? 0 : active();
+  const remaining = () => bank[clockSide()] - (Date.now() - started);
+  const legal = side => rules.legal(side ?? active());
+  const botSeats = () => rules.realtime ? seats.filter((seat,index)=>seat<0&&legal(index).length) :
+    seats[active()]<0?[seats[active()]]:[];
+  const lastAction = seats.map(()=>0);
   return {
     seats,
     get done() { return Boolean(result); },
     get result() { return result; },
-    activeSeat: () => seats[active()],
-    deadline: () => result ? Infinity : started + bank[active()],
+    activeSeat: () => seats[active()], botSeats,
+    deadline: () => result ? Infinity : started + bank[clockSide()],
     legal,
     snapshot(seat) {
       const side = seats.indexOf(seat);
       return {
-        key, seats, side, active: active(), serial, last, result, boosted:added.has(seat),
+        key, seats, side, active: active(), realtime:!!rules.realtime, serial, last, result, boosted:added.has(seat),
         ...rules.view(side),
-        legal: !result && active() === side ? legal() : [],
-        time: bank.map((amount, i) => !result && i === active() ? Math.max(0, remaining()) : amount),
+        legal: !result && (rules.realtime || active() === side) ? legal(side) : [],
+        time: bank.map((amount, i) => !result && (rules.realtime || i === active()) ? Math.max(0, remaining()) :
+          rules.realtime ? bank[0] : amount),
       };
     },
     addTime(seat, revision) {
-      if (result || added.has(seat) || seats[active()] !== seat || remaining() <= 0 || revision !== serial) return false;
+      if (rules.realtime || result || added.has(seat) || seats[active()] !== seat || remaining() <= 0 || revision !== serial) return false;
       bank[active()] += 30_000;
       added.add(seat);
       serial++;
@@ -304,21 +276,26 @@ export function createMatch(key, seats) {
     },
     expire() {
       if (result || remaining() > 0) return;
-      bank[active()] = 0;
-      result = {winner: 1 - active(), reason: 'Clock expired'};
+      bank[clockSide()] = 0;
+      if (rules.realtime) result={winner:null,reason:'Time expired'};
+      else forfeit(active(),'Clock expired');
     },
     resign(seat, reason = 'Resigned') {
-      if (!result && seats.includes(seat)) result = {winner: 1 - seats.indexOf(seat), reason};
+      if (!result && seats.includes(seat)) forfeit(seats.indexOf(seat),reason);
     },
     move(seat, intent) {
-      if (result || seat !== seats[active()] || intent.serial !== serial || remaining() <= 0) return false;
-      let action = legal().find(candidate => Object.entries(candidate).every(([key, value]) => intent.action?.[key] === value));
-      if (action?.choice === 'Claim') action = rules.validate(intent.action);
-      if (!action) return false;
-      bank[active()] = Math.max(0, remaining());
-      const {winner, reason, last: played} = rules.move(action);
+      const side=seats.indexOf(seat);
+      if (result || side<0 || (!rules.realtime && side!==active()) || remaining()<=0 ||
+          ((!rules.realtime||key==='ratscrew') && intent.serial!==serial) ||
+          (rules.realtime && Date.now()-lastAction[side]<100)) return false;
+      let action = legal(side).find(candidate => Object.entries(candidate).every(([key, value]) => intent.action?.[key] === value));
+      if (['Claim','Send three'].includes(action?.choice)) action = rules.validate(intent.action);
+      if (!action || (rules.ready && !rules.ready(action))) return false;
+      lastAction[side]=Date.now();
+      bank[clockSide()] = Math.max(0, remaining());
+      const {winner, winners, reason, last: played} = rules.move(action,side);
       last = played;
-      if (winner !== undefined) result = {winner, reason};
+      if (winner !== undefined) result = {winner, winners, reason};
       serial++;
       started = Date.now();
       return true;

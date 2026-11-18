@@ -91,3 +91,9 @@ Victory music is [“The Curtain Rises” by Kevin MacLeod](https://incompetech.
 After each round, the recap counts down to the next round. The host can start immediately or use **Keep reading** to pause. Tap **Sound off** to turn sound on and hear a short fanfare preview. The choice is remembered for that browser when storage is available.
 
 Snakes and Ladders is available under **Boards** and can be drawn into a bonus event. Roll a six-sided die, climb or slide only on landing, and reach square 100 by exact count. The original board is available in flat and animated 3D views.
+
+### Additional season tables
+
+Spades, Hearts, Euchre, President, Kings, and Left Center Right use four-seat tables. Arena players fill empty seats. Spades uses partnerships, nil, and bags to 200. Hearts uses passing, queen-of-spades penalties, and shooting the moon to 100. Euchre uses the 24-card pack, bowers and partnerships to ten with a forced dealer call after seven passes. Gin Rummy is head-to-head to 100 with knock, gin and undercut scoring. President plays three ranked deals with automatic exchanges. Kings uses original non-drinking prompts and ends with the fourth King. Speed, Tenzi and Egyptian Ratscrew accept actions from both players during play. Mexicali uses private rolls, rising claims and three lives.
+
+In Matatu, if you have no match, draw from the stock. Play the drawn card immediately if it fits, or pass. An unusable draw passes the turn automatically. Forced penalty draws end the turn.
