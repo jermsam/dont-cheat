@@ -658,3 +658,12 @@ select, .destination-picker select, .table-menu select, .table-accuse select {
 #table-powers select{display:block;width:min(100%,320px);min-height:44px;margin:.35rem 0 .6rem;background-color:#221827;color:var(--ink)}
 #table-powers .pact-target-actions small{display:block;color:var(--dim);margin-top:.3rem}
 .table-power-notice{border-inline-start:2px solid #80c3a5;padding-inline-start:.55rem;color:#cffbe5}
+
+.table-identity{display:flex;align-items:center;gap:.45rem;margin:.42rem 0 .55rem;font-size:.84rem;color:var(--table-tone,#f4d7a7)}
+.table-identity .ui-icon{width:1.05rem;height:1.05rem}
+.table-identity[data-theme="board"]{--table-tone:#b8dcff}
+.table-identity[data-theme="cards"]{--table-tone:#ffdc9f}
+.table-identity[data-theme="dice"]{--table-tone:#a9f0cd}
+.table-identity[data-theme="social"]{--table-tone:#f9bada}
+.live-table-stage .table-moment{display:flex;align-items:center;gap:.42rem;color:#fff0bf;margin:.5rem 0;font-size:.85rem;font-weight:700}
+.recap-result .resolved-table{display:flex;align-items:center;gap:.45rem;color:#f5cc96}
