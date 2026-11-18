@@ -7,8 +7,8 @@ export function mountTableObjects(app, board) {
   const button = app.querySelector('[data-table-objects]');
   if (!holder || !button) return;
   const scene = app.querySelector('.stage');
-  const firstCards = app.querySelector('.shown-cards, .draw-hand, .dice-row, [data-tenzi]');
-  const physical = Boolean(firstCards) || !['snakes','ludo','mweso'].includes(board.key);
+  const firstCards = app.querySelector('.shown-cards, .draw-hand, .dice-row, .ludo-layout, [data-tenzi]');
+  const physical = Boolean(firstCards) || !['snakes','mweso'].includes(board.key);
   if (physical && firstCards) {
     const anchor = firstCards.matches('[data-tenzi]') ? firstCards.parentElement : firstCards;
     anchor.before(holder);
@@ -23,7 +23,9 @@ export function mountTableObjects(app, board) {
   const describe = () => ({
     stock,
     stockEmpty:board.key==='matatu'&&board.stockEmpty,
-    rollCount:board.rollCount,
+    toss:board.toss,
+    rivalDraw: board.roomAction?.serial === board.serial && board.roomAction.kind === 'draw' &&
+      board.roomAction.seat !== board.seats[board.side] ? board.last?.drawCount : 0,
     backs: board.key === 'holdem' || board.key === 'poker' ? (board.shown || board.showdown ? 0 : board.hand?.length ?? 0) :
       Number.isInteger(board.count) ? board.count : board.counts?.length === 4 ?
       board.counts.reduce((count,n,i)=>i===board.side?count:count+n,0) : board.key==='gin'?10:0,
@@ -68,7 +70,11 @@ export function mountTableObjects(app, board) {
     scene.classList.toggle('immersive-table', open && physical);
     holder.classList.toggle('physical-table', physical);
     const race=app.querySelector('.race-board');
-    if (race) race.hidden=open;
+    if (race) {
+      race.hidden=open;
+      const die=app.querySelector('.ludo-die');
+      if (die) die.hidden=open;
+    }
     const ludo=app.querySelector('.ludo-layout');
     if (ludo) ludo.hidden=open;
     button.textContent=open?'Flat view':'Show 3D table';
@@ -76,7 +82,7 @@ export function mountTableObjects(app, board) {
     if (open) {
       const model=describe();
       const canPlay=model.cards.some(card=>card.button);
-      hint.textContent=stock?'Tap the face-down pile to draw.':'Tap a card with a gold corner.';
+      hint.textContent=stock?'Tap the deck to draw.':'Gold corners show playable cards.';
       hint.hidden=!stock&&!canPlay;
       holder.dataset.hand=String(model.cards.some(card=>card.zone==='hand'));
       holder.dataset.stock=String(Boolean(stock));
@@ -88,7 +94,7 @@ export function mountTableObjects(app, board) {
   async function start() {
     button.disabled=true;
     try {
-      const {createTableObjects}=await import('./table-objects-3d.js?v=8');
+      const {createTableObjects}=await import('./table-objects-3d.js?v=9');
       if (!holder.isConnected) return;
       view=createTableObjects(holder);
       views.set(holder,view);

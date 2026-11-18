@@ -124,13 +124,14 @@ export function matatu(deck = shuffledDeck()) {
         if (emptyDraws === 2) {
           const difference = points(hands[0]) - points(hands[1]);
           return {winner:difference === 0 ? null : difference < 0 ? 0 : 1,
-            reason:'No playable cards or draws · Lowest hand total',last:{drew:false,passed:true}};
+            reason:'No playable cards or draws · Lowest hand total',last:{drew:false,passed:true,drawCount:0}};
         }
         drawn = !forced && hands[active].length > size ? hands[active].at(-1) : undefined;
-        if (drawn !== undefined && legal().some(move => move.card !== undefined)) return {last:{drew:true}};
+        if (drawn !== undefined && legal().some(move => move.card !== undefined)) return {last:{drew:true,drawCount:hands[active].length-size,forced}};
+        const drawCount = hands[active].length - size;
         drawn = undefined;
         active = 1-active;
-        return {last:{drew:true, passed:true}};
+        return {last:{drew:drawCount>0,passed:true,drawCount,forced}};
       }
       drawn = undefined;
       if (action.choice === 'Pass') {

@@ -79,7 +79,7 @@ export function createTableObjects(holder) {
   surfaceMaps(wood,'walnut',render,()=>alive);
   const mats=new Map();
   const motion=matchMedia('(prefers-reduced-motion: reduce)');
-  let animation, lastSerial=-1, raceBoard, wideTable=false, previousCards=new Map(), previousDice=[], lastRollCount, ludoBoard=false;
+  let animation, lastSerial=-1, raceBoard, wideTable=false, previousCards=new Map(), previousDice=[], lastToss, ludoBoard=false;
   function render(){renderer.render(scene,camera);}
   function paint(label,value=0) {
     const key=label || value;
@@ -172,31 +172,26 @@ export function createTableObjects(holder) {
     renderer.setSize(w,h,false);
     render();
   }
-  function update({cards,dice,ludoTiles,ludoTokens,pits,race,stock,stockEmpty,backs,rollCount},serial) {
+  function update({cards,dice,ludoTiles,ludoTokens,pits,race,stock,stockEmpty,backs,toss,rivalDraw},serial) {
     animation?.stop();
     objects.clear();
     wideTable=cards.length>0||dice.length>0;
     ludoBoard=ludoTiles.length>0;
-    const newRoll=rollCount!==undefined&&rollCount!==lastRollCount;
-    lastRollCount=rollCount;
+    const newRoll=toss?.serial === serial && toss.serial !== lastToss;
+    lastToss=toss?.serial;
+    const raceMove = race?.last && serial !== lastSerial && !motion.matches;
     if (race) {
       if (!raceBoard) {
         raceBoard=makeRaceBoard();
         scene.add(raceBoard.group);
       }
-      const animate = !!race.last && serial!==lastSerial && !motion.matches;
-      lastSerial=serial;
-      raceBoard.update(race,animate ? 0 : 1);
-      refresh();
-      if (animate) animation=globalThis.Motion.animate(0,1,{
-        duration:1.05,ease:'linear',onUpdate:value=>{raceBoard.update(race,value);render();},
-      });
-      return;
+      raceBoard.update(race,raceMove ? 0 : 1);
     }
     function groundShadow(x,z) {
       const contact=new THREE.Mesh(contactGeo,shadow);
       contact.position.set(x,.006,z);
       objects.add(contact);
+      return contact;
     }
     const diceObjects=dice.map(({face:shown,button},i)=>{
       if (!dots[shown-1]) return null;
@@ -206,13 +201,14 @@ export function createTableObjects(holder) {
       const sides=[east,7-east,shown,7-shown,south,7-south];
       const die=new THREE.Mesh(cube,sides.map(value=>paint('',value)));
       const columns=Math.min(6,dice.length), row=Math.floor(i/columns);
-      const x=ludoBoard?3.06:(i%columns-(Math.min(columns,dice.length-row*columns)-1)/2)*.90;
-      const z=ludoBoard?-.52:(row-(Math.ceil(dice.length/columns)-1)/2)*.92;
+      const x=race?2.85:ludoBoard?3.06:(i%columns-(Math.min(columns,dice.length-row*columns)-1)/2)*.90;
+      const z=race?.last ? 1.31 : ludoBoard?-.52:(row-(Math.ceil(dice.length/columns)-1)/2)*.92;
       die.position.set(x,.35,z);
+      die.rotation.y=Math.PI*.22;
       die.userData.button=button;
-      groundShadow(x,z);
+      const contact=groundShadow(x,z);
       objects.add(die);
-      return {die,x,z,changed:newRoll||previousDice[i]!==shown};
+      return {die,x,z,contact,changed:newRoll||previousDice[i]!==shown};
     }).filter(Boolean);
     previousDice=dice.map(item=>item.face);
     const currentCards=new Map();
@@ -254,6 +250,7 @@ export function createTableObjects(holder) {
       }
     }
     const rivalCount=Math.min(8,Math.max(0,backs??0));
+    const drawnBacks=[];
     for(let i=0;i<rivalCount;i++){
       const back=cardModel('back');
       const offset=i-(rivalCount-1)/2;
@@ -263,6 +260,7 @@ export function createTableObjects(holder) {
       back.scale.setScalar(.65);
       keepCardAboveFelt(back,back.position.y);
       objects.add(back);
+      if(i>=rivalCount-rivalDraw) drawnBacks.push({back,end:back.position.clone()});
     }
     ludoTiles.forEach(({row,column,lane})=>{
       const tile=new THREE.Mesh(cellGeo,tokenPaint[lane<0?2:lane]);
@@ -295,13 +293,30 @@ export function createTableObjects(holder) {
     refresh();
     if (motion.matches || serial===lastSerial) return;
     lastSerial=serial;
+    const turning = new THREE.Matrix4();
     animation=globalThis.Motion.animate(0,1,{
-      duration:.68,ease:'easeOut',onUpdate:value=>{
-        diceObjects.forEach(({die,x,z,changed},i)=>{
+      duration:raceMove?1.05:.74,ease:'linear',onUpdate:value=>{
+        if (raceMove) raceBoard.update(race,value);
+        const rollProgress = raceMove ? Math.min(1,value*1.4) : value;
+        diceObjects.forEach(({die,x,z,contact,changed},i)=>{
           if (!changed) return;
-          const bounce=Math.abs(Math.sin(value*Math.PI*2.6))*(1-value);
-          die.rotation.set((1-value)*Math.PI*(4+i%2*2),0,(1-value)*Math.PI*4);
-          die.position.set(x+(1-value)*(.56-i*.045),.35+bounce*.64,z-(1-value)*.68);
+          const travel = (1-rollProgress)**2;
+          const spin = Math.PI*2*travel;
+          const bounce = Math.abs(Math.sin(rollProgress*Math.PI*4))*(1-rollProgress)**1.55;
+          die.rotation.set(spin*(2+i%2),Math.PI*.22*rollProgress,spin*(i%2?-1:1));
+          // Lift the lowest corner as the cube tumbles so it never clips the felt.
+          const m = turning.makeRotationFromEuler(die.rotation).elements;
+          const clearance = .34*(Math.abs(m[1])+Math.abs(m[5])+Math.abs(m[9]));
+          die.position.set(x+travel*(race?.last || ludoBoard ? .42 : -.85-i*.07),clearance+.01+bounce*.79,z+travel*.82);
+          contact.position.x=die.position.x;
+          contact.position.z=die.position.z;
+          contact.scale.setScalar(1+bounce*.65);
+        });
+        drawnBacks.forEach(({back,end},i)=>{
+          const delay=i*.09;
+          const t=Math.max(0,(value-delay)/(1-delay));
+          back.position.set(THREE.MathUtils.lerp(-2.28,end.x,t),THREE.MathUtils.lerp(.10,end.y,t)+Math.sin(Math.PI*t)*.35,
+            THREE.MathUtils.lerp(-1.61,end.z,t));
         });
         renderedCards.forEach(({model,x,y,z,yaw,previous,i})=>{
           if(previous && Math.abs(previous.x-x)+Math.abs(previous.z-z)<.01) return;

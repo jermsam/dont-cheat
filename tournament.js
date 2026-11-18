@@ -3,10 +3,10 @@ import { getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { masks, maskId } from './masks.js?v=2';
 
-import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=8';
-import { bestHoldem } from './card-dice-rules.js?v=5';
-import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=8';
-import { matchMarkup, mountMatch } from './match-view.js?v=11';
+import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=9';
+import { bestHoldem } from './card-dice-rules.js?v=6';
+import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=9';
+import { matchMarkup, mountMatch } from './match-view.js?v=12';
 
 const limit = 6;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
@@ -334,6 +334,7 @@ function validBoard(board, state) {
     Array.isArray(board.seats) && [2,4].includes(board.seats.length) &&
     board.seats.every(seat=>integer(seat,-3,state.players.length-1)) && board.seats[board.side] === state.seat &&
     Number.isSafeInteger(board.serial) &&
+    (!board.toss || board.seats.includes(board.toss.seat) && integer(board.toss.serial,1,board.serial)) &&
     (board.key!=='matatu' || Array.isArray(board.hand) && board.hand.length<=52 && integer(board.count,0,52)) &&
     (!board.roomAction || board.key==='matatu' && board.seats.includes(board.roomAction.seat) &&
       integer(board.roomAction.serial,1,board.serial) &&
@@ -474,6 +475,9 @@ function makeView(env, send) {
     }
   }
 
+  let previousMatch;
+  const phaseIsNewMove = (state, previous) => state.phase === 'match' &&
+    state.board && previous?.round === state.round && state.board.serial > previous.serial;
   function render(state) {
     ends = performance.now() + state.endsIn;
     const summary = state.phase === 'match' ? {
@@ -483,6 +487,16 @@ function makeView(env, send) {
     if (signature === prior) return;
     if (previousPhase !== state.phase || previousRound !== state.round) {
       env.cue(({ draft: 'trivia', clue: 'claim', final: 'choice', pact: 'choice', reveal: 'reveal', verdict: undefined })[state.phase]);
+    }
+    const board = state.board;
+    const changedMove = phaseIsNewMove(state, previousMatch);
+    if (state.phase === 'match' && board) {
+      if (changedMove && board.toss?.serial === board.serial) env.cue('dice');
+      if (changedMove && board.key === 'matatu') {
+        if (board.last?.drawCount > 0) env.cue(board.last.forced ? 'penalty' : 'draw');
+        else if (board.last?.passed) env.cue('pass');
+      }
+      previousMatch = {round:state.round,serial:board.serial};
     }
     prior = signature;
     previousPhase = state.phase;
@@ -574,7 +588,7 @@ function makeView(env, send) {
     app.querySelector('#next')?.addEventListener('click', () => send({type: 'next'}));
     app.querySelector('#hold-round')?.addEventListener('click', () => send({type: 'hold'}));
     if (phase === 'match') {
-      const tick = mountMatch(app, state.board, intent => send({...intent, round}));
+      const tick = mountMatch(app, state.board, intent => send({...intent, round}), changedMove);
       tick();
       ticker = setInterval(tick, 200);
     }
