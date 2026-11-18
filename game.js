@@ -1,8 +1,8 @@
 import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { stageDepth } from './relic.js';
-import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
-import { hostTournament, joinTournament } from './tournament.js?v=29';
+import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=3';
+import { hostTournament, joinTournament } from './tournament.js?v=30';
 
 import { challenges } from './challenges.js';
 import { matchTitles } from './match-rules.js?v=9';

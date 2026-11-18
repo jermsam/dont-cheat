@@ -1,3 +1,5 @@
+import { icon } from './icons.js';
+
 const views = new WeakMap();
 let preferPhysicalTable = true;
 let handCovered = false;
@@ -18,7 +20,7 @@ export function mountTableObjects(app, board) {
   const discard=app.querySelector('[data-discard-pile]:enabled');
   const cover=document.createElement('button');
   cover.type='button';
-  cover.className='quiet cover-hand';
+  cover.className='quiet cover-hand icon-tool';
   if (privateCards.length) button.after(cover);
   const describe = () => ({
     stock,
@@ -68,14 +70,23 @@ export function mountTableObjects(app, board) {
   hint.hidden=true;
   holder.after(hint);
   function updateCover() {
-    cover.textContent=handCovered?'Show my hand':'Cover my hand';
+    const label=handCovered?'Show my hand':'Cover my hand';
+    cover.innerHTML=icon(handCovered?'eye-off':'eye');
+    cover.setAttribute('aria-label',label);
+    cover.title=label;
     cover.setAttribute('aria-pressed',String(handCovered));
     privateCards.forEach(hand=>{hand.hidden=handCovered;hand.inert=handCovered;});
   }
   updateCover();
+  function acknowledge(control) {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    globalThis.Motion.animate(control.querySelector('.ui-icon'), {opacity:[.45,1],scale:[.8,1]},
+      {type:'spring',stiffness:260,damping:19});
+  }
   cover.onclick=()=>{
     handCovered=!handCovered;
     updateCover();
+    acknowledge(cover);
     if(view&&!holder.hidden)show(true);
   };
   function show(open) {
@@ -91,7 +102,10 @@ export function mountTableObjects(app, board) {
     }
     const ludo=app.querySelector('.ludo-layout');
     if (ludo) ludo.hidden=open;
-    button.textContent=open?'Flat view':'Show 3D table';
+    const label=open?'Flat view':'Show 3D table';
+    button.innerHTML=`${icon(open?'layout-grid':'box')}<span aria-hidden="true">${open?'Flat':'3D'}</span>`;
+    button.setAttribute('aria-label',label);
+    button.title=label;
     button.setAttribute('aria-pressed',String(open));
     if (open) {
       const model=describe();
@@ -108,13 +122,14 @@ export function mountTableObjects(app, board) {
   async function start() {
     button.disabled=true;
     try {
-      const {createTableObjects}=await import('./table-objects-3d.js?v=10');
+      const {createTableObjects}=await import('./table-objects-3d.js?v=11');
       if (!holder.isConnected) return;
       view=createTableObjects(holder);
       views.set(holder,view);
       show(true);
     } catch {
-      button.textContent='3D table unavailable';
+      button.textContent='3D unavailable';
+      button.setAttribute('aria-label','3D table unavailable');
     } finally {button.disabled=false;}
   }
   button.onclick=() => {
@@ -122,6 +137,7 @@ export function mountTableObjects(app, board) {
       const open=holder.hidden;
       if (physical) preferPhysicalTable=open;
       show(open);
+      acknowledge(button);
     } else {
       if (physical) preferPhysicalTable=true;
       void start();

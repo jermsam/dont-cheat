@@ -1,3 +1,4 @@
+import { icon } from './icons.js';
 import './vendor/motion-14.14.0.js';
 
 const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
@@ -10,8 +11,11 @@ export function arrive(element, reverse = false) {
   }, { duration: 0.24, ease: 'easeOut' });
 }
 
+const screenIcons = {'table-scores':'trophy','table-results':'history','table-seats':'users','room-status':'share-2'};
+
 export function sideScreen(id, title, content, label = title) {
-  return `<button type="button" class="quiet screen-open" data-open-screen="${id}" aria-haspopup="dialog">${label}</button>
+  const symbol = screenIcons[id];
+  return `<button type="button" class="quiet screen-open" data-open-screen="${id}" aria-haspopup="dialog">${symbol ? icon(symbol) : ''}${label}</button>
     <dialog class="side-screen" id="${id}" aria-labelledby="${id}-heading">
       <div class="side-screen-bar"><h3 id="${id}-heading" tabindex="-1">${title}</h3><span class="clock" data-screen-clock aria-label="Time remaining"></span></div>
       <div class="side-screen-content">${content}</div>
