@@ -66,7 +66,7 @@ function variant(mask,seat){
   return {cloth:colors[hash%colors.length],mask:[0xb6a082,0xc39878,0x7eb6ad,0xd8cdd8][hash%4],cut:hash%4};
 }
 
-export function makeCast(refresh){
+export function makeCast(refresh, useTripo=false){
   const materials=new Set(), geometries=new Set(), textures=new Map();
   const portraitGeo=portraitGeometry(),wardrobeGeo=wardrobeGeometry();
   const detailedHeads={saint:portraitGeometry('saint'),prince:portraitGeometry('prince')};
@@ -132,6 +132,7 @@ export function makeCast(refresh){
     const face=material(style.mask,.36);
     const root=new THREE.Group();
     const hip=joint(root,0,.93,0);
+    let model;
     clothMap(cloth,refresh,()=>!disposed&&!released);
     mesh(hip,torso,cloth,[0,.016,-.027],[1,1,.68]);
     mesh(hip,tube,skinTone,[0,.708,0],[.081,.145,.073]);
@@ -187,7 +188,7 @@ export function makeCast(refresh){
     const fingertips=new THREE.Vector3(0,-.405,.018);
     const down=new THREE.Vector3(0,-1,0);
     // Position the right wrist toward the public card pile with a two-bone arm solve.
-    function reach(target,amount){
+    function reach(target,amount,pinch=0){
       pose(0,1);
       const {arm,elbow}=shoulder[1];
       hip.updateWorldMatrix(true,true);
@@ -205,7 +206,8 @@ export function makeCast(refresh){
       const forearm=direction.clone().multiplyScalar(distance).sub(jointDirection).normalize();
       elbow.quaternion.setFromUnitVectors(down,forearm.applyQuaternion(arm.quaternion.clone().invert()));
       head.rotation.x=.09+amount*.12;
-      return elbow.localToWorld(fingertips.clone());
+      model?.sync(pinch,amount);
+      return model?.contact() ?? {position:elbow.localToWorld(fingertips.clone())};
     }
     const legs=[-1,1].map(side=>{
       const thigh=joint(hip,side*.142,-.025,0);
@@ -328,8 +330,21 @@ export function makeCast(refresh){
       });
       head.rotation.z=Math.sin(phase*.48)*.035*walk;
       head.rotation.x=-.06*sit;
+      model?.sync();
     }
     pose();
+    if(useTripo && (mask==='saint'||mask==='prince')){
+      void import('./tripo-cast.js?v=4').then(({loadTripoCast})=>loadTripoCast(mask,root,{
+        hip,head,shoulder,legs,cardGrip,gripParent:shoulder[0].elbow
+      })).then(asset=>{
+        if(released||disposed){asset.dispose();return;}
+        model=asset;
+        model.mount();
+        hip.visible=false;
+        root.userData.tripo=mask;
+        refresh();
+      }).catch(error=>console.warn('Tripo character could not load',error));
+    }
     function greet(amount){
       shoulder[1].arm.rotation.x=-.75*amount;
       shoulder[1].arm.rotation.z=.13+.52*amount;
@@ -337,6 +352,7 @@ export function makeCast(refresh){
     }
     function release(){
       released=true;
+      model?.dispose();
       for(const paint of [cloth,hair,skinTone,face,lining,portraitMaterial,garmentMaterial]){
         paint?.dispose();
         materials.delete(paint);
