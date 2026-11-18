@@ -655,3 +655,6 @@ select, .destination-picker select, .table-menu select, .table-accuse select {
 @media(max-width:340px){.pact-target-actions{grid-template-columns:1fr}}
 .pact-gift-notices{display:grid;gap:.25rem;color:#bcf2da;font-size:.84rem}
 .pact-gift-notices span{display:flex;align-items:center;gap:.35rem}
+#table-powers select{display:block;width:min(100%,320px);min-height:44px;margin:.35rem 0 .6rem;background-color:#221827;color:var(--ink)}
+#table-powers .pact-target-actions small{display:block;color:var(--dim);margin-top:.3rem}
+.table-power-notice{border-inline-start:2px solid #80c3a5;padding-inline-start:.55rem;color:#cffbe5}

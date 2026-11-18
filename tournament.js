@@ -16,6 +16,15 @@ const statuses = ['Ready', 'Thinking', 'I trust you', 'Well played'];
 const phases = ['draft', 'clue', 'final', 'pact'];
 const gifts = {'Gift coin':'coins','Gift time':'time'};
 const directedCards = ['Call bluff','Alliance','Persuade',...Object.keys(gifts)];
+const pactPrices = {Trust:1,Betray:1,'Call bluff':1,Alliance:2,Persuade:1,'Gift coin':1,'Gift time':1,Pass:0};
+const currencyFor = card => Object.hasOwn(gifts,card) ? gifts[card] : 'coins';
+const tablePowers = [
+  ['Alliance',2,'+1 season point each if you choose each other'],
+  ['Gift coin',1,'Give them 1 coin'],
+  ['Gift time',1,'Give them 1 time token'],
+  ['Signal',1,'Send a message. They decide whether to believe it.'],
+];
+const signals = ['Let’s work together','I have a plan','You have the advantage'];
 
 export function hostTournament(env) {
   const players = [{ mask: maskId(env.mask), moves: {}, score: 0, online: true, status: '' }];
@@ -29,6 +38,7 @@ export function hostTournament(env) {
   let phase = 'lobby', round = 0, deadline = 0, timer, requestId = 0;
   let matches = [];
   const wallet = new Map();
+  const powers = new Map();
   let lastPurchase;
   let tablePick, nextCaptain = 1, lead;
   const encores = new Set();
@@ -55,6 +65,7 @@ export function hostTournament(env) {
       schedule: lineup.map(({key,title}) => ({key,title})),
       lastPurchase, tablePick:phase==='reveal'?tablePick:undefined,
       lead:phase==='match'?lead:undefined,
+      powers:phase==='match'?[...powers.values()].filter(power=>power.seat===seat||power.target===seat):undefined,
       players: players.map(({ mask, score, online, status, moves }) => ({
         mask, score, online, status,
         clue: exposeClues ? moves.clue?.option : undefined,
@@ -118,7 +129,6 @@ export function hostTournament(env) {
       const pact=player.moves.pact;
       const currency=gifts[pact?.card];
       if(currency && Object.hasOwn(gifts,pact.card)){
-        wallet.get(seat)[currency]--;
         wallet.get(pact.target)[currency]++;
       }
     });
@@ -157,6 +167,7 @@ export function hostTournament(env) {
   }
 
   function beginEvent() {
+    powers.clear();
     if (!lineup[round].match) {
       enter('draft');
       return;
@@ -175,13 +186,19 @@ export function hostTournament(env) {
     matches.forEach(match => match.seats.forEach((seat, side) => {
       if (seat < 0) return;
       const {winner, winners, reason} = match.result;
-      const points = winner === null ? 2 : (winners?.includes(side) ?? winner === side) ? 4 : 0;
+      const won=winners?.includes(side) ?? winner===side;
+      const base=winner===null ? 2 : won ? 4 : 0;
+      const power=powers.get(seat);
+      const partner=powers.get(power?.target);
+      const allied=power?.card==='Alliance' && partner?.card==='Alliance' && partner.target===seat;
+      const points=base+Number(allied);
       const snapshot = match.snapshot(seat);
       const hand = snapshot.showdown?.[side] ?? snapshot.shown?.[side];
       const ranking = hand && (snapshot.community ? bestHoldem([...hand,...snapshot.community]) : rankHand(hand));
       const cards = ranking ? ` · ${pokerRanks[ranking[0]]}` : '';
       players[seat].score += points;
-      entries[seat] = {points, answer: `${winner === null ? 'Draw' : points ? 'Won' : 'Lost'} · ${reason}${cards}`};
+      entries[seat] = {points,card:power?.card,target:power?.target,allied,
+        answer: `${winner === null ? 'Draw' : won ? 'Won' : 'Lost'} · ${reason}${cards}`};
     }));
     records.push({title:lineup[round].title, match:true, entries});
     awardWallet();
@@ -311,6 +328,24 @@ export function hostTournament(env) {
         return;
       }
     }
+    if(type==='table-power' && phase==='match' && intent.round===round){
+      const {card,target,signal}=intent;
+      const rule=tablePowers.find(([name])=>name===card);
+      const source=matches.find(match=>match.seats.includes(seat));
+      const recipient=matches.find(match=>match.seats.includes(target));
+      if(!rule || powers.has(seat) || !source || source.done || source.deadline()<=Date.now() ||
+          !Number.isInteger(target) || target===seat || !players[target]?.online || !recipient ||
+          card==='Signal' && !signals.includes(signal)) return;
+      const balance=wallet.get(seat);
+      const currency=currencyFor(card);
+      const cost=rule[1];
+      if(balance[currency]<cost)return;
+      balance[currency]-=cost;
+      if(Object.hasOwn(gifts,card))wallet.get(target)[currency]+=cost;
+      powers.set(seat,{card,seat,target,signal:card==='Signal'?signal:undefined});
+      publish();
+      return;
+    }
     if (phase === 'match' && intent.round === round && ['match-move', 'match-resign', 'match-time'].includes(type)) {
       const match = matches.find(item => item.seats.includes(seat));
       if (!match || match.done) return;
@@ -344,10 +379,12 @@ export function hostTournament(env) {
       }
     }
     if (phase === 'pact') {
-      if (['Trust','Betray'].includes(card)) player.moves.pact={card};
-      else if (directedCards.includes(card) && rival(target) && players[target].online &&
-               (!Object.hasOwn(gifts,card) || wallet.get(seat)[gifts[card]]>0)) {
-        player.moves.pact={card,target};
+      const currency=currencyFor(card);
+      const balance=wallet.get(seat);
+      if(Object.hasOwn(pactPrices,card) && balance[currency]>=pactPrices[card] &&
+         (!directedCards.includes(card) || rival(target) && players[target].online)){
+        balance[currency]-=pactPrices[card];
+        player.moves.pact={card,target:directedCards.includes(card)?target:undefined};
       }
     }
     publish();
@@ -435,6 +472,9 @@ function isTableState(state) {
       Boolean(getPuzzle(state.challenge?.key, state.challenge?.index, state.challenge?.seed)) &&
       Array.isArray(state.challenge.options) && state.challenge.options.length === 4) &&
     (state.phase !== 'match' || validBoard(state.board,state)) &&
+    (!state.powers || Array.isArray(state.powers) && state.powers.length<=limit && state.powers.every(power=>
+      integer(power.seat,0,state.players.length-1) && integer(power.target,0,state.players.length-1) &&
+      tablePowers.some(([card])=>card===power.card) && (power.card!=='Signal' || signals.includes(power.signal)))) &&
     (!state.wallet || integer(state.wallet.coins,0,100) && integer(state.wallet.time,0,20)) &&
     Array.isArray(state.schedule) && state.schedule.length === seasonLength &&
     state.schedule.every(event=>typeof event.key==='string' && typeof event.title==='string') &&
@@ -506,6 +546,25 @@ function makeView(env, send) {
         ${entry.allied ? ' · alliance sealed' : entry.persuaded ? ' · honest clue copied' : ''}
         ${entry.fooled ? ' · someone took the decoy' : ''} · ${entry.points >= 0 ? '+' : ''}${entry.points}</small></li>`).join('')}</ul>`))}</div>`;
   }
+  function powerPanel(state){
+    if(!state.board || !state.wallet)return '';
+    const own=state.powers?.find(power=>power.seat===state.seat);
+    const targets=state.players.flatMap((player,i)=>i!==state.seat && player.online?[i]:[]);
+    const received=(state.powers??[]).filter(power=>power.target===state.seat);
+    const mutual=own?.card==='Alliance' && received.some(power=>power.card==='Alliance' && power.seat===own.target);
+    const notices=received.map(power=>`<p class="table-power-notice"><strong>${esc(name(state,power.seat))}</strong>
+      ${power.card==='Signal'?` · “${esc(power.signal)}”`:power.card==='Alliance'?(mutual&&power.seat===own.target?' sealed your alliance':' offered an alliance'):power.card==='Gift time'?' gave you 1 time token':' gave you 1 coin'}</p>`).join('');
+    const controls = own ? `<p>${esc(own.card)} played this round.</p>` : state.board.result || !targets.length ? '' :
+      `<label for="power-target">Choose a player</label><select id="power-target">${targets.map(i=>
+        `<option value="${i}">${esc(name(state,i))}</option>`).join('')}</select>
+      <label for="power-signal">Signal message</label><select id="power-signal">${signals.map(line=>`<option>${esc(line)}</option>`).join('')}</select>
+      <div class="pact-target-actions">${tablePowers.map(([card,cost,tip])=>`<button type="button" data-table="table-power" data-card="${card}"
+        ${state.wallet[currencyFor(card)]>=cost?'':'disabled'}><strong>${card} · ${cost} ${currencyFor(card)==='time'?'time':cost===1?'coin':'coins'}</strong><small>${tip}</small></button>`).join('')}</div>`;
+    return notices+(controls?sideScreen('table-powers','Table powers',
+      `<p>${state.wallet.coins} coins · ${state.wallet.time} time tokens</p>
+      <p>Spend once per round, or keep playing by the table rules.</p>${controls}`,'Table powers'):'');
+  }
+
   function tableDraft(state) {
     const {tablePick:pick,nextSlot,seat,schedule,round,lastPurchase}=state;
     if(!pick || !nextSlot)return '';
@@ -583,7 +642,7 @@ function makeView(env, send) {
   function render(state) {
     ends = performance.now() + state.endsIn;
     const summary = state.phase === 'match' ? {
-      phase: state.phase, round:state.round, wallet:state.wallet, board: state.board && {...state.board, time: undefined},
+      phase: state.phase, round:state.round, wallet:state.wallet, powers:state.powers, online:state.players.map(player=>player.online), board: state.board && {...state.board, time: undefined},
     } : {...state, endsIn:0};
     const signature = JSON.stringify(summary);
     if (signature === prior) return;
@@ -629,7 +688,8 @@ function makeView(env, send) {
     } else if (phase === 'match') {
       content = `<span class="eyebrow">SEASON EVENT ${round + 1} OF ${seasonLength} · ${esc(challenge.title)}</span>
         ${state.lead===undefined?'':`<p class="bait-winner">${icon('flag')} ${esc(name(state,state.lead))} leads</p>`}
-        ${matchMarkup(state.board, state.wallet, state.players)}`;
+        ${matchMarkup(state.board, state.wallet, state.players)}
+        ${powerPanel(state)}`;
     } else if (phase === 'reveal' || phase === 'verdict') {
       const best = Math.max(...players.map(player => player.score));
       const winners = players.flatMap((player, i) => player.score === best ? [name(state, i)] : []);
@@ -695,22 +755,22 @@ function makeView(env, send) {
           <div class="options table-final">${picks}${button('Pass', 'pass')}</div>`;
       } else {
         heading = 'Play a card';
-        details = '<p class="muted">Choose one card. Everyone reveals together.</p>';
+        details = `<p class="muted">${state.wallet?.coins ?? 0} coins · ${state.wallet?.time ?? 0} time. Buy a card or pass.</p>`;
         actions = `<div class="options table-cards">
-          ${button('Trust · +2 if another player trusts', 'card', 'data-card="Trust" class="trust"')}
-          ${button('Betray · +3 if someone copied your decoy', 'card', 'data-card="Betray" class="betray"')}
+          ${button('Trust · 1 coin · +2 if another player trusts', 'card', `data-card="Trust" class="trust" ${state.wallet?.coins?'':'disabled'}`)}
+          ${button('Betray · 1 coin · +3 if someone copied your decoy', 'card', `data-card="Betray" class="betray" ${state.wallet?.coins?'':'disabled'}`)}
           <div class="table-accuse"><label for="target-seat">Choose a player</label>
           <select id="target-seat">${players.map((player, i) => i !== seat && player.online ? `<option value="${i}">${esc(name(state, i))}</option>` : '').join('')}</select>
           <div class="pact-target-actions">
             ${[
-              ['Alliance','+3 each if you choose each other',true],
-              ['Persuade','+2 if they copied your honest clue',true],
-              ['Call bluff','+3 if right · −1 if wrong',true],
+              ['Alliance','2 coins · +3 each if you choose each other',state.wallet?.coins>=2],
+              ['Persuade','1 coin · +2 if they copied your honest clue',state.wallet?.coins],
+              ['Call bluff','1 coin · +3 if right · −1 if wrong',state.wallet?.coins],
               ['Gift coin','Give them 1 coin',state.wallet?.coins],
               ['Gift time','Give them 1 time token',state.wallet?.time],
             ].map(([card,tip,available])=>`<button type="button" data-table="card" data-card="${card}" ${available && players.some((p,i)=>i!==seat&&p.online)?'':'disabled'}>
               <strong>${card}</strong><small>${tip}</small></button>`).join('')}
-          </div></div></div>`;
+          </div></div>${button('Pass free','card','data-card="Pass"')}</div>`;
       }
       content = `${top}<h2>${esc(heading)}</h2>${timer}${details}${state.locked ?
         '<p class="waiting">Locked in. Waiting for the other seats.</p>' : actions}`;
@@ -774,6 +834,7 @@ function makeView(env, send) {
       control.onclick = () => {
         const { table: type, option, from, card, id, label } = control.dataset;
         if (type === 'pick-table' || type === 'call-bait') send({type,round,key:app.querySelector('#table-pick')?.value});
+        else if (type === 'table-power') send({type,round,card,target:Number(app.querySelector('#power-target').value),signal:app.querySelector('#power-signal').value});
         else if (type === 'buy-event') send({type, round, key:app.querySelector('#shop-game').value, currency:control.dataset.currency});
         else if (type === 'share-result' || type === 'share-status') void shareUpdate(state, type === 'share-status');
         else if (type === 'status') send({ type, value: label });
