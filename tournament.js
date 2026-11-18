@@ -1,13 +1,13 @@
-import { roomMarkup, mountRoomWindow } from './room-window.js?v=3';
+import { roomMarkup, mountRoomWindow } from './room-window.js?v=4';
 import { sideScreen, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
 import { getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { masks, maskId } from './masks.js?v=2';
 
-import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=5';
+import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=6';
 import { bestHoldem } from './card-dice-rules.js?v=3';
-import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=5';
-import { matchMarkup, mountMatch } from './match-view.js?v=7';
+import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=6';
+import { cardName, matchMarkup, mountMatch } from './match-view.js?v=8';
 
 const limit = 6;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
@@ -330,6 +330,11 @@ function validBoard(board, state) {
     Array.isArray(board.seats) && [2,4].includes(board.seats.length) &&
     board.seats.every(seat=>integer(seat,-3,state.players.length-1)) && board.seats[board.side] === state.seat &&
     Number.isSafeInteger(board.serial) &&
+    (board.key!=='matatu' || Array.isArray(board.hand) && board.hand.length<=52 && integer(board.count,0,52)) &&
+    (!board.roomAction || board.key==='matatu' && board.seats.includes(board.roomAction.seat) &&
+      integer(board.roomAction.serial,1,board.serial) &&
+      (board.roomAction.kind==='draw' && board.roomAction.card===undefined ||
+        board.roomAction.kind==='play' && integer(board.roomAction.card,0,51))) &&
     Array.isArray(board.legal) && board.legal.length <= 256 &&
     Array.isArray(board.time) && board.time.length === board.seats.length && board.time.every(Number.isFinite) &&
     (!board.pieces || Array.isArray(board.pieces) && board.pieces.length <= 32 && board.pieces.every(piece=>
@@ -557,12 +562,30 @@ function makeView(env, send) {
         '<p class="waiting">Locked in. Waiting for the other seats.</p>' : actions}`;
     }
 
-    if(phase !== 'lobby') content += sideScreen('arena-view','Game room',roomMarkup,'Look inside the room');
+    const kitchenTable=phase==='match' && place.id==='midnight-kitchen' && state.board?.key==='matatu';
+    let roomControls='';
+    if(kitchenTable){
+      const {legal, penalty}=state.board;
+      const direct=legal.flatMap((move,index)=>move.take?
+        [`<button type="button" data-kitchen-move="${index}">Draw ${penalty||1}</button>`]:
+        move.choice==='Pass'?[ `<button type="button" data-kitchen-move="${index}">Pass</button>` ]:[]);
+      const plays=legal.flatMap((move,index)=>Number.isInteger(move.card)?
+        [`<button type="button" data-kitchen-move="${index}">${cardName(move.card)}${move.call===undefined?'':` · Call ${['clubs','diamonds','hearts','spades'][move.call]}`}</button>`]:[]);
+      roomControls=legal.length?`<div class="row">${direct.join('')}</div>${plays.length?
+        `<details><summary>Show my playable cards</summary><div class="row">${plays.join('')}</div></details>`:''}`:
+        '<p class="muted">Waiting for the other player.</p>';
+    }
+    if(phase !== 'lobby') content += sideScreen('arena-view',kitchenTable?'Matatu in the Midnight Kitchen':'Game room',
+      roomMarkup+roomControls,'Look inside the room');
     clearInterval(ticker);
     const art = (phases.includes(phase) || phase === 'match') && place?.art ? `--place-art:url(places/${place.art}.jpg)` : '';
     env.stage(content, false, `scene focused-turn tournament${phase === 'match' ? ' live-table-stage' : phase === 'lobby' ? ' arena-lobby' : ''}${won ? ' victory' : ''}${art ? ' with-place' : ''}`, art, `table:${round}:${phase}`);
     const app = document.querySelector('#app');
-    mountRoomWindow(app,players,place,app.querySelector('[data-open-screen="arena-view"]'));
+    mountRoomWindow(app,players,place,app.querySelector('[data-open-screen="arena-view"]'),state.board);
+    if(kitchenTable)app.querySelectorAll('[data-kitchen-move]').forEach(button=>{
+      button.onclick=()=>send({type:'match-move',serial:state.board.serial,round,
+        action:state.board.legal[Number(button.dataset.kitchenMove)]});
+    });
     app.querySelector('#next')?.addEventListener('click', () => send({type: 'next'}));
     app.querySelector('#hold-round')?.addEventListener('click', () => send({type: 'hold'}));
     if (phase === 'match') {

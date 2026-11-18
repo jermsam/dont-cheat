@@ -244,6 +244,7 @@ export function createMatch(key, seats) {
   let serial = 0;
   let result;
   let last;
+  let roomAction;
   const added = new Set();
   const active = () => rules.turn();
   const clockSide = () => rules.realtime ? 0 : active();
@@ -262,7 +263,7 @@ export function createMatch(key, seats) {
     snapshot(seat) {
       const side = seats.indexOf(seat);
       return {
-        key, seats, side, active: active(), realtime:!!rules.realtime, serial, last, result, boosted:added.has(seat),
+        key, seats, side, active: active(), realtime:!!rules.realtime, serial, last, roomAction, result, boosted:added.has(seat),
         ...rules.view(side),
         legal: !result && (rules.realtime || active() === side) ? legal(side) : [],
         time: bank.map((amount, i) => !result && (rules.realtime || i === active()) ? Math.max(0, remaining()) :
@@ -297,6 +298,10 @@ export function createMatch(key, seats) {
       bank[clockSide()] = Math.max(0, remaining());
       const {winner, winners, reason, last: played} = rules.move(action,side);
       last = played;
+      // This event describes only public moves. Drawn cards remain in each player's own view.
+      if (key==='matatu' && (action.take || Number.isInteger(action.card))) {
+        roomAction={serial:serial+1,seat,kind:action.take?'draw':'play',card:action.card};
+      }
       if (winner !== undefined) result = {winner, winners, reason};
       serial++;
       started = Date.now();
