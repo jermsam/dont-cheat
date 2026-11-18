@@ -1,4 +1,5 @@
 import { masks, maskId } from './masks.js?v=1';
+import { routes, scenarioFor } from './scenarios.js?v=1';
 
 const app = document.querySelector('#app');
 const notice = document.querySelector('#notice');
@@ -60,6 +61,7 @@ let seat = 0, clockEnd = 0, phaseDuration = duration, solo = false, pending = fa
 let invitation = '';
 let lastAlarm = -1;
 let chosenMask = null;
+let chosenDestination = null;
 
 const escape = value => String(value).replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -105,8 +107,8 @@ document.querySelector('#sound').onclick = async event => {
   }
 };
 
-function stage(content, summons = false, scene = '') {
-  app.innerHTML = `<section class="stage ${summons ? 'summons' : ''} ${scene}"><div class="board reveal">${content}</div></section>`;
+function stage(content, summons = false, scene = '', placeArt = '') {
+  app.innerHTML = `<section class="stage ${summons ? 'summons' : ''} ${scene}"${placeArt ? ` style="${placeArt}"` : ''}><div class="board reveal">${content}</div></section>`;
   const heading = app.querySelector('h2');
   if (heading) {
     heading.tabIndex = -1;
@@ -210,6 +212,7 @@ async function host(crew = false) {
     invitation = url.href;
     waitingRoom(crew);
     let guestMask = null;
+    let guestBriefing = false;
     while (!guestAccepted) {
       let candidate;
       try {
@@ -232,6 +235,7 @@ async function host(crew = false) {
           }
         }
         guestMask = maskId(hello.mask);
+        guestBriefing = hello.briefing === true;
       } catch {
         if (!candidate) throw new Error('The room closed.');
         candidate.close();
@@ -241,7 +245,7 @@ async function host(crew = false) {
       link = candidate;
     }
     say('');
-    start(false, crew, guestMask);
+    start(false, crew, guestMask, guestBriefing);
     void listen();
   } catch {
     failure('Couldn’t open a live room. Check your connection and try again, or play solo.');
@@ -259,7 +263,7 @@ async function join(id, seal) {
         <p>Tell the host this code so they can let you in.</p><p class="pair-code">${code}</p>
         <p class="waiting">The trial starts when the host opens the door.</p>${homeButton}`, true);
     }
-    await link.send(JSON.stringify({ kind: 'join', key: seal, code, mask: chosenMask }));
+    await link.send(JSON.stringify({ kind: 'join', key: seal, code, mask: chosenMask, briefing: true }));
     const message = JSON.parse(await timeout(link.receive(), seal ? 18_000 : approvalWindow + 8_000));
     if (message.kind !== 'state') throw new Error('Unrecognized room.');
     receiveState(message);
@@ -289,12 +293,14 @@ async function listen() {
 }
 
 let hostTimer;
-function start(isSolo, crew = false, guestMask = null) {
+function start(isSolo, crew = false, guestMask = null, briefing = isSolo) {
   solo = isSolo;
   game = {
     questions: shuffled(questions).slice(0, 3).map(([prompt, answer, ...decoys]) => ({
       prompt, answer, options: shuffled([answer, ...decoys]),
     })),
+    route: briefing ? routes.map(scenarios =>
+      scenarios.find(scenario => scenario.id === chosenDestination) ?? shuffled(scenarios)[0]) : [],
     crew, usedPeek: [false, false], round: -1, scores: [0, 0], records: [],
     masks: [chosenMask, isSolo && chosenMask ? shuffled(Object.keys(masks).filter(id => id !== chosenMask))[0] : guestMask],
     spentGifts: [false, false],
@@ -308,18 +314,25 @@ function nextRound() {
   game.claims = [null, null];
   game.peeked = [false, false];
   game.secrets = [null, null];
-  beginPhase('trivia');
+  beginPhase(game.route[game.round] ? 'briefing' : 'trivia');
 }
 function beginPhase(phase) {
   game.phase = phase;
-  game.duration = phase === 'claim' ? 8_000 : game.round === 2 ? finalDuration : duration;
+  const scenario = game.route[game.round];
+  const roundDuration = game.round === 2 ? finalDuration : duration;
+  const times = {
+    briefing: 5_000, trivia: scenario ? scenario.seconds * 1_000 : roundDuration,
+    claim: 8_000, choice: roundDuration,
+  };
+  game.duration = times[phase];
   game.ends = Date.now() + game.duration;
   clearTimeout(hostTimer);
   hostTimer = setTimeout(advancePhase, game.duration);
   sync();
 }
 function advancePhase() {
-  if (game.phase === 'trivia') beginPhase(game.crew ? 'choice' : 'claim');
+  if (game.phase === 'briefing') beginPhase('trivia');
+  else if (game.phase === 'trivia') beginPhase(game.crew ? 'choice' : 'claim');
   else if (game.phase === 'claim') beginPhase('choice');
   else if (game.phase === 'choice') reveal();
 }
@@ -331,7 +344,8 @@ function phaseChoices() {
 }
 
 function apply(player, phase, round, choice) {
-  if (phase !== game.phase || round !== game.round || Date.now() >= game.ends) return false;
+  if (!['trivia', 'claim', 'choice'].includes(phase) || phase !== game.phase ||
+      round !== game.round || Date.now() >= game.ends) return false;
   const slots = phaseChoices();
   if (slots[player] !== null) return false;
 
@@ -342,7 +356,7 @@ function apply(player, phase, round, choice) {
     return true;
   }
   if (phase === 'trivia' && choice === 'door' && round > 0 && game.secrets[player] === null) {
-    const rooms = round === 1 ? vaultRooms : escapeRooms;
+    const rooms = game.route[round]?.rooms ?? (round === 1 ? vaultRooms : escapeRooms);
     game.secrets[player] = rooms[Math.floor(Math.random() * rooms.length)];
     sync();
     return true;
@@ -373,6 +387,10 @@ function apply(player, phase, round, choice) {
   return true;
 }
 const pactMultiplier = round => round === 1 ? 2 : 1;
+function cardBonusLabel(type, crew) {
+  if (type === 'support') return `${crew ? 'Choose Distract' : 'Choose Trust'} · +1`;
+  return `${crew ? 'Pull off a Grab' : 'Score with Betray'} · +1`;
+}
 
 function reveal() {
   clearTimeout(hostTimer);
@@ -382,8 +400,13 @@ function reveal() {
   const correct = answers.map(index => question.options[index] === question.answer);
   const falseClaims = game.claims.map((claim, index) => claim !== null && (claim === claims[0]) !== correct[index]);
   const caughtPeeking = game.peeked.map((used, i) => used && cards[1 - i] === 'Call bluff');
-  const triviaPoints = correct.map((right, i) => right && !caughtPeeking[i] ? 2 : 0);
+  const scenario = game.route[round];
+  const triviaValue = scenario?.trivia ?? 2;
+  const sharedLight = scenario?.harmony && correct.every(Boolean) && !caughtPeeking.some(Boolean);
+  const triviaPoints = correct.map((right, i) =>
+    right && !caughtPeeking[i] ? triviaValue + (sharedLight ? 1 : 0) : 0);
   const gifts = [null, null];
+  const locationGains = [0, 0];
   const gains = cards.map((action, index) => {
     const other = cards[1 - index];
     const trivia = triviaPoints[index];
@@ -404,7 +427,9 @@ function reveal() {
       game.spentGifts[index] = true;
       gifts[index] = mask.gift;
     }
-    const gain = trivia + strategy * bonus + roomPoints + (gifts[index] ? 2 : 0);
+    if (scenario?.cardBonus === 'support' && ['Trust', 'Distract'].includes(action)) locationGains[index] = 1;
+    if (scenario?.cardBonus === 'risk' && ['Betray', 'Grab'].includes(action) && strategy > 0) locationGains[index] = 1;
+    const gain = trivia + strategy * bonus + roomPoints + locationGains[index] + (gifts[index] ? 2 : 0);
     scores[index] += gain;
     return gain;
   });
@@ -416,7 +441,7 @@ function reveal() {
     falseClaims,
     peeked: [...game.peeked],
     secrets: game.secrets.map(secret => secret?.name ?? null),
-    gifts, gains,
+    scenario: scenario?.name, sharedLight, locationGains, gifts, gains,
   });
   game.phase = round === 2 ? 'verdict' : 'reveal';
   sync();
@@ -428,6 +453,7 @@ function sync() {
     kind: 'state', revision: ++revision, phase: game.phase, round: game.round,
     scores: [...game.scores], records: [...game.records], solo, crew: game.crew,
     masks: [...game.masks], spentGifts: [...game.spentGifts],
+    route: game.route.map(scenario => scenario.id),
     prompt: question.prompt, options: question.options,
     duration: game.duration, endsIn: Math.max(0, game.ends - Date.now()),
   };
@@ -461,6 +487,27 @@ function move(choice) {
 function portrait(id, css = '') {
   return id ? `<img class="mask-portrait ${css}" src="masks/${id}.jpg" alt="">` :
     `<span class="mask-portrait mask-empty ${css}" aria-hidden="true">✦</span>`;
+}
+
+function mountRoutePicker() {
+  const select = document.querySelector('#destination');
+  const labels = ['Arrival', 'Infiltration', 'Escape'];
+  routes.forEach((scenarios, index) => {
+    const group = document.createElement('optgroup');
+    group.label = labels[index];
+    scenarios.forEach(scenario => group.append(new Option(scenario.name, scenario.id)));
+    select.append(group);
+  });
+  const preview = document.querySelector('#destination-preview');
+  select.onchange = () => {
+    chosenDestination = select.value || null;
+    const scenario = routes.flat().find(place => place.id === chosenDestination);
+    preview.hidden = !scenario;
+    if (scenario) {
+      preview.querySelector('img').src = scenario.art ? `places/${scenario.art}.jpg` : 'arena.jpg';
+      preview.querySelector('figcaption').textContent = scenario.line;
+    }
+  };
 }
 
 function mountMaskPicker() {
@@ -556,12 +603,30 @@ function draw(state) {
       phase === 'choice' ? [110, 139, 165] : undefined);
   }
   if (secret && previous?.secret?.name !== secret.name) chime([98, 147, 110]);
+  const scenario = scenarioFor(round, state.route?.[round]);
+  const locationStyle = scenario?.art ? `--place-art:url(places/${scenario.art}.jpg)` : '';
+  const locationTone = locationStyle ? ' with-place' : '';
   const opponent = state.solo ? soloNames[round % 2] : 'Opponent';
   const teamScore = scores[0] + scores[1];
   const score = crew ? `<div class="score"><span>CREW · ${teamScore} / ${crewTarget}</span><span>TEAM HEIST</span></div>` :
     `<div class="score"><span>YOU · ${scores[seat]}</span><span>${opponent} · ${scores[1 - seat]}</span></div>`;
   const route = `<ol class="route" aria-label="Rounds">${acts.map((act, index) =>
-    `<li class="${index < round ? 'passed' : ''}" ${index === round ? 'aria-current="step"' : ''}><span aria-hidden="true">${index < round ? '✓' : index + 1}</span>${act}</li>`).join('')}</ol>`;
+    `<li class="${index < round ? 'passed' : ''}" ${index === round ? 'aria-current="step"' : ''}><span aria-hidden="true">${index < round ? '✓' : index + 1}</span>${index <= round ? scenarioFor(index, state.route?.[index])?.name ?? act : act}</li>`).join('')}</ol>`;
+  if (phase === 'briefing' && scenario) {
+    stage(`${score}${maskSeats(state)}${route}<span class="eyebrow">ROUND ${round + 1} BRIEFING</span><h2>${scenario.name}</h2>
+      <p>${scenario.line}</p>
+      <ul class="briefing-rules">
+        <li><b>${scenario.seconds}s</b> to answer</li>
+        <li><b>+${scenario.trivia ?? 2}</b> for a correct answer</li>
+        ${scenario.harmony ? '<li>Both keep trivia points <b>+1 each</b></li>' : ''}
+        ${scenario.cardBonus ? `<li>${cardBonusLabel(scenario.cardBonus, crew)}</li>` : ''}
+        ${round === 1 ? '<li><b>Double</b> card points</li>' : ''}
+      </ul>
+      <div class="clock-track"><span class="eyebrow">Round starts in</span><span class="clock" id="clock" aria-label="Round starts in"></span><div class="bar" id="bar" aria-hidden="true"></div></div>`,
+      false, `scene scene-briefing${locationTone}`, locationStyle);
+    tick();
+    return;
+  }
   const label = `<span class="eyebrow">${phase === 'trivia' ? 'ANSWER THE QUESTION' : phase === 'claim' ? 'MAKE A CLAIM' : 'PLAY A SECRET CARD'}</span>`;
   if (phase === 'trivia' || phase === 'claim' || phase === 'choice') {
     const bonus = pactMultiplier(round);
@@ -573,8 +638,11 @@ function draw(state) {
       <button class="play-card betray" data-choice="Betray"><span aria-hidden="true" class="pact-mark">◆</span><strong>Betray</strong><small>They trust <b>+${3 * bonus} for you</b></small><small>Both betray <b>0 each</b></small></button>
       <button class="play-card call" data-choice="Call bluff"><span aria-hidden="true" class="pact-mark">⌕</span><strong>Call bluff</strong><small>Catch a lie or a peek <b>+${3 * bonus}</b></small><small>They didn’t <b>−${bonus}</b></small></button>`;
     const announcement = round === 1 && phase === 'choice' ? (crew ? 'Vault bonus · Double loot points' : 'Double pact points') :
-      round === 2 && phase !== 'claim' ? 'Final round · 12 seconds' : '';
-    const twist = announcement ? `<p class="twist">${announcement}</p>` : '';
+      phase === 'trivia' && scenario?.harmony ? 'Both keep trivia points · +1 each' :
+      phase === 'trivia' && scenario?.trivia ? `Correct answer · +${scenario.trivia}` :
+      round === 2 && phase === 'choice' ? 'Final card · 12 seconds' : '';
+    const cardTwist = phase === 'choice' && scenario?.cardBonus ? cardBonusLabel(scenario.cardBonus, crew) : '';
+    const twist = [announcement, cardTwist].filter(Boolean).map(line => `<p class="twist">${line}</p>`).join(' ');
     stage(`${score}${maskSeats(state)}${route}${label}<h2>${phase === 'trivia' ? escape(prompt) : phase === 'claim' ? 'What will you tell them?' : crew ? 'Who does what?' : 'How will you play it?'}</h2>${twist}
       ${crew && phase === 'choice' && !locked ? `<p>Pick different jobs for <strong>+${4 * bonus} crew points</strong>. Same job scores 0.</p>` : ''}
       ${phase === 'claim' ? '<p>You can tell the truth or bluff. Your friend will see your claim before picking a card.</p>' : ''}
@@ -587,7 +655,7 @@ function draw(state) {
         ${peekAvailable ? '<button class="quiet" data-choice="peek">Peek once · risk losing trivia points</button>' : ''}
         ${!secret && round > 0 ? `<button class="quiet" data-choice="door">${round === 1 ? 'Open the secret door' : 'Follow the lantern'}</button>` : ''}
         </div>` : ''}
-      ${transmission(phase === 'claim' ? 'The truth is free. Lying may have a service charge.' : crew && phase === 'choice' ? 'I’m watching the vault. Please do something distracting over there.' : hostLines[phase][round])}`, false, `scene scene-${phase}`);
+      ${phase === 'trivia' && scenario ? '' : transmission(phase === 'claim' ? 'The truth is free. Lying may have a service charge.' : crew && phase === 'choice' ? 'I’m watching the vault. Please do something distracting over there.' : hostLines[phase][round])}`, false, `scene scene-${phase}${locationTone}`, locationStyle);
     app.querySelectorAll('[data-choice]').forEach(button => {
       button.onclick = () => move(phase === 'trivia' && /^\d$/.test(button.dataset.choice) ? Number(button.dataset.choice) : button.dataset.choice);
     });
@@ -599,10 +667,12 @@ function draw(state) {
     const line = player => {
       const claim = result.claims?.[player];
       const evidence = [claim && (result.falseClaims[player] ? 'Bluffed' : 'Told the truth'),
-        result.peeked?.[player] && 'Peeked', result.secrets?.[player], result.gifts?.[player] && `${result.gifts[player]} +2`].filter(Boolean);
+        result.peeked?.[player] && 'Peeked', result.secrets?.[player], result.gifts?.[player] && `${result.gifts[player]} +2`,
+        result.locationGains?.[player] && 'Location bonus +1'].filter(Boolean);
       return [result.responses[player], result.cards[player], ...evidence, points(result.gains[player])].map(escape).join(' · ');
     };
-    return `<strong>${escape(result.prompt)}</strong><br><small>Correct: ${escape(result.answer)}<br>You: ${line(seat)}<br>Other seat: ${line(1 - seat)}</small>`;
+    const room = result.scenario ? `<small class="receipt-place">${escape(result.scenario)}${result.sharedLight ? ' · Shared answer +1 each' : ''}</small><br>` : '';
+    return `${room}<strong>${escape(result.prompt)}</strong><br><small>Correct: ${escape(result.answer)}<br>You: ${line(seat)}<br>Other seat: ${line(1 - seat)}</small>`;
   };
   if (phase === 'reveal') {
     const pulledOff = record.cards.includes('Distract') && record.cards.includes('Grab');
@@ -616,14 +686,14 @@ function draw(state) {
       record.cards.includes('Betray') ? 'Someone broke the pact.' : 'The pact went unanswered.';
     const nextNumber = round + 2;
     stage(`${score}<span class="eyebrow">ROUND ${round + 1} · UNSEALED</span><h2>${result}</h2><div class="pact-cards">${pactCards(record)}</div>${giftReveal(record)}<ul class="receipt"><li>${receipt(record)}</li></ul>${!state.solo ? debrief(round) : ''}
-      ${seat === 0 ? `<button class="primary" id="next">Start Round ${nextNumber} ↗</button>${solo ? '' : '<p class="muted">This starts the timer for both players.</p>'}` : `<p class="waiting">Waiting for the host to start Round ${nextNumber}.</p>`}`, false, 'scene scene-reveal');
+      ${seat === 0 ? `<button class="primary" id="next">Start Round ${nextNumber} ↗</button>${solo ? '' : `<p class="muted">${scenario ? 'Both players see the briefing before the clock starts.' : 'This starts the timer for both players.'}</p>`}` : `<p class="waiting">Waiting for the host to start Round ${nextNumber}.</p>`}`, false, `scene scene-reveal${locationTone}`, locationStyle);
     const next = document.querySelector('#next');
     if (next) next.onclick = nextRound;
     return;
   }
   const [you, them] = [scores[seat], scores[1 - seat]];
   const verdict = crew ? (teamScore >= crewTarget ? 'Your crew got away.' : 'The host kept the loot.') : you === them ? 'The trial ends in a draw.' : you > them ? 'You won the trial.' : 'The other seat won.';
-  stage(`${score}<span class="eyebrow">FINAL VERDICT · RECORD UNSEALED</span><h2>${verdict}</h2><div class="pact-cards">${pactCards(record)}</div>${giftReveal(record)}<ul class="receipt">${records.map(result => `<li>${receipt(result)}</li>`).join('')}</ul>${!state.solo ? debrief(round) : ''}${homeButton}`, false, 'scene scene-verdict');
+  stage(`${score}<span class="eyebrow">FINAL VERDICT · RECORD UNSEALED</span><h2>${verdict}</h2><div class="pact-cards">${pactCards(record)}</div>${giftReveal(record)}<ul class="receipt">${records.map(result => `<li>${receipt(result)}</li>`).join('')}</ul>${!state.solo ? debrief(round) : ''}${homeButton}`, false, `scene scene-verdict${locationTone}`, locationStyle);
 }
 function tick() {
   const clock = document.querySelector('#clock');
@@ -631,8 +701,8 @@ function tick() {
   const remaining = Math.max(0, clockEnd - performance.now());
   const seconds = Math.ceil(remaining / 1000);
   clock.textContent = `${seconds.toString().padStart(2, '0')}s`;
-  clock.closest('.stage').classList.toggle('under-pressure', seconds <= 5);
-  if (seconds > 0 && seconds <= 5 && lastAlarm !== seconds) {
+  clock.closest('.stage').classList.toggle('under-pressure', shown.phase !== 'briefing' && seconds <= 5);
+  if (shown.phase !== 'briefing' && seconds > 0 && seconds <= 5 && lastAlarm !== seconds) {
     lastAlarm = seconds;
     chime([seconds === 1 ? 147 : 110]);
   }
@@ -645,13 +715,14 @@ if (roomId !== null || roomSeal !== null) {
   } else {
     stage(`<span class="icon" aria-hidden="true">✦</span><p class="eyebrow">SEALED SUMMONS</p><h2>Your seat is waiting.</h2>
       <p>${roomAddress.get('mode') === 'crew' ? `Team up against the masked host. Answer questions, pick different jobs, and score ${crewTarget} points together to escape.` : 'Play three rounds with your friend. Answer a question, then decide how much you trust them.'}</p>
-      <p class="muted">The first question starts when you join. Your choices are revealed after each round.</p>
+      <p class="muted">You’ll get a short briefing before the first question. Both choices are revealed after each round.</p>
       <div id="mask-picker"></div>
       <div class="row"><button class="primary" id="enter">Join game ↗</button>${homeButton}</div>`, true);
     mountMaskPicker();
     document.querySelector('#enter').onclick = () => join(roomId, roomSeal);
   }
 } else {
+  mountRoutePicker();
   mountMaskPicker();
   document.querySelector('#host').onclick = () => host();
   document.querySelector('#crew').onclick = () => host(true);
