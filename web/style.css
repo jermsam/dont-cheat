@@ -524,3 +524,19 @@ button.table-card:hover,button.table-card:focus-visible{background:#ffd6a0;color
 .deck-cue::before{content:"";position:absolute;left:calc(50% - 4px);top:-5px;width:8px;height:8px;background:inherit;border-top:1px solid;border-left:1px solid;transform:rotate(45deg)}
 .deck-cue:not([data-count="1"]){background:#4b202c;color:#ffe1e3;border-color:#ffa9ad;box-shadow:0 0 19px #ef6467a8}
 .immersive-table .stock-stakes{display:none}
+
+select, .destination-picker select, .table-menu select, .table-accuse select {
+  appearance: none;
+  padding-inline-end: 2.5rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='m3 6 5 5 5-5' stroke='%23f3dfc6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right .875rem center;
+  background-size: .875rem;
+}
+
+@media (forced-colors: active) {
+  select, .destination-picker select, .table-menu select, .table-accuse select {
+    appearance: auto;
+    background-image: none;
+  }
+}
