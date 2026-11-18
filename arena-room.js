@@ -1,5 +1,6 @@
+import { surfaceMaps,studioLight } from './physical-materials.js';
 import * as THREE from './vendor/three.module.min.js';
-import { makeCast } from './room-cast.js?v=2';
+import { makeCast } from './room-cast.js?v=3';
 import { feltTexture } from './table-art.js';
 
 const seats = [
@@ -17,9 +18,11 @@ const themes={
 export function createArenaRoom(holder,kind='hall',place){
   const theme=themes[kind]??themes.hall;
   const renderer=new THREE.WebGLRenderer({alpha:false,antialias:true});
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   renderer.setPixelRatio(Math.min(devicePixelRatio,1.35));
   renderer.toneMapping=THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure=1.28;
+  renderer.toneMappingExposure=1.16;
   const scene=new THREE.Scene();
   scene.background=new THREE.Color(theme.sky);
   scene.fog=new THREE.FogExp2(theme.sky,.047);
@@ -41,8 +44,13 @@ export function createArenaRoom(holder,kind='hall',place){
   const slate=new THREE.Color(theme.floor).offsetHSL(0,0,-.045);
   const alternate=material(slate);
   const column=material(theme.stone,{roughness:.62});
-  const bronze=material(theme.trim,{roughness:.38,metalness:.56});
-  const wood=material(0x492920,{roughness:.58});
+  const bronze=material(theme.trim,{roughness:.31,metalness:.72});
+  const wood=material(0x966e51,{roughness:.48});
+  studioLight(scene,render,()=>ready);
+  surfaceMaps(wood,'walnut',render,()=>ready);
+  surfaceMaps(floor,'stone',render,()=>ready);
+  surfaceMaps(alternate,'stone',render,()=>ready);
+  surfaceMaps(column,'stone',render,()=>ready);
   const leather=material(0x472c40);
   const dark=material(0x181420);
   const warm=material(theme.light,{emissive:theme.light,emissiveIntensity:1.8});
@@ -57,9 +65,16 @@ export function createArenaRoom(holder,kind='hall',place){
   }
   const block=(mat,x,y,z,sx,sy,sz,parent)=>mesh(cube,mat,x,y,z,sx,sy,sz,parent);
 
-  scene.add(new THREE.HemisphereLight(0xffead7,0x6e6493,2.15));
+  scene.add(new THREE.HemisphereLight(0xffead7,0x6e6493,1.30));
   const front=new THREE.DirectionalLight(0xffd7a7,2.3);
-  front.position.set(-4,7,8);scene.add(front);
+  front.position.set(-4,7,6);
+  front.castShadow=true;
+  front.shadow.mapSize.set(1024,1024);
+  Object.assign(front.shadow.camera,{left:-6,right:6,top:6,bottom:-6,near:.5,far:23});
+  front.shadow.bias=-.0006;
+  front.shadow.normalBias=.022;
+  front.target.position.set(0,0,-1.3);
+  scene.add(front,front.target);
   const rim=new THREE.PointLight(theme.light,50,16,2);
   rim.position.set(0,3.7,-3);scene.add(rim);
 
@@ -75,6 +90,7 @@ export function createArenaRoom(holder,kind='hall',place){
       tile.updateMatrix();
       batch.setMatrixAt(index,tile.matrix);
     });
+    batch.receiveShadow=true;
     scene.add(batch);
   });
   block(path,0,.008,-3.58,1.44,.025,5.74);
@@ -179,19 +195,23 @@ export function createArenaRoom(holder,kind='hall',place){
   mesh(round,bronze,0,.54,-.66,.48,.07,.63);
   mesh(round,wood,0,.73,-.66,1.69,.25,1.93);
   mesh(round,bronze,0,.837,-.66,1.70,.042,1.94);
-  mesh(round,feltMat,0,.86,-.66,1.60,.038,1.84);
+  const tableTop=mesh(round,feltMat,0,.86,-.66,1.60,.038,1.84);
+  tableTop.castShadow=true;
+  tableTop.receiveShadow=true;
   for(let i=0;i<7;i++)block(i%2?bronze:leather,0,.898+i*.012,-1.11,.20,.012,.31);
   for(const [x,z,rotation] of seats){
     const chair=new THREE.Group();
     chair.position.set(x,0,z);
     chair.rotation.y=rotation;
     scene.add(chair);
+    chair.castShadow=true;
     block(wood,0,.39,0,.59,.095,.59,chair);
     block(leather,0,.453,0,.55,.065,.55,chair);
     block(wood,0,.78,-.27,.56,.68,.12,chair);
     block(leather,0,.81,-.201,.43,.51,.071,chair);
     block(bronze,0,1.137,-.229,.55,.045,.10,chair);
     for(const a of [-1,1])for(const b of [-1,1])block(wood,a*.22,.18,b*.22,.065,.37,.065,chair);
+    chair.children.forEach(panel=>{panel.castShadow=true;panel.receiveShadow=true;});
   }
   const chandelierGeo=new THREE.TorusGeometry(.79,.026,7,42);
   geometries.add(chandelierGeo);

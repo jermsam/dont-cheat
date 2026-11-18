@@ -2,7 +2,7 @@ import { masks, maskId } from './masks.js?v=2';
 import { jumps, squarePosition } from './snakes.js';
 import { diceCategories } from './card-dice-rules.js?v=3';
 import { pokerRanks, rankHand } from './match-rules.js?v=5';
-import { mountTableObjects } from './table-objects.js?v=5';
+import { mountTableObjects } from './table-objects.js?v=6';
 import { mountLiveBoard } from './live-board.js';
 
 const glyph = {p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', m:'●'};
@@ -64,6 +64,9 @@ function ludoPosition(side, token, pos) {
 }
 const cell = ([row,col]) => `grid-row:${row + 1};grid-column:${col + 1}`;
 
+const diePips=[[4],[0,8],[0,4,8],[0,2,6,8],[0,2,4,6,8],[0,2,3,5,6,8]];
+const dieFace=face=>Array.from({length:9},(_,i)=>`<i${diePips[face-1]?.includes(i)?' class="pip"':''}></i>`).join('');
+
 function ludo(board) {
   const where = pos => pos === -1 ? 'Yard' : pos === 56 ? 'Home' : pos > 50 ? `Home lane ${pos - 50}` : `Track ${pos + 1}`;
   const tokens = board.tokens.flatMap((positions, side) => positions.map((pos,i) => {
@@ -76,8 +79,8 @@ function ludo(board) {
     <div class="ludo-roll">
       ${board.legal.some(action => action.roll) ? '<button type="button" class="primary" data-roll>Roll die</button>' : ''}
       ${board.lastRoll ? `<div class="ludo-die" data-die="${Number(board.lastRoll)}" aria-hidden="true"><div class="die-cube">
-        ${Array.from({length:6},(_,i)=>`<span>${'⚀⚁⚂⚃⚄⚅'[i]}</span>`).join('')}</div>
-        <b>${'⚀⚁⚂⚃⚄⚅'[board.lastRoll-1]}</b></div><p role="status">Last roll <strong>${Number(board.lastRoll)}</strong></p>` : ''}
+        ${Array.from({length:6},(_,i)=>`<span class="die-face">${dieFace(i+1)}</span>`).join('')}</div>
+        <b class="die-face">${dieFace(board.lastRoll)}</b></div><p role="status">Last roll <strong>${Number(board.lastRoll)}</strong></p>` : ''}
       ${board.die && board.legal.some(move=>move.token!==undefined) ? '<p>Choose a token.</p>' : ''}
     </div>
     <div class="ludo-layout" aria-hidden="true">
