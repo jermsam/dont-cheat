@@ -1,6 +1,6 @@
 import { surfaceMaps,studioLight } from './physical-materials.js';
 import * as THREE from './vendor/three.module.min.js';
-import { makeCast } from './room-cast.js?v=11';
+import { makeCast } from './room-cast.js?v=12';
 import { buildDestination } from './destination-sets.js?v=2';
 import { placeKitchenProps } from './kitchen-props.js';
 import { buildKitchen } from './midnight-kitchen.js?v=7';

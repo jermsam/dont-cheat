@@ -43,3 +43,48 @@ export function fitPortraitGeometry(geometry, mask) {
   points.needsUpdate=true;
   if(normals)normals.needsUpdate=true;
 }
+
+// Match the registered portrait's facial relief while retaining the surrounding mesh.
+export function sculptPortraitRelief(geometry, image) {
+  const canvas=document.createElement('canvas');
+  canvas.width=image.width;
+  canvas.height=image.height;
+  const context=canvas.getContext('2d');
+  context.drawImage(image,0,0);
+  const {width,height}=canvas;
+  const {data}=context.getImageData(0,0,width,height);
+  function sample(x,y,channel) {
+    x=Math.max(0,Math.min(width-1.001,x));
+    y=Math.max(0,Math.min(height-1.001,y));
+    const left=Math.floor(x),top=Math.floor(y);
+    const index=4*(top*width+left)+channel;
+    const fx=x-left,fy=y-top;
+    return ((1-fx)*data[index]+fx*data[index+4])*(1-fy)
+      +((1-fx)*data[index+4*width]+fx*data[index+4*width+4])*fy;
+  }
+  const points=geometry.attributes.position;
+  const normals=geometry.attributes.normal;
+  for(let i=0;i<points.count;i++){
+    const z=points.getZ(i);
+    if(z<=.028)continue;
+    const x=(.5+points.getX(i)/.192)*(width-1);
+    const y=(.5-(points.getY(i)-.917)/.192)*(height-1);
+    if(x<=0||x>=width-1||y<=0||y>=height-1)continue;
+    const front=Math.min(1,(z-.028)/.02);
+    const weight=sample(x,y,1)/255*.91*front*front*(3-2*front);
+    if(weight<.001)continue;
+    const target=sample(x,y,0)*.1/255;
+    points.setZ(i,z+(target-z)*weight);
+    if(!normals)continue;
+    const dx=(sample(x+2,y,0)-sample(x-2,y,0))*.1/255*(width-1)/(.192*4);
+    const dy=(sample(x,y+2,0)-sample(x,y-2,0))*.1/255*(height-1)/(.192*4);
+    const slopeLength=Math.hypot(dx,dy,1);
+    const nx=normals.getX(i)*(1-weight)-dx/slopeLength*weight;
+    const ny=normals.getY(i)*(1-weight)+dy/slopeLength*weight;
+    const nz=normals.getZ(i)*(1-weight)+weight/slopeLength;
+    const length=Math.hypot(nx,ny,nz)||1;
+    normals.setXYZ(i,nx/length,ny/length,nz/length);
+  }
+  points.needsUpdate=true;
+  if(normals)normals.needsUpdate=true;
+}

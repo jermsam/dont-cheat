@@ -334,7 +334,7 @@ export function makeCast(refresh, useTripo=false){
     }
     pose();
     if(useTripo && (mask==='saint'||mask==='prince')){
-      void import('./tripo-cast.js?v=8').then(({loadTripoCast})=>loadTripoCast(mask,root,{
+      void import('./tripo-cast.js?v=9').then(({loadTripoCast})=>loadTripoCast(mask,root,{
         hip,head,shoulder,legs,cardGrip
       })).then(asset=>{
         if(released||disposed){asset.dispose();return;}
