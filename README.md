@@ -32,7 +32,7 @@ Other card combinations yield zero pact points. Round two doubles pact points. T
 
 ## Destinations
 
-The game draws one of nine locations for each round, giving 27 locations and 729 possible routes. To guarantee one stop, open **Pick a destination** before starting. The other two remain a surprise. Briefings explain each location’s timer and scoring twists, and the verdict records the stops and bonuses that applied.
+The game draws one of thirteen locations for each round, giving 39 locations and 2,197 possible routes. To guarantee one stop, open **Pick a destination** before starting. The other two remain a surprise. Briefings explain each location’s timer and scoring twists, and the verdict records the stops and bonuses that applied.
 
 ## Masks
 
