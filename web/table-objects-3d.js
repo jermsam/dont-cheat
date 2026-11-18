@@ -1,4 +1,5 @@
-import { feltTexture, cardTexture, cardBody } from './table-art.js';
+import { surfaceMaps,studioLight } from './physical-materials.js';
+import { feltTexture, cardTexture, cardBody } from './table-art.js?v=2';
 import { makeRaceBoard } from './snakes-3d.js';
 import * as THREE from './vendor/three.module.min.js';
 
@@ -62,7 +63,7 @@ export function createTableObjects(holder) {
   const tableGeo=new THREE.CylinderGeometry(5.0,5.1,.28,64);
   const felt= feltTexture();
   const tableInk=new THREE.MeshStandardMaterial({map:felt,roughness:.95});
-  const wood=new THREE.MeshStandardMaterial({color:0x372118,roughness:.61});
+  const wood=new THREE.MeshStandardMaterial({color:0x87664b,roughness:.42});
   const inlay=new THREE.MeshStandardMaterial({color:0xc08a47,roughness:.48,metalness:.67});
   const table=new THREE.Mesh(tableGeo,[wood,tableInk,wood]);
   table.position.y=-.14;
@@ -72,10 +73,13 @@ export function createTableObjects(holder) {
   trim.rotation.x=Math.PI/2;
   trim.position.y=-.025;
   scene.add(trim);
+  let alive=true;
+  studioLight(scene,render,()=>alive);
+  surfaceMaps(wood,'walnut',render,()=>alive);
   const mats=new Map();
   const motion=matchMedia('(prefers-reduced-motion: reduce)');
   let animation, lastSerial=-1, raceBoard, wideTable=false, previousCards=new Map(), previousDice=[], lastRollCount, ludoBoard=false;
-  const render=()=>renderer.render(scene,camera);
+  function render(){renderer.render(scene,camera);}
   function paint(label,value=0) {
     const key=label || value;
     if (mats.has(key)) return mats.get(key);
@@ -102,7 +106,19 @@ export function createTableObjects(holder) {
     }
     const map=new THREE.CanvasTexture(canvas);
     map.colorSpace=THREE.SRGBColorSpace;
-    const material=new THREE.MeshStandardMaterial({map,roughness:.56});
+    const bumpCanvas=document.createElement('canvas');
+    bumpCanvas.width=bumpCanvas.height=128;
+    const bump=bumpCanvas.getContext('2d');
+    bump.fillStyle='#aaa';
+    bump.fillRect(0,0,128,128);
+    if(!label)for(const [dx,dy] of dots[value-1]){
+      const x=64+dx*31,y=64+dy*31;
+      const inset=bump.createRadialGradient(x,y,5,x,y,11);
+      inset.addColorStop(0,'#080808');inset.addColorStop(.57,'#151515');inset.addColorStop(1,'#aaa');
+      bump.fillStyle=inset;bump.fillRect(x-11,y-11,22,22);
+    }
+    const bumpMap=new THREE.CanvasTexture(bumpCanvas);
+    const material=new THREE.MeshStandardMaterial({map,bumpMap,bumpScale:.028,roughness:.30});
     mats.set(key,material);
     return material;
   }
@@ -113,7 +129,7 @@ export function createTableObjects(holder) {
   const selectionEdge=new THREE.MeshStandardMaterial({color:0x9aedd6,roughness:.55,emissive:0x387c62,emissiveIntensity:.6});
   const cardMaterials=new Map();
   function face(label) {
-    if (!cardMaterials.has(label)) cardMaterials.set(label,new THREE.MeshStandardMaterial({map:cardTexture(label),roughness:.79}));
+    if (!cardMaterials.has(label)) cardMaterials.set(label,new THREE.MeshStandardMaterial({map:cardTexture(label),roughness:.69,alphaTest:.5}));
     return cardMaterials.get(label);
   }
   function cardModel(label,button) {
@@ -122,11 +138,11 @@ export function createTableObjects(holder) {
     model.add(base);
     model.userData.base=base;
     const front=new THREE.Mesh(faceGeo,face(label));
-    front.position.y=.028;
+    front.position.y=.009;
     model.add(front);
     if (button) {
       const badge=new THREE.Mesh(actionBadge,base.material);
-      badge.position.set(.263,.033,-.412);
+      badge.position.set(.263,.013,-.412);
       model.add(badge);
       model.userData.badge=badge;
     }
@@ -223,7 +239,7 @@ export function createTableObjects(holder) {
       for(let i=0;i<5;i++){
         const deck=cardModel('back',stock);
         if(stock) deck.userData.button=stock;
-        deck.position.set(-2.28,.025+.028*i,-1.61);
+        deck.position.set(-2.28,.015+.010*i,-1.61);
         deck.rotation.y=-.12+i*.015;
         objects.add(deck);
       }
@@ -317,11 +333,12 @@ export function createTableObjects(holder) {
   resize.observe(holder);
   const removal=new MutationObserver(()=>{
     if (holder.isConnected) return;
+    alive=false;
     animation?.stop();
     resize.disconnect();
     removal.disconnect();
     [slab,faceGeo,actionBadge,contactGeo,cube,tableGeo,trimGeo,tokenGeo,cellGeo,pitGeo,seedGeo].forEach(item=>item.dispose());
-    [tableInk,wood,inlay,shadow,edges,actionEdge,selectionEdge,pitPaint,seedPaint,...tokenPaint,...mats.values(),...cardMaterials.values()].forEach(material=>{material.map?.dispose();material.dispose();});
+    [tableInk,wood,inlay,shadow,edges,actionEdge,selectionEdge,pitPaint,seedPaint,...tokenPaint,...mats.values(),...cardMaterials.values()].forEach(material=>{if(material!==wood)material.map?.dispose();material.bumpMap?.dispose();material.dispose();});
     raceBoard?.dispose();
     renderer.dispose();
   });

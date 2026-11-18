@@ -49,7 +49,10 @@ export function feltTexture() {
 
 export function cardTexture(label) {
   const back=label==='back';
-  return texture(168,240,(ctx,w,h)=>{
+  return texture(336,480,(ctx,width,height)=>{
+    ctx.scale(2,2);
+    const w=width/2,h=height/2;
+    ctx.beginPath();ctx.roundRect(0,0,w,h,8);ctx.clip();
     const ink=label&&/[♥♦]/.test(label)?'#932739':'#172529';
     ctx.fillStyle='#eee3cc';
     ctx.fillRect(0,0,w,h);
@@ -100,15 +103,43 @@ export function cardTexture(label) {
     ctx.rotate(Math.PI);
     corner();
     ctx.restore();
-    ctx.font='66px Georgia';
-    ctx.fillText(suit,w/2,h/2);
-    if(/[JQK]/.test(rank)){
-      ctx.strokeStyle=ink+'66';
-      ctx.lineWidth=2;
-      ctx.beginPath();
-      ctx.ellipse(w/2,h/2,36,46,0,0,Math.PI*2);
-      ctx.stroke();
+    const numeric=Number(rank);
+    if(numeric>=2&&numeric<=10){
+      const rows={
+        2:[[0,-.60],[0,.60]],3:[[0,-.60],[0,0],[0,.60]],
+        4:[[-1,-.60],[1,-.60],[-1,.60],[1,.60]],
+        5:[[-1,-.60],[1,-.60],[0,0],[-1,.60],[1,.60]],
+        6:[[-1,-.61],[1,-.61],[-1,0],[1,0],[-1,.61],[1,.61]],
+        7:[[-1,-.61],[1,-.61],[-1,0],[1,0],[-1,.61],[1,.61],[0,-.31]],
+        8:[[-1,-.61],[1,-.61],[-1,0],[1,0],[-1,.61],[1,.61],[0,-.31],[0,.31]],
+        9:[[-1,-.71],[1,-.71],[-1,-.25],[1,-.25],[-1,.25],[1,.25],[-1,.71],[1,.71],[0,0]],
+        10:[[-1,-.71],[1,-.71],[-1,-.25],[1,-.25],[-1,.25],[1,.25],[-1,.71],[1,.71],[0,-.47],[0,.47]],
+      };
+      ctx.font=numeric>6?'31px Georgia':'38px Georgia';
+      for(const [x,y] of rows[numeric]){
+        ctx.save();
+        ctx.translate(w/2+x*27,h/2+y*85);
+        if(y>0)ctx.rotate(Math.PI);
+        ctx.fillText(suit,0,0);
+        ctx.restore();
+      }
+    }else if(/[JQK]/.test(rank)){
+      ctx.strokeStyle='#8b6b49';
+      ctx.strokeRect(48,45,72,150);
+      function court(){
+        ctx.fillStyle=ink;
+        ctx.beginPath();ctx.moveTo(54,117);ctx.quadraticCurveTo(62,87,84,78);ctx.quadraticCurveTo(106,87,114,117);ctx.closePath();ctx.fill();
+        ctx.fillStyle='#d7ae6b';ctx.beginPath();ctx.ellipse(84,75,11,16,0,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#6f2638';
+        ctx.beginPath();ctx.moveTo(72,66);ctx.lineTo(71,52);ctx.lineTo(78,57);ctx.lineTo(84,50);ctx.lineTo(90,57);ctx.lineTo(97,52);ctx.lineTo(96,66);ctx.closePath();ctx.fill();
+        ctx.fillStyle='#f1d6a3';ctx.font='30px Georgia';ctx.fillText(suit,84,107);
+      }
+      court();ctx.save();ctx.translate(w,h);ctx.rotate(Math.PI);court();ctx.restore();
+    }else{
+      ctx.font='72px Georgia';
+      ctx.fillText(suit,w/2,h/2);
     }
+
   });
 }
 
@@ -124,7 +155,7 @@ export function cardBody(width,depth) {
   shape.quadraticCurveTo(-x,y,-x,y-radius);
   shape.lineTo(-x,-y+radius);
   shape.quadraticCurveTo(-x,-y,-x+radius,-y);
-  const body=new THREE.ExtrudeGeometry(shape,{depth:.025,bevelEnabled:false,curveSegments:4});
+  const body=new THREE.ExtrudeGeometry(shape,{depth:.008,bevelEnabled:false,curveSegments:4});
   body.rotateX(-Math.PI/2);
   return body;
 }

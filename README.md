@@ -105,3 +105,7 @@ Season lobbies render a 3D room that reflects the live seat roster. Joining play
 Card tables show opponents’ card backs when the rules expose their hand size. **Cover my hand** hides your cards on your screen. Only game-required reveals are shown at the table, and the season recap leaves out card faces from private hands. The host browser still runs the deck and rules.
 
 In Tournament, the selected destination opens the season and is shared by the lobby and first event. The 3D room uses destination artwork with setting-specific lighting and set pieces. The cast uses the selected portrait textures on its 3D head meshes with matching wardrobe colors. Tap a player's portrait for a close-up. Ludo rolls animate in flat and 3D views, including consecutive identical results. The host still resolves the die under the same rules.
+
+### Physical materials
+
+The room and props use [Wood Table 001](https://polyhaven.com/a/wood_table_001), [Marble 01](https://polyhaven.com/a/marble_01), [Fabric Pattern 07](https://polyhaven.com/a/fabric_pattern_07) and [Brown Photostudio 07](https://polyhaven.com/a/brown_photostudio_07) from Poly Haven under CC0. Color and normal textures are resized and served as WebP, and the lighting probe is the 1K HDR. The animated character rigs and printed deck faces are built in the browser.

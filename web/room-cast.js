@@ -1,3 +1,4 @@
+import { clothMap } from './physical-materials.js';
 import * as THREE from './vendor/three.module.min.js';
 
 const identities = [
@@ -34,6 +35,18 @@ function portraitGeometry(){
   geometry.computeVertexNormals();
   return geometry;
 }
+function wardrobeGeometry(){
+  const geometry=new THREE.PlaneGeometry(.55,.48,16,14);
+  const position=geometry.attributes.position;
+  for(let i=0;i<position.count;i++){
+    const x=position.getX(i)/.275,y=position.getY(i)/.24;
+    position.setX(i,position.getX(i)*(.88+.105*y));
+    position.setZ(i,.079+.128*Math.sqrt(Math.max(0,1-x*x))-.021*Math.abs(y));
+  }
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 function variant(mask,seat){
   const presets={saint:0,prince:1,tracker:2};
   const preset=identities[presets[mask]];
@@ -45,25 +58,48 @@ function variant(mask,seat){
 
 export function makeCast(refresh){
   const materials=new Set(), geometries=new Set(), textures=new Map();
-  const portraitGeo=portraitGeometry();geometries.add(portraitGeo);
+  const portraitGeo=portraitGeometry(),wardrobeGeo=wardrobeGeometry();
+  geometries.add(portraitGeo);geometries.add(wardrobeGeo);
   let disposed=false;
   const material=(color,metalness=0)=>{
     const mat=new THREE.MeshStandardMaterial({color,metalness,roughness:metalness?.42:.76});
     materials.add(mat);
     return mat;
   };
-  const sphere=new THREE.SphereGeometry(1,16,12);
+  function tailoring(profile,height,folds=0) {
+    const geometry=new THREE.LatheGeometry(profile.map(([radius,y])=>new THREE.Vector2(radius,y*height)),24);
+    const points=geometry.attributes.position;
+    for(let i=0;i<points.count;i++){
+      const x=points.getX(i),y=points.getY(i),z=points.getZ(i);
+      const theta=Math.atan2(x,z);
+      const drape=1+Math.sin(theta*5+y*29)*folds+Math.cos(theta*3-y*48)*folds*.32;
+      points.setXYZ(i,x*drape,y,z*drape);
+    }
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+  const torso=tailoring([[0,0],[.23,0],[.248,.08],[.243,.26],[.263,.49],[.292,.72],[.296,.84],[.245,.93],[.135,1],[0,1]],.69,.022);
+  const sleeve=tailoring([[.091,0],[.102,.12],[.110,.35],[.105,.65],[.087,.86],[.068,1]],.39,.065);
+  const cuff=tailoring([[.060,0],[.074,.19],[.083,.66],[.093,1]],.30,.061);
+  const hand=tailoring([[0,0],[.040,.08],[.054,.24],[.063,.56],[.053,.74],[.036,1],[0,1]],.15,.015);
+  const lapelShape=new THREE.Shape();
+  lapelShape.moveTo(0,0);lapelShape.lineTo(.17,.21);lapelShape.lineTo(.112,.24);
+  lapelShape.lineTo(.193,.31);lapelShape.lineTo(.13,.39);lapelShape.lineTo(.07,.42);lapelShape.closePath();
+  const lapel=new THREE.ShapeGeometry(lapelShape);
+  const sphere=new THREE.SphereGeometry(1,24,18);
   const box=new THREE.BoxGeometry(1,1,1);
   const tube=new THREE.CylinderGeometry(.83,1,1,10);
   const taper=new THREE.CylinderGeometry(1,.54,1,8);
   const eyeShape=new THREE.SphereGeometry(1,10,8);
   const diamond=new THREE.OctahedronGeometry(1);
-  for(const geo of [sphere,box,tube,taper,eyeShape,diamond])geometries.add(geo);
+  for(const geo of [sphere,box,tube,taper,eyeShape,diamond,torso,sleeve,cuff,hand,lapel])geometries.add(geo);
   const seam=material(0x1c1923), brass=material(0xcc9a52,.46), white=material(0xddd5c5), black=material(0x101116);
   function mesh(parent,geometry,mat,position,scale) {
     const body=new THREE.Mesh(geometry,mat);
     body.position.set(...position);
     body.scale.set(...scale);
+    body.castShadow=true;
+    body.receiveShadow=true;
     parent.add(body);
     return body;
   }
@@ -80,25 +116,37 @@ export function makeCast(refresh){
     const face=material(style.mask,.36);
     const root=new THREE.Group();
     const hip=joint(root,0,.93,0);
-    mesh(hip,sphere,cloth,[0,.26,0],[.30,.43,.20]);
-    mesh(hip,taper,cloth,[0,.21,-.035],[.34,.63,.22]);
-    mesh(hip,box,seam,[0,.06,.16],[.49,.075,.072]);
-    mesh(hip,diamond,brass,[0,.066,.21],[.083,.065,.04]);
-    mesh(hip,tube,skinTone,[0,.70,0],[.097,.18,.085]);
-    // A collar and asymmetric seams make the same rig read as different costumes.
+    clothMap(cloth,refresh,()=>!disposed&&!released);
+    mesh(hip,torso,cloth,[0,.016,-.027],[1,1,.68]);
+    mesh(hip,tube,skinTone,[0,.708,0],[.081,.145,.073]);
+    const trimColor=mask==='saint'?0xe8d8ba:mask==='prince'?0x66535a:dealer?0x6c5944:0x594a55;
+    const lining=material(trimColor,.12);
+    clothMap(lining,refresh,()=>!disposed&&!released);
     for(const side of [-1,1]){
-      const collar=mesh(hip,box,brass,[side*.102,.64,.14],[.12,.055,.07]);
-      collar.rotation.z=side*.33;
+      const fold=mesh(hip,lapel,lining,[0,.275,.177],[side,1,1]);
+      if(side<0)fold.material.side=THREE.DoubleSide;
+      mesh(hip,sphere,brass,[side*.078,.29,.18],[.020,.020,.008]);
+    }
+    if(mask==='saint'||mask==='confessor'||mask==='weaver'){
+      const wrap=mesh(hip,sphere,cloth,[0,.575,-.09],[.315,.13,.19]);
+      wrap.rotation.z=-.23;
+      mesh(hip,diamond,brass,[.131,.482,.182],[.047,.042,.021]);
+    }else{
+      mesh(hip,box,seam,[0,.103,.144],[.35,.043,.035]);
+      mesh(hip,diamond,brass,[.008,.116,.17],[.054,.041,.019]);
     }
     const shoulder=[-1,1].map(side=>{
       const arm=joint(hip,side*.31,.54,0);
       arm.rotation.z=side*.095;
-      mesh(arm,sphere,cloth,[0,-.04,0],[.133,.15,.133]);
-      mesh(arm,tube,cloth,[0,-.19,0],[.10,.30,.104]);
+      mesh(arm,sleeve,cloth,[0,-.35,0],[1,1,1]);
+      mesh(arm,sphere,cloth,[0,-.04,0],[.101,.108,.092]);
       const elbow=joint(arm,0,-.34,0);
-      mesh(elbow,tube,cloth,[0,-.14,0],[.081,.27,.083]);
-      mesh(elbow,box,brass,[0,-.266,.006],[.148,.046,.13]);
-      mesh(elbow,sphere,dealer?seam:skinTone,[0,-.322,.018],[.077,.090,.059]);
+      mesh(elbow,cuff,cloth,[0,-.26,0],[1,.99,.91]);
+      mesh(elbow,tube,lining,[0,-.248,0],[.064,.065,.065]);
+      const palm=mesh(elbow,hand,dealer?seam:skinTone,[side*.009,-.379,.019],[1,1,.61]);
+      palm.rotation.z=side*.16;
+      const thumb=mesh(elbow,sphere,dealer?seam:skinTone,[-side*.042,-.306,.040],[.022,.041,.020]);
+      thumb.rotation.z=-side*.56;
       return {arm,elbow};
     });
     const legs=[-1,1].map(side=>{
@@ -132,7 +180,7 @@ export function makeCast(refresh){
       mesh(features,sphere,skinTone,[0,-.010,.151],[.034,.048,.048]);
       mesh(features,box,seam,[0,-.095,.144],[.058,.010,.014]);
     }
-    let portraitMaterial, released=false;
+    let portraitMaterial, garmentMaterial,released=false;
     if(portrait){
       let task=textures.get(mask);
       if(!task){
@@ -152,18 +200,34 @@ export function makeCast(refresh){
             ctx.fillStyle=edge;ctx.fillRect(-1,-1,2,2);
             const map=new THREE.CanvasTexture(canvas);
             map.colorSpace=THREE.SRGBColorSpace;
-            resolve(map);
+            const apparel=document.createElement('canvas');
+            apparel.width=256;apparel.height=224;
+            const fabric=apparel.getContext('2d');
+            fabric.drawImage(image,.087*image.width,.67*image.height,.826*image.width,.33*image.height,0,0,256,224);
+            fabric.globalCompositeOperation='destination-in';
+            fabric.translate(128,112);fabric.scale(128,112);
+            const fade=fabric.createRadialGradient(0,0,.54,0,0,1);
+            fade.addColorStop(0,'#fff');fade.addColorStop(.82,'#fff');fade.addColorStop(1,'#fff0');
+            fabric.fillStyle=fade;fabric.fillRect(-1,-1,2,2);
+            const garment=new THREE.CanvasTexture(apparel);
+            garment.colorSpace=THREE.SRGBColorSpace;
+            resolve({face:map,garment});
           };
           image.onerror=()=>resolve(null);
           image.src=`masks/${mask}.jpg`;
         });
         textures.set(mask,task);
       }
-      void task.then(map=>{
-        if(!map||released||disposed)return;
-        portraitMaterial=new THREE.MeshBasicMaterial({map,transparent:true,depthWrite:false,toneMapped:false});
+      void task.then(maps=>{
+        if(!maps||released||disposed)return;
+        portraitMaterial=new THREE.MeshBasicMaterial({map:maps.face,transparent:true,depthWrite:false,toneMapped:false});
         materials.add(portraitMaterial);
-        mesh(head,portraitGeo,portraitMaterial,[0,.02,.018],[1,1,1]);
+        if(!dealer){
+          garmentMaterial=new THREE.MeshBasicMaterial({map:maps.garment,transparent:true,depthWrite:false,toneMapped:false});
+          materials.add(garmentMaterial);
+          mesh(hip,wardrobeGeo,garmentMaterial,[0,.422,.026],[1,1,1]).castShadow=false;
+        }
+        mesh(head,portraitGeo,portraitMaterial,[0,.02,.018],[1,1,1]).castShadow=false;
         features.visible=false;
         root.userData.portrait=mask;
         refresh();
@@ -198,7 +262,7 @@ export function makeCast(refresh){
     }
     function release(){
       released=true;
-      for(const paint of [cloth,hair,skinTone,face,portraitMaterial]){
+      for(const paint of [cloth,hair,skinTone,face,lining,portraitMaterial,garmentMaterial]){
         paint?.dispose();
         materials.delete(paint);
       }
@@ -207,7 +271,7 @@ export function makeCast(refresh){
   }
   function dispose(){
     disposed=true;
-    textures.forEach(task=>void task.then(map=>map?.dispose()));
+    textures.forEach(task=>void task.then(maps=>{maps?.face.dispose();maps?.garment.dispose();}));
     geometries.forEach(geo=>geo.dispose());
     materials.forEach(mat=>mat.dispose());
   }

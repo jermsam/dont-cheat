@@ -86,7 +86,7 @@ export function mountTableObjects(app, board) {
   async function start() {
     button.disabled=true;
     try {
-      const {createTableObjects}=await import('./table-objects-3d.js?v=5');
+      const {createTableObjects}=await import('./table-objects-3d.js?v=6');
       if (!holder.isConnected) return;
       view=createTableObjects(holder);
       views.set(holder,view);
