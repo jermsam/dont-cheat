@@ -459,3 +459,9 @@ button.table-card:hover,button.table-card:focus-visible{background:#ffd6a0;color
 
 .scene.arena-lobby::before{opacity:.23}
 @media(max-width:480px){.arena-lobby .room-window{height:clamp(237px,68vw,300px)}}
+.stock-action{display:flex;align-items:center;gap:10px;margin:8px 0}
+.stock-action .primary{flex:none}
+.stock-action p{color:var(--dim);font-size:.82rem}
+[data-card-zone="hand"][hidden]{display:none}
+.cover-hand{margin-left:6px}
+.physical-table[data-stock="true"] canvas{cursor:pointer}

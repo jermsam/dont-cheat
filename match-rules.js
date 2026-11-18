@@ -1,7 +1,7 @@
 import { range, random, shuffledDeck, rankHand, compare } from './deck.js';
 export { random, shuffledDeck, rankHand, compare, pokerRanks } from './deck.js';
 import { partyRules, partyTitles } from './party-rules.js';
-import { gin } from './gin.js';
+import { gin } from './gin.js?v=2';
 import { trickGame, trickTitles } from './tricks.js';
 import { race } from './snakes.js';
 import { cardAndDiceRules, cardAndDiceTitles } from './card-dice-rules.js?v=3';

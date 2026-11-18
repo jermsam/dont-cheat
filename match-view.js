@@ -1,8 +1,8 @@
 import { masks, maskId } from './masks.js?v=2';
 import { jumps, squarePosition } from './snakes.js';
 import { diceCategories } from './card-dice-rules.js?v=3';
-import { pokerRanks, rankHand } from './match-rules.js?v=3';
-import { mountTableObjects } from './table-objects.js?v=3';
+import { pokerRanks, rankHand } from './match-rules.js?v=4';
+import { mountTableObjects } from './table-objects.js?v=4';
 import { mountLiveBoard } from './live-board.js';
 
 const glyph = {p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', m:'●'};
@@ -128,8 +128,9 @@ const handCards = cards => cards.map(card => `<span class="table-card" data-tabl
 function pickCard(card) {
   return `<button type="button" class="table-card" data-table-card="${Number(card)}" data-play-card="${Number(card)}" aria-label="Play ${cardName(card)}">${cardName(card)}</button>`;
 }
+const stockActions = {gin:'Draw stock', kings:'Draw'};
 const options = board => `<div class="row">${board.legal.filter(move=>typeof move.choice==='string'&&move.choice!=='Send three').map(move =>
-  `<button type="button" data-choice-label="${escape(move.choice)}">${escape(move.choice)}${['Call','Raise','Bet'].includes(move.choice) ? ` ${board.gap * Number(move.choice!=='Bet') + Number(board.bet) * Number(move.choice!=='Call')}` : ''}</button>`).join('')}</div>`;
+  `<button type="button" ${stockActions[board.key]===move.choice?'data-stock class="primary"':board.key==='gin'&&move.choice==='Take discard'?'data-discard-pile':''} data-choice-label="${escape(move.choice)}">${escape(move.choice)}${['Call','Raise','Bet'].includes(move.choice) ? ` ${board.gap * Number(move.choice!=='Bet') + Number(board.bet) * Number(move.choice!=='Call')}` : ''}</button>`).join('')}</div>`;
 
 function cardDiceMarkup(board) {
   const {key, hand, legal} = board;
@@ -183,7 +184,7 @@ function cardDiceMarkup(board) {
       ${board.taken?`<p>Tricks ${board.taken.map(Number).join(' / ')}</p>`:''}
       ${played?.length ? `<p>${board.trick.length?'Current trick':'Last trick'}</p>
         ${lineOfCards(played.map(entry=>entry.card))}<p class="turn-note">${played.map(entry=>sideName(board,entry.side)).map(escape).join(' · ')}</p>`:''}
-      ${gin?`<p>Discard pile · Stock ${Number(board.stock)} cards</p>${lineOfCards([board.top])}`:''}
+      ${gin?`<p>Discard pile · Stock ${Number(board.stock)} cards</p>${options(board)}${lineOfCards([board.top],'discard')}`:''}
       ${gin&&board.shown?`<p>Knock resolved. Deadwood ${board.shown.dead.map(Number).join(' / ')}.</p>`:''}
       ${bidding?`<label for="trick-bid">Tricks to bid</label> <select id="trick-bid">${legal.map(move=>`<option value="${Number(move.bid)}">${Number(move.bid)||'Nil'}</option>`).join('')}</select>
         <button type="button" data-trick-bid>Bid</button>`:''}
@@ -192,7 +193,7 @@ function cardDiceMarkup(board) {
       <div class="shown-cards" data-card-zone="hand">${hand.map(card=>passing?
         `<button type="button" class="table-card" data-table-card="${Number(card)}" data-pass-card="${Number(card)}" aria-pressed="false">${cardName(card)}</button>`:
         legal.some(move=>move.card===card)?pickCard(card):handCards([card])).join('')}</div>
-      ${passing?'<button type="button" data-send-three disabled>Pass three cards</button>':options(board)}
+      ${passing?'<button type="button" data-send-three disabled>Pass three cards</button>':gin?'':options(board)}
       <div class="row suit-picks" hidden></div>`;
   } else if (key === 'holdem') {
     content = `<p>Fixed-limit Hold’em · ${['Pre-flop','Flop','Turn','River'][board.street]} · Pot ${Number(board.pot)} chips</p>
@@ -201,14 +202,18 @@ function cardDiceMarkup(board) {
       ${board.shown ? `<p>Rival’s cards</p>${lineOfCards(board.shown[1-board.side])}` : ''}${options(board)}`;
   } else if (key === 'matatu' || key === 'carddraft') {
     const draft = key === 'carddraft';
+    const canDraw=legal.some(move=>move.take);
     content = `${draft ? '<p>Draft five cards from the shared pool. Best poker hand wins.</p>' :
-      `<p>Rival has ${Number(board.count)} cards · Match ${suits[board.called]}${board.penalty ? ` · Draw penalty ${Number(board.penalty)}` : ''}</p>${lineOfCards([board.top])}`}
+      `<p>Rival has ${Number(board.count)} cards · Match ${suits[board.called]}${board.penalty ? ` · Draw penalty ${Number(board.penalty)}` : ''}</p>
+      ${canDraw ? `<div class="stock-action"><button type="button" class="primary" data-stock data-take>Draw ${board.penalty ? Number(board.penalty) : 1}</button>
+        <p>${board.penalty ? (legal.some(move=>move.card!==undefined)?'Take the penalty cards and pass, or stack a 2.':'Take the penalty cards and pass.') : 'Draw from the pile. You pass if the card cannot play.'}</p></div>` : ''}
+      ${lineOfCards([board.top])}`}
       <p class="table-caption">${draft ? 'Available cards' : 'Your hand'}</p><div class="shown-cards" data-card-zone="${draft ? 'table' : 'hand'}">
         ${(draft ? board.display : hand).map(card=>legal.some(move=>move.card===card) ? pickCard(card) : handCards([card])).join('')}</div>
       ${draft ? `<p>Your picks</p>${lineOfCards(hand,'hand')}` : ''}
       <div class="row suit-picks" hidden></div>
       ${board.drawn != null ? '<p>Play the card you drew or pass.</p>' : board.last?.passed ? '<p>Turn passed after the draw.</p>' : ''}
-      ${legal.some(move=>move.take)?'<button type="button" class="primary" data-take>Draw</button>':''}${options(board)}`;
+      ${options(board)}`;
   } else if (key === 'cheat') {
     const canClaim=legal.some(move=>move.choice==='Claim');
     content=`<p>Rival has ${Number(board.count)} cards · Pile ${Number(board.pile)}</p>
