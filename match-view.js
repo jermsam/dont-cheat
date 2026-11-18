@@ -1,7 +1,8 @@
+import { masks, maskId } from './masks.js?v=2';
 import { jumps, squarePosition } from './snakes.js';
 import { diceCategories } from './card-dice-rules.js?v=3';
 import { pokerRanks, rankHand } from './match-rules.js?v=3';
-import { mountTableObjects } from './table-objects.js?v=2';
+import { mountTableObjects } from './table-objects.js?v=3';
 import { mountLiveBoard } from './live-board.js';
 
 const glyph = {p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', m:'●'};
@@ -45,7 +46,7 @@ function poker(board) {
     `<p>${sideName(board, side)} · ${pokerRanks[rankHand(hand)[0]]}</p><p class="poker-cards">${hand.map(cardName).join(' ')}</p>`).join('');
   return `<p>Choose up to three cards to replace, or keep all five. No money or bets.</p>
     ${board.firstDraw === undefined ? '' : `<p>First player drew ${board.firstDraw}.</p>`}
-    <div class="draw-hand">${board.hand.map((card, i) => `<button type="button" data-table-card="${Number(card)}" data-discard="${i}" aria-pressed="false" ${board.legal.length ? '' : 'disabled'}>${cardName(card)}</button>`).join('')}</div>
+    <div class="draw-hand" data-card-zone="hand">${board.hand.map((card, i) => `<button type="button" data-table-card="${Number(card)}" data-discard="${i}" aria-pressed="false" ${board.legal.length ? '' : 'disabled'}>${cardName(card)}</button>`).join('')}</div>
     ${board.legal.length ? '<button type="button" class="primary" data-draw>Keep all five</button>' : ''}`;
 }
 
@@ -121,7 +122,7 @@ function mweso(board) {
 
 const suits = ['Clubs','Diamonds','Hearts','Spades'];
 const rankName = rank => '23456789TJQKA'[rank-2];
-const lineOfCards = (cards = []) => `<div class="shown-cards">${cards.map(card =>
+const lineOfCards = (cards = [], zone = 'table') => `<div class="shown-cards" data-card-zone="${zone}">${cards.map(card =>
   `<span class="table-card" data-table-card="${Number(card)}">${cardName(card)}</span>`).join('')}</div>`;
 const handCards = cards => cards.map(card => `<span class="table-card" data-table-card="${Number(card)}">${cardName(card)}</span>`).join('');
 function pickCard(card) {
@@ -141,7 +142,7 @@ function cardDiceMarkup(board) {
         ${lineOfCards(board.cards ?? board.center)}
         ${board.scores?`<p>Scores ${board.scores.map(Number).join(' / ')}</p>`:''}
         ${board.exchanges?.length?'<p>High and low ranks exchanged cards before this deal.</p>':''}
-        <div class="shown-cards">${hand.map(card=>legal.some(move=>move.card===card)?pickCard(card):handCards([card])).join('')}</div>
+        <div class="shown-cards" data-card-zone="hand">${hand.map(card=>legal.some(move=>move.card===card)?pickCard(card):handCards([card])).join('')}</div>
         <div class="row suit-picks" hidden></div>${options(board)}`;
     } else if (key==='ratscrew') {
       content=`<p>Flip in turn. Either player can slap a double or a sandwich. Face cards give the opponent one to four chances to answer.</p>
@@ -187,8 +188,8 @@ function cardDiceMarkup(board) {
       ${bidding?`<label for="trick-bid">Tricks to bid</label> <select id="trick-bid">${legal.map(move=>`<option value="${Number(move.bid)}">${Number(move.bid)||'Nil'}</option>`).join('')}</select>
         <button type="button" data-trick-bid>Bid</button>`:''}
       ${trump.length?`<div class="row">${trump.map(move=>`<button type="button" data-trump="${Number(move.trump)}">Name ${suits[move.trump]}</button>`).join('')}</div>`:''}
-      <p>Your hand</p>
-      <div class="shown-cards">${hand.map(card=>passing?
+      <p class="table-caption">Your hand</p>
+      <div class="shown-cards" data-card-zone="hand">${hand.map(card=>passing?
         `<button type="button" class="table-card" data-table-card="${Number(card)}" data-pass-card="${Number(card)}" aria-pressed="false">${cardName(card)}</button>`:
         legal.some(move=>move.card===card)?pickCard(card):handCards([card])).join('')}</div>
       ${passing?'<button type="button" data-send-three disabled>Pass three cards</button>':options(board)}
@@ -196,15 +197,15 @@ function cardDiceMarkup(board) {
   } else if (key === 'holdem') {
     content = `<p>Fixed-limit Hold’em · ${['Pre-flop','Flop','Turn','River'][board.street]} · Pot ${Number(board.pot)} chips</p>
       <p>Your stack ${Number(board.stack[board.side])} · Rival ${Number(board.stack[1-board.side])}</p>
-      ${lineOfCards(board.community)}<p>Your cards</p>${lineOfCards(hand)}
+      ${lineOfCards(board.community)}<p class="table-caption">Your cards</p>${lineOfCards(hand,'hand')}
       ${board.shown ? `<p>Rival’s cards</p>${lineOfCards(board.shown[1-board.side])}` : ''}${options(board)}`;
   } else if (key === 'matatu' || key === 'carddraft') {
     const draft = key === 'carddraft';
     content = `${draft ? '<p>Draft five cards from the shared pool. Best poker hand wins.</p>' :
       `<p>Rival has ${Number(board.count)} cards · Match ${suits[board.called]}${board.penalty ? ` · Draw penalty ${Number(board.penalty)}` : ''}</p>${lineOfCards([board.top])}`}
-      <p>${draft ? 'Available cards' : 'Your hand'}</p><div class="shown-cards">
+      <p class="table-caption">${draft ? 'Available cards' : 'Your hand'}</p><div class="shown-cards" data-card-zone="${draft ? 'table' : 'hand'}">
         ${(draft ? board.display : hand).map(card=>legal.some(move=>move.card===card) ? pickCard(card) : handCards([card])).join('')}</div>
-      ${draft ? `<p>Your picks</p>${lineOfCards(hand)}` : ''}
+      ${draft ? `<p>Your picks</p>${lineOfCards(hand,'hand')}` : ''}
       <div class="row suit-picks" hidden></div>
       ${board.drawn != null ? '<p>Play the card you drew or pass.</p>' : board.last?.passed ? '<p>Turn passed after the draw.</p>' : ''}
       ${legal.some(move=>move.take)?'<button type="button" class="primary" data-take>Draw</button>':''}${options(board)}`;
@@ -213,15 +214,15 @@ function cardDiceMarkup(board) {
     content=`<p>Rival has ${Number(board.count)} cards · Pile ${Number(board.pile)}</p>
       ${board.claim ? `<p>Claimed ${Number(board.claim.count)} × ${rankName(board.claim.rank)}.</p>`:''}
       ${board.revealed ? `<p>${sideName(board,board.revealed.loser)} picked up the pile.</p>${lineOfCards(board.revealed.cards)}`:''}
-      ${canClaim ? `<p>Play up to four cards. You claim they are ${rankName(board.expected)}.</p><div class="shown-cards claim-hand">
+      ${canClaim ? `<p>Play up to four cards. You claim they are ${rankName(board.expected)}.</p><div class="shown-cards claim-hand" data-card-zone="hand">
         ${hand.map(card=>`<button class="table-card" type="button" data-claim-card="${Number(card)}" data-table-card="${Number(card)}" aria-pressed="false">${cardName(card)}</button>`).join('')}
-        </div><button type="button" class="primary" data-claim disabled>Claim face down</button>` : lineOfCards(hand)+options(board)}`;
+        </div><button type="button" class="primary" data-claim disabled>Claim face down</button>` : lineOfCards(hand,'hand')+options(board)}`;
   } else if (key === 'gofish') {
     content = `<p>Your books ${Number(board.books[board.side])} · Rival ${Number(board.books[1-board.side])} · Pond ${Number(board.stock)} cards</p>
       ${board.request ? `<p>Last request ${rankName(board.request.face)} · ${Number(board.request.given)} handed over</p>` : ''}
-      ${lineOfCards(hand)}<div class="row">${legal.map(move=>`<button type="button" data-request="${Number(move.face)}">Ask for ${rankName(move.face)}</button>`).join('')}</div>`;
+      ${lineOfCards(hand,'hand')}<div class="row">${legal.map(move=>`<button type="button" data-request="${Number(move.face)}">Ask for ${rankName(move.face)}</button>`).join('')}</div>`;
   } else if (key === 'blackjack') {
-    content = `<p>Dealer</p>${lineOfCards(board.dealer)}<p>Your hand · ${Number(board.points)}</p>${lineOfCards(hand)}${options(board)}`;
+    content = `<p>Dealer</p>${lineOfCards(board.dealer)}<p>Your hand · ${Number(board.points)}</p>${lineOfCards(hand,'hand')}${options(board)}`;
   } else {
     const dice = values => `<div class="dice-row">${values.map(face=>`<span data-die="${Number(face)}" aria-label="Rolled ${Number(face)}">${'⚀⚁⚂⚃⚄⚅'[face-1]}</span>`).join('')}</div>`;
     content = `${key==='farkle' ? `<p>Banked ${Number(board.scores[board.side])} to ${Number(board.scores[1-board.side])} · Unbanked ${Number(board.tally)}</p>
@@ -253,7 +254,7 @@ function cardDiceMarkup(board) {
   return content + '<div class="table-objects" hidden></div><button type="button" class="quiet" data-table-objects>Show 3D table</button>';
 }
 
-export function matchMarkup(board, wallet) {
+export function matchMarkup(board, wallet, players = []) {
   if (!board) return '<p>Waiting for the tables to finish.</p>';
   const active = board.active === board.side;
   const result = board.result;
@@ -265,8 +266,14 @@ export function matchMarkup(board, wallet) {
     board.key === 'snakes' ? snakes(board) : board.key === 'mweso' ? mweso(board) : board.pieces ? grid(board) : cardDiceMarkup(board)) +
     (classic ? '<div class="table-objects" hidden></div><button type="button" class="quiet" data-table-objects>Show 3D table</button>' : '');
   return `<h2>${headline}</h2>${result ? `<p>${escape(result.reason)}. Scores update when all tables finish.</p>` : ''}
-    <div class="match-clocks">${[board.side, ...board.seats.map((_,i)=>i).filter(i=>i!==board.side)].map(side => `<span>${sideName(board, side)}
-      <strong data-match-clock="${side}">${mins(Math.ceil(board.time[side] / 1000))}</strong></span>`).join('')}</div>
+    <div class="match-clocks">${[board.side, ...board.seats.map((_,i)=>i).filter(i=>i!==board.side)].map(side => {
+      const seat=board.seats[side];
+      const mask=maskId(players[seat]?.mask);
+      const avatar=mask ? `<img src="masks/${mask}.jpg" alt="" width="29" height="29">` : '<i aria-hidden="true">✦</i>';
+      return `<span data-clock-seat="${seat}" class="${side === board.active && !board.realtime ? 'clock-active' : ''}">${avatar}
+        <b class="clock-player">${side === board.side ? 'You' : sideName(board, side)}${mask ? `<small>${escape(masks[mask].title)}</small>` : ''}</b>
+        <strong data-match-clock="${side}">${mins(Math.ceil(board.time[side] / 1000))}</strong></span>`;
+    }).join('')}</div>
     ${board.check && !result ? '<p class="turn-note">Check</p>' : ''}
     ${active && !result && board.pieces ? '<p class="turn-note">Tap a piece to see where it can move.</p>' : ''}
     ${board.chain ? '<p class="turn-note">Finish the capture with the same piece.</p>' : ''}
