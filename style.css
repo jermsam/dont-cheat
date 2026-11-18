@@ -719,3 +719,10 @@ select, .destination-picker select, .table-menu select, .table-accuse select {
 .season-team-roster{margin:.35rem 0;color:var(--ink);font-size:.85rem;overflow-wrap:anywhere}
 .season-team button{width:100%;margin-top:.2rem}
 .season-team button[aria-pressed="true"]{opacity:1;color:var(--team-color);border-color:var(--team-color)}
+
+.friend-picker{margin:.7rem 0}
+.friend-picker>[data-open-screen="friend-picker"]{display:none}
+.friend-picker .row button,.friend-request button{min-height:44px}
+.friend-request{max-width:38rem;margin:0 0 .8rem;padding:.55rem .75rem;border:1px solid #a98264;background:#302332;border-radius:8px}
+.friend-request p{margin:.25rem 0}
+#friend-picker select{display:block;width:100%;min-height:44px;margin:.35rem 0}
