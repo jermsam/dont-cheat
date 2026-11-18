@@ -20,12 +20,17 @@ export function seasonLineup(preference, shuffle) {
   return first ? [first, ...shuffle(events.filter(event => event !== first))] : shuffle(events);
 }
 
-export function seasonMatches(key, ranks, round, shuffle) {
+export function seasonMatches(key, ranks, round, shuffle, lead) {
   const ranked = round === 0 ? shuffle(ranks) : [...ranks].sort((a, b) => b.score - a.score);
   const seats = ranked.map(player => player.seat);
+  const seatLead = (group,index=0)=>{
+    const caller=group.indexOf(lead);
+    if(caller>=0)[group[index],group[caller]]=[group[caller],group[index]];
+    return group;
+  };
   if (['spades','hearts','euchre','president','lcr','kings'].includes(key)) {
     const split = seats.length <= 4 ? [seats] : [seats.filter((_,i)=>i%2===0), seats.filter((_,i)=>i%2===1)];
-    return split.map(group => createMatch(key,[...group,...Array.from({length:4-group.length},(_,i)=>-1-i)]));
+    return split.map(group => createMatch(key,seatLead([...group,...Array.from({length:4-group.length},(_,i)=>-1-i)], ['spades','hearts','euchre'].includes(key)?1:0)));
   }
   if (seats.length % 2) {
     const [bye] = seats.splice(round % seats.length, 1);
@@ -35,7 +40,7 @@ export function seasonMatches(key, ranks, round, shuffle) {
   for (let i = 0; i < seats.length; i += 2) {
     const pair = seats.slice(i, i + 2);
     // Alternate first move between events and keep the arena player recognizable.
-    matches.push(createMatch(key, round % 2 === 0 ? pair : pair.reverse()));
+    matches.push(createMatch(key, seatLead(round % 2 === 0 ? pair : pair.reverse())));
   }
   return matches;
 }
