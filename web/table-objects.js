@@ -1,4 +1,4 @@
-import { icon } from './icons.js';
+import { icon } from './icons.js?v=2';
 
 const views = new WeakMap();
 let preferPhysicalTable = true;
@@ -20,6 +20,7 @@ export function mountTableObjects(app, board) {
   const discard=app.querySelector('[data-discard-pile]:enabled');
   const cover=document.createElement('button');
   cover.type='button';
+  cover.dataset.hint='';
   cover.className='quiet cover-hand icon-tool';
   if (privateCards.length) button.after(cover);
   const describe = () => ({
@@ -76,7 +77,6 @@ export function mountTableObjects(app, board) {
     const label=handCovered?'Show my hand':'Cover my hand';
     cover.innerHTML=icon(handCovered?'eye-off':'eye');
     cover.setAttribute('aria-label',label);
-    cover.title=label;
     cover.setAttribute('aria-pressed',String(handCovered));
     privateCards.forEach(hand=>{hand.hidden=handCovered;hand.inert=handCovered;});
   }
@@ -108,7 +108,6 @@ export function mountTableObjects(app, board) {
     const label=open?'Flat view':'Show 3D table';
     button.innerHTML=`${icon(open?'layout-grid':'box')}<span aria-hidden="true">${open?'Flat':'3D'}</span>`;
     button.setAttribute('aria-label',label);
-    button.title=label;
     button.setAttribute('aria-pressed',String(open));
     if (open) {
       const model=describe();

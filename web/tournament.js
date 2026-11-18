@@ -1,3 +1,4 @@
+import { icon } from './icons.js?v=2';
 import { sideScreen, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=3';
 import { getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
@@ -6,7 +7,7 @@ import { masks, maskId } from './masks.js?v=2';
 import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=10';
 import { bestHoldem } from './card-dice-rules.js?v=6';
 import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=10';
-import { matchMarkup, mountMatch } from './match-view.js?v=15';
+import { matchMarkup, mountMatch } from './match-view.js?v=16';
 
 const limit = 6;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
@@ -406,7 +407,7 @@ function makeView(env, send) {
     const id = maskId(state.players[i]?.mask);
     return id ? `<img src="masks/${id}.jpg" alt="" width="36" height="36">` : '<span class="table-sigil" aria-hidden="true">✦</span>';
   };
-  const button = (label, action, attrs = '') => `<button data-table="${action}" ${attrs}>${esc(label)}</button>`;
+  const button = (label, action, attrs = '') => `<button data-table="${action}" ${attrs}>${action==='start' ? icon('play') : action==='share-result' ? icon('share-2') : ''}${esc(label)}</button>`;
 
   function roster(state) {
     return `<div class="table-roster">${state.players.map((p, i) => `<div class="table-person">
@@ -512,7 +513,7 @@ function makeView(env, send) {
     if (phase === 'lobby') {
       const seated = players.filter(player => player.online).length;
       content = `${header}<h2>Seats are open.</h2><p>${seated} of ${limit} seats filled</p>
-        ${host ? `<div class="row"><button id="share" class="primary">Share to WhatsApp ↗</button><button id="copy">Copy invite</button></div>
+        ${host ? `<div class="row"><button id="share" class="primary icon-tool" aria-label="Share to WhatsApp" data-hint>${icon('share-2')} WhatsApp</button><button id="copy" class="icon-tool" aria-label="Copy invite" data-hint>${icon('copy')}</button></div>
           <div hidden><label for="invite">Invite link</label><input id="invite" class="invite" readonly value="${esc(env.invite)}"></div>
           ${state.approvals.map(request => `<div class="table-admission"><p>Match this code with your guest <strong>${esc(request.code)}</strong></p>
             <div class="row">${button('Let them in', 'admit', `data-id="${request.id}"`)}${button('Decline', 'decline', `data-id="${request.id}"`)}</div></div>`).join('')}

@@ -1,3 +1,5 @@
+import { icon } from './icons.js?v=2';
+
 const displays = new WeakMap();
 
 export function mountLiveBoard(app, board, choose) {
@@ -11,7 +13,8 @@ export function mountLiveBoard(app, board, choose) {
     flat.hidden = visible;
     surface.hidden = !visible;
     turn.hidden = !visible;
-    toggle.textContent = visible ? 'Flat board' : '3D board';
+    toggle.innerHTML=`${icon(visible?'layout-grid':'box')}<span aria-hidden="true">${visible?'Flat':'3D'}</span>`;
+    toggle.setAttribute('aria-label',visible?'Flat board':'3D board');
     toggle.setAttribute('aria-pressed', String(visible));
     if (visible) display.refresh();
   }
@@ -35,6 +38,7 @@ export function mountLiveBoard(app, board, choose) {
       show(true);
     } catch {
       toggle.textContent = '3D unavailable';
+      toggle.setAttribute('aria-label','3D unavailable');
     } finally {
       toggle.disabled = false;
     }
