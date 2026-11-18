@@ -265,12 +265,17 @@ function stage(content, summons = false, scene = '', placeArt = '', screen = nul
     id: open.id,
     page: Math.max(0, [...open.querySelectorAll('[data-record-page]')].findIndex(page => !page.hidden)),
   } : null;
+  const choices = sameScreen ? [...app.querySelectorAll('select[id]')].map(select=>[select.id,select.value]) : [];
   const resignOpen = sameScreen && app.querySelector('[data-resign-confirm]:not([hidden])');
   const liveBoard = sameScreen ? [...app.querySelectorAll('.live-3d, .table-objects')] : [];
   currentScreen = screen;
   stopRelic?.();
   stopRelic = undefined;
   app.innerHTML = `<section class="stage ${summons ? 'summons' : ''} ${scene}"${placeArt ? ` style="${placeArt}"` : ''}><div class="board">${content}</div></section>`;
+  choices.forEach(([id,value])=>{
+    const select=document.getElementById(id);
+    if (select && [...select.options].some(option=>option.value===value)) select.value=value;
+  });
   if (resignOpen) app.querySelector('[data-resign-confirm]')?.removeAttribute('hidden');
   liveBoard.forEach(board=>app.querySelector(`.${board.classList[0]}`)?.replaceWith(board));
   mountSideScreens(app, restore);
