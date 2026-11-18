@@ -12,6 +12,8 @@ const roomSeal = pendingInvite.get('seal');
 const roomRelay = roomAddress.get('relay');
 const approvalWindow = 60_000;
 const crewTarget = 16;
+const timeBank = { seconds: 20, price: 5, hirePrice: 3, extensions: 2 };
+const crewTriviaTime = scenario => Math.max(75, (scenario?.seconds ?? 0) + extraTriviaSeconds);
 const crewCards = ['Distract', 'Grab'];
 const claims = ['I got it right', 'I got it wrong'];
 const vaultRooms = [
@@ -343,6 +345,7 @@ function start(isSolo, crew = false, guestMask = null, briefing = isSolo, clues 
     crew, clues: clues && !crew, usedPeek: [false, false], round: -1, scores: [0, 0], records: [],
     masks: [chosenMask, isSolo && chosenMask ? shuffled(Object.keys(masks).filter(id => id !== chosenMask))[0] : guestMask],
     spentGifts: [false, false],
+    bank: crew ? { coins: [5, 5], time: [1, 1], offer: null, serial: 0, note: '' } : null,
   };
   nextRound();
 }
@@ -364,6 +367,14 @@ function beginPhase(phase) {
     briefing: briefingDuration, trivia: scenario ? (scenario.seconds + extraTriviaSeconds) * 1_000 : duration,
     claim: clueDuration, choice: duration,
   };
+  if (game.crew) {
+    game.bank.offer = null;
+    game.bank.note = '';
+    game.extensions = 0;
+    times.briefing = 12_000;
+    times.trivia = crewTriviaTime(scenario) * 1_000;
+    times.choice = 45_000;
+  }
   game.duration = times[phase];
   game.ends = Date.now() + game.duration;
   clearTimeout(hostTimer);
@@ -383,9 +394,58 @@ function phaseChoices() {
   return game.cards;
 }
 
+function useTimeBank(player, command) {
+  if (!game.crew || !['trivia', 'choice'].includes(game.phase)) return false;
+  const bank = game.bank;
+  const { coins, time, offer } = bank;
+  const teammate = 1 - player;
+  const who = player === 0 ? 'Seat one' : 'Seat two';
+  let note;
+  if (command === 'buy' && coins[player] >= timeBank.price) {
+    coins[player] -= timeBank.price;
+    time[player]++;
+    note = `${who} bought a time token.`;
+  } else if (command === 'extend' && phaseChoices()[player] === null &&
+      time[player] > 0 && game.extensions < timeBank.extensions) {
+    time[player]--;
+    game.extensions++;
+    const extra = timeBank.seconds * 1_000;
+    game.ends += extra;
+    game.duration += extra;
+    clearTimeout(hostTimer);
+    hostTimer = setTimeout(advancePhase, Math.max(0, game.ends - Date.now()));
+    note = `${who} added ${timeBank.seconds}s to the shared clock.`;
+  } else if (command === 'gift' && time[player] > 0 && !offer) {
+    time[player]--;
+    time[teammate]++;
+    note = `${who} gave their teammate one time token.`;
+  } else if (command === 'hire' && !offer && coins[player] >= timeBank.hirePrice && time[teammate] > 0) {
+    bank.offer = { buyer: player, id: ++bank.serial };
+    note = 'A request to hire time is waiting for a reply.';
+  } else if (offer && command === `accept-${offer.id}` && offer.buyer === teammate &&
+      time[player] > 0 && coins[teammate] >= timeBank.hirePrice) {
+    coins[teammate] -= timeBank.hirePrice;
+    coins[player] += timeBank.hirePrice;
+    time[player]--;
+    time[teammate]++;
+    bank.offer = null;
+    note = 'One time token traded hands.';
+  } else if (offer && command === `close-${offer.id}`) {
+    bank.offer = null;
+    note = 'The offer closed. Both players kept their balances.';
+  } else {
+    return false;
+  }
+
+  bank.note = note;
+  sync();
+  return true;
+}
+
 function apply(player, phase, round, choice) {
   if (!['trivia', 'claim', 'choice'].includes(phase) || phase !== game.phase ||
       round !== game.round || Date.now() >= game.ends) return false;
+  if (typeof choice === 'string' && choice.startsWith('bank:')) return useTimeBank(player, choice.slice(5));
   const slots = phaseChoices();
   if (slots[player] !== null) return false;
 
@@ -510,6 +570,11 @@ function reveal() {
     secrets: game.secrets.map(secret => secret?.name ?? null),
     scenario: scenario?.name, sharedLight, locationGains, gifts, gains,
   });
+  if (crew) {
+    game.bank.offer = null;
+    game.bank.note = 'Each player earned 2 coins at the end of the round.';
+    game.bank.coins = game.bank.coins.map(coins => coins + 2);
+  }
   game.phase = round === 2 ? 'verdict' : 'reveal';
   sync();
 }
@@ -522,6 +587,7 @@ function sync() {
     masks: [...game.masks], spentGifts: [...game.spentGifts],
     route: game.route.map(scenario => scenario.id), clues: game.clues,
     prompt: question.prompt, options: question.options,
+    bank: game.bank && structuredClone(game.bank), extensions: game.extensions,
     duration: game.duration, endsIn: Math.max(0, game.ends - Date.now()),
   };
   const choices = phaseChoices();
@@ -544,14 +610,16 @@ function sync() {
   }
 }
 function move(choice) {
-  if (pending || shown.locked) return;
+  const bankMove = typeof choice === 'string' && choice.startsWith('bank:');
+  if (pending || (shown.locked && !bankMove)) return;
   const { phase, round } = shown;
   if (seat === 0) {
-    if (!apply(0, phase, round, choice)) say('That round has already closed.');
+    if (!apply(0, phase, round, choice)) say('That move is no longer available.');
+    else say('');
     return;
   }
   pending = true;
-  app.querySelectorAll('[data-choice]').forEach(button => { button.disabled = true; });
+  app.querySelectorAll('[data-choice]').forEach(button => { button.disabled = true; button.dataset.sending = ''; });
   void link.send(JSON.stringify({ kind: 'move', phase, round, choice })).catch(() => failure('Your move couldn’t reach the other seat.'));
 }
 function portrait(id, css = '') {
@@ -651,7 +719,7 @@ function mountLobby() {
   const descriptions = {
     tournament: ['Open season room ↗', 'You’ll get one invite to share with everyone.'],
     duel: ['Open duel room ↗', 'You’ll get an invite for one opponent.'],
-    crew: ['Open team room ↗', 'Send an invite to the friend you want on your side.'],
+    crew: ['Open team room ↗', 'Play together across three rounds. Use the time bank when you need longer to think.'],
     solo: ['Start solo game ↗', 'Your first round starts after a short briefing.'],
   };
   let selected = 'tournament';
@@ -704,6 +772,35 @@ function pactCards(record, state) {
   }).join('');
 }
 
+function timeBankPanel(state, open) {
+  const { bank, locked, extensions } = state;
+  const { coins, time, offer, note } = bank;
+  const friend = 1 - seat;
+  const button = (command, label, allowed) =>
+    `<button class="quiet" data-choice="bank:${command}" ${allowed ? '' : 'disabled'}>${label}</button>`;
+  const offerActions = offer ? (offer.buyer === seat ?
+    `<p>Waiting for your teammate to sell you 1 token for ${timeBank.hirePrice} coins.</p>
+      ${button(`close-${offer.id}`, 'Cancel offer', true)}` :
+    `<p>Your teammate offers ${timeBank.hirePrice} coins for 1 of your time tokens.</p>
+      ${button(`accept-${offer.id}`, 'Accept trade', time[seat] > 0 && coins[friend] >= timeBank.hirePrice)}
+      ${button(`close-${offer.id}`, 'Decline', true)}`) : '';
+  return `<details id="time-bank" class="round-tools" ${open || offer ? 'open' : ''}>
+    <summary>Time bank · ${time[seat]} time · ${coins[seat]} coins</summary>
+    <p>Spend 1 time token for +${timeBank.seconds}s on the shared clock. Your teammate has ${time[friend]} time and ${coins[friend]} coins.</p>
+    <div class="secrets">
+      ${button('buy', `Buy 1 time · ${timeBank.price} coins`, coins[seat] >= timeBank.price)}
+      ${button('hire', `Hire 1 time · ${timeBank.hirePrice} coins`, !offer && coins[seat] >= timeBank.hirePrice && time[friend] > 0)}
+      ${button('gift', 'Give 1 time', !offer && time[seat] > 0)}
+    </div>
+    ${offerActions}
+  </details>
+  <div class="secrets">
+    ${button('extend', `Need time? +${timeBank.seconds}s · 1 time token`, !locked && time[seat] > 0 && extensions < timeBank.extensions)}
+  </div>
+  <p class="turn-note" role="status">${note ? escape(note) + ' ' : ''}${extensions < timeBank.extensions ?
+    `${timeBank.extensions - extensions} clock boosts left this step.` : 'Both clock boosts used for this step.'}</p>`;
+}
+
 function draw(state) {
   const previous = shown;
   shown = state;
@@ -711,7 +808,9 @@ function draw(state) {
   phaseDuration = state.duration ?? duration;
   if (previous?.phase === state.phase && previous?.round === state.round && previous?.locked === state.locked &&
       previous.copied === state.copied && previous.peekAnswer === state.peekAnswer && previous.secret?.name === state.secret?.name &&
-      !app.querySelector('[data-choice]:disabled')) return;
+      JSON.stringify(previous.bank) === JSON.stringify(state.bank) &&
+      previous.extensions === state.extensions &&
+      !app.querySelector('[data-choice][data-sending]')) return;
   const {
     phase, round, scores, records, prompt, options, locked,
     crew, secret, claim, peekAnswer, peekAvailable, clues, ownAnswer, clue, copied,
@@ -733,7 +832,7 @@ function draw(state) {
     stage(`${score}${maskSeats(state)}<div class="cinematic-title"><div><span class="eyebrow">ROUND ${round + 1} OF ${roundCount} · BRIEFING</span><h2>${scenario.name}</h2></div>${relic}</div>
       <p>${scenario.line}</p>
       <ul class="briefing-rules">
-        <li><b>${scenario.seconds + extraTriviaSeconds}s</b> to answer</li>
+        <li><b>${crew ? crewTriviaTime(scenario) : scenario.seconds + extraTriviaSeconds}s</b> to answer</li>
         <li><b>+${scenario.trivia ?? 2}</b> for a correct answer</li>
         ${scenario.harmony ? '<li>Both keep trivia points <b>+1 each</b></li>' : ''}
         ${scenario.cardBonus ? `<li>${cardBonusLabel(scenario.cardBonus, crew)}</li>` : ''}
@@ -781,8 +880,11 @@ function draw(state) {
           `Your answer is ${escape(options[ownAnswer])}.`}</p>
         ${!locked ? `<button class="quiet" data-choice="${copied ? 'keep' : 'copy'}">${copied ? 'Undo copy' : 'Copy their clue'}</button>` : ''}
       </aside>` : '<p class="turn-note">No clue shared.</p>' : `<p class="claim-banner">${claim ? `They said “${escape(claim)}.”` : 'They made no claim.'}</p>`) : '';
+    const bankOpen = previous?.phase === phase && previous?.round === round &&
+      app.querySelector('#time-bank')?.open;
     stage(`${score}${progress}<h2>${heading}</h2>
       <div class="clock-track"><span class="clock" id="clock" aria-label="Time remaining"></span><div class="bar" id="bar" aria-hidden="true"></div></div>
+      ${crew && state.bank ? timeBankPanel(state, bankOpen) : ''}
       ${announcement ? `<p class="turn-note">${announcement}</p>` : ''}
       ${instructions}${cluePrompt}
       ${peekAnswer ? `<p class="secret-note">Only you see this · <strong>${escape(peekAnswer)}</strong></p>` : ''}

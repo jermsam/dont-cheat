@@ -52,6 +52,8 @@ Choose a mask in the lobby or on the invite screen. Tap **Befriend**, **Play the
 
 Tap **Team up** to play on the same side. Both players earn crew points for correct answers. The briefing shows how many. Then one player must **Distract** the host while the other chooses **Grab**. Picking different jobs earns 4 crew points, doubled in Round 2. Picking the same job or leaving a job unfilled earns zero loot points. Reach 16 crew points after three rounds to escape together.
 
+Each player starts with 5 coins and 1 time token and earns 2 coins after each round. Team trivia gives at least 75 seconds and the job choice gives 45 seconds. Spend a token to add 20 seconds to both clocks, up to two boosts per step. Buy a token for 5 coins, give one to your teammate, or offer 3 coins to hire one. Your teammate chooses whether to accept the trade. Crew points still decide the verdict.
+
 ## Motion and sound
 
 The briefing and verdict show a rendered 3D relic. Scene art shifts with the pointer on desktop, and cards turn over together at the reveal. Player portraits animate at the start of each phase. Tap **Sound off** to enable the synthesized door, countdown, and reveal cues. Reduced-motion settings keep the relic still and skip scene and card animations.
