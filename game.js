@@ -1,4 +1,4 @@
-import { masks, maskId } from './masks.js?v=1';
+import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { drawRelic, stageDepth } from './relic.js';
 
@@ -29,19 +29,7 @@ const debriefs = [
   'When do you most feel like we’re on the same team?',
 ];
 const soloNames = ['Mara', 'Vale'];
-const acts = ['The Front Door', 'The Vault', 'The Escape'];
-const hostLines = {
-  trivia: [
-    'The door takes correct answers. I tried a key. Very embarrassing.',
-    'Welcome to the vault. Please don’t touch anything. Especially the big red button.',
-    'Last question. The getaway car is double-parked.',
-  ],
-  choice: [
-    'Choose in secret. I’ll turn both cards over together.',
-    'Double points. Suddenly everyone’s a very good friend.',
-    'One last card. Your friendship has survived worse. Probably.',
-  ],
-};
+const roundCount = routes.length;
 const questions = [
   ['Which planet spins fastest on its axis?', 'Jupiter', 'Mercury', 'Earth', 'Neptune'],
   ['What is the only mammal capable of sustained powered flight?', 'Bat', 'Flying squirrel', 'Sugar glider', 'Colugo'],
@@ -55,8 +43,10 @@ const questions = [
   ['What do bees collect to make honey?', 'Nectar', 'Sap', 'Pollen', 'Dew'],
 ];
 
-const duration = 20_000;
-const finalDuration = 12_000;
+const duration = 30_000;
+const extraTriviaSeconds = 10;
+const clueDuration = 22_000;
+const briefingDuration = 8_000;
 let arena, link, key, game, revision = 0, shown, audio, enabled = false;
 let seat = 0, clockEnd = 0, phaseDuration = duration, solo = false, pending = false, guestAccepted = false;
 let invitation = '';
@@ -245,6 +235,7 @@ async function host(crew = false) {
     waitingRoom(crew);
     let guestMask = null;
     let guestBriefing = false;
+    let guestClues = false;
     while (!guestAccepted) {
       let candidate;
       try {
@@ -268,6 +259,7 @@ async function host(crew = false) {
         }
         guestMask = maskId(hello.mask);
         guestBriefing = hello.briefing === true;
+        guestClues = hello.clues === true;
       } catch {
         if (!candidate) throw new Error('The room closed.');
         candidate.close();
@@ -277,7 +269,7 @@ async function host(crew = false) {
       link = candidate;
     }
     say('');
-    start(false, crew, guestMask, guestBriefing);
+    start(false, crew, guestMask, guestBriefing, guestClues);
     void listen();
   } catch {
     failure('Couldn’t open a live room. Check your connection and try again, or play solo.');
@@ -295,7 +287,7 @@ async function join(id, seal) {
         <p>Tell the host this code so they can let you in.</p><p class="pair-code">${code}</p>
         <p class="waiting">The trial starts when the host opens the door.</p>${homeButton}`, true);
     }
-    await link.send(JSON.stringify({ kind: 'join', key: seal, code, mask: chosenMask, briefing: true }));
+    await link.send(JSON.stringify({ kind: 'join', key: seal, code, mask: chosenMask, briefing: true, clues: true }));
     const message = JSON.parse(await timeout(link.receive(), seal ? 18_000 : approvalWindow + 8_000));
     if (message.kind !== 'state') throw new Error('Unrecognized room.');
     receiveState(message);
@@ -325,7 +317,7 @@ async function listen() {
 }
 
 let hostTimer;
-function start(isSolo, crew = false, guestMask = null, briefing = isSolo) {
+function start(isSolo, crew = false, guestMask = null, briefing = isSolo, clues = isSolo) {
   solo = isSolo;
   game = {
     questions: shuffled(questions).slice(0, 3).map(([prompt, answer, ...decoys]) => ({
@@ -333,7 +325,7 @@ function start(isSolo, crew = false, guestMask = null, briefing = isSolo) {
     })),
     route: briefing ? routes.map(scenarios =>
       scenarios.find(scenario => scenario.id === chosenDestination) ?? shuffled(scenarios)[0]) : [],
-    crew, usedPeek: [false, false], round: -1, scores: [0, 0], records: [],
+    crew, clues: clues && !crew, usedPeek: [false, false], round: -1, scores: [0, 0], records: [],
     masks: [chosenMask, isSolo && chosenMask ? shuffled(Object.keys(masks).filter(id => id !== chosenMask))[0] : guestMask],
     spentGifts: [false, false],
   };
@@ -344,6 +336,8 @@ function nextRound() {
   game.answers = [null, null];
   game.cards = [null, null];
   game.claims = [null, null];
+  game.sharedClues = [null, null];
+  game.copied = [false, false];
   game.peeked = [false, false];
   game.secrets = [null, null];
   beginPhase(game.route[game.round] ? 'briefing' : 'trivia');
@@ -351,10 +345,9 @@ function nextRound() {
 function beginPhase(phase) {
   game.phase = phase;
   const scenario = game.route[game.round];
-  const roundDuration = game.round === 2 ? finalDuration : duration;
   const times = {
-    briefing: 5_000, trivia: scenario ? scenario.seconds * 1_000 : roundDuration,
-    claim: 8_000, choice: roundDuration,
+    briefing: briefingDuration, trivia: scenario ? (scenario.seconds + extraTriviaSeconds) * 1_000 : duration,
+    claim: clueDuration, choice: duration,
   };
   game.duration = times[phase];
   game.ends = Date.now() + game.duration;
@@ -371,7 +364,7 @@ function advancePhase() {
 
 function phaseChoices() {
   if (game.phase === 'trivia') return game.answers;
-  if (game.phase === 'claim') return game.claims;
+  if (game.phase === 'claim') return game.clues ? game.sharedClues : game.claims;
   return game.cards;
 }
 
@@ -393,11 +386,26 @@ function apply(player, phase, round, choice) {
     sync();
     return true;
   }
-  const allowed = phase === 'claim' ? claims : game.crew ? crewCards : ['Trust', 'Betray', 'Call bluff'];
-  const valid = phase === 'trivia' ? Number.isInteger(choice) && choice >= 0 && choice < 4 :
-    allowed.includes(choice);
-  if (!valid) return false;
-  slots[player] = choice;
+  if (game.clues && phase === 'choice' && ['copy', 'keep'].includes(choice)) {
+    if (!Number.isInteger(game.sharedClues[1 - player]?.option)) return false;
+    game.copied[player] = choice === 'copy';
+    sync();
+    return true;
+  }
+  if (game.clues && phase === 'claim') {
+    const answer = game.answers[player];
+    const decoy = typeof choice === 'string' && /^decoy-[0-3]$/.test(choice) ? Number(choice.at(-1)) : null;
+    if (choice === 'private') slots[player] = { option: null, decoy: false };
+    else if (choice === 'share' && answer !== null) slots[player] = { option: answer, decoy: false };
+    else if (decoy !== null && answer !== null && decoy !== answer) slots[player] = { option: decoy, decoy: true };
+    else return false;
+  } else {
+    const allowed = phase === 'claim' ? claims : game.crew ? crewCards : ['Trust', 'Betray', 'Call bluff'];
+    const valid = phase === 'trivia' ? Number.isInteger(choice) && choice >= 0 && choice < 4 :
+      allowed.includes(choice);
+    if (!valid) return false;
+    slots[player] = choice;
+  }
 
   if (solo && player === 0 && slots[1] === null) {
     setTimeout(() => {
@@ -406,8 +414,13 @@ function apply(player, phase, round, choice) {
       if (phase === 'trivia') {
         bot = Math.random() < .62 ? question.options.indexOf(question.answer) : Math.floor(Math.random() * 4);
       } else if (phase === 'claim') {
-        const correct = question.options[game.answers[1]] === question.answer;
-        bot = claims[(Math.random() < .7 ? correct : !correct) ? 0 : 1];
+        const answer = game.answers[1];
+        if (game.clues) {
+          bot = answer === null ? 'private' : Math.random() < .65 ? 'share' : `decoy-${(answer + 1) % 4}`;
+        } else {
+          const correct = question.options[answer] === question.answer;
+          bot = claims[(Math.random() < .7 ? correct : !correct) ? 0 : 1];
+        }
       } else {
         bot = Math.random() < .5 ? 'Trust' : shuffled(['Betray', 'Call bluff'])[0];
       }
@@ -429,8 +442,11 @@ function reveal() {
   const { round, cards, answers, scores, crew } = game;
   const question = game.questions[round];
   const bonus = pactMultiplier(round);
-  const correct = answers.map(index => question.options[index] === question.answer);
-  const falseClaims = game.claims.map((claim, index) => claim !== null && (claim === claims[0]) !== correct[index]);
+  const finalAnswers = answers.map((answer, i) =>
+    game.copied[i] ? game.sharedClues[1 - i].option : answer);
+  const correct = finalAnswers.map(index => question.options[index] === question.answer);
+  const falseClaims = game.clues ? game.sharedClues.map(clue => Boolean(clue?.decoy)) :
+    game.claims.map((claim, index) => claim !== null && (claim === claims[0]) !== correct[index]);
   const caughtPeeking = game.peeked.map((used, i) => used && cards[1 - i] === 'Call bluff');
   const scenario = game.route[round];
   const triviaValue = scenario?.trivia ?? 2;
@@ -453,6 +469,8 @@ function reveal() {
       round, crew, action, otherAction: other, strategy,
       correct: correct[index], otherCorrect: correct[1 - index], trivia, otherTrivia: triviaPoints[1 - index],
       claim: game.claims[index], falseClaim: falseClaims[index],
+      honestWrong: game.clues && Number.isInteger(game.sharedClues[index]?.option) &&
+        !falseClaims[index] && question.options[answers[index]] !== question.answer,
       secret, roomPoints, peeked: game.peeked[index], caughtPeeking: caughtPeeking[index],
       visitedVault: Boolean(game.records[1]?.secrets[index]),
     })) {
@@ -467,7 +485,9 @@ function reveal() {
   });
   game.records.push({
     prompt: question.prompt, answer: question.answer,
-    responses: answers.map(index => question.options[index] ?? 'Time ran out'),
+    responses: finalAnswers.map(index => question.options[index] ?? 'Time ran out'),
+    clues: game.clues ? game.sharedClues.map(clue => question.options[clue?.option] ?? null) : undefined,
+    copied: [...game.copied],
     cards: cards.map(action => action ?? 'Time ran out'),
     claims: [...game.claims],
     falseClaims,
@@ -485,7 +505,7 @@ function sync() {
     kind: 'state', revision: ++revision, phase: game.phase, round: game.round,
     scores: [...game.scores], records: [...game.records], solo, crew: game.crew,
     masks: [...game.masks], spentGifts: [...game.spentGifts],
-    route: game.route.map(scenario => scenario.id),
+    route: game.route.map(scenario => scenario.id), clues: game.clues,
     prompt: question.prompt, options: question.options,
     duration: game.duration, endsIn: Math.max(0, game.ends - Date.now()),
   };
@@ -496,6 +516,9 @@ function sync() {
     peekAnswer: game.phase === 'trivia' && game.peeked[player] ? question.answer : null,
     secret: game.secrets[player],
     claim: game.phase === 'choice' ? game.claims[1 - player] : null,
+    ownAnswer: game.phase === 'claim' || game.phase === 'choice' ? game.answers[player] : null,
+    clue: game.phase === 'choice' ? question.options[game.sharedClues[1 - player]?.option] : undefined,
+    copied: game.copied[player],
   });
   draw(forPlayer(0));
   if (link) {
@@ -545,11 +568,11 @@ function mountRoutePicker() {
 function mountMaskPicker() {
   const slot = document.querySelector('#mask-picker');
   if (!slot) return;
-  slot.innerHTML = `<details class="wardrobe" ${slot.dataset.open === 'true' ? 'open' : ''}>
+  slot.innerHTML = `<details class="wardrobe">
     <summary>Choose a mask <span data-current-mask>Unmasked</span></summary>
     <p>Each mask has a gift worth +2 points once per match.</p>
     <div class="mask-description" role="status"></div>
-    ${slot.dataset.open === 'true' ? '<a class="mask-jump" href="#game-modes">Back to game modes ↑</a>' : ''}
+    ${slot.dataset.lobby === 'true' ? '<a class="mask-jump" href="#game-modes">Back to game modes ↑</a>' : ''}
     <div class="mask-options" role="group" aria-label="Masks">
       ${Object.entries(masks).map(([id, mask]) => `<button class="mask-option" type="button" data-mask="${id}" aria-pressed="false">
         ${portrait(id)}<span class="mask-caption"><strong>${mask.title}</strong><small>${mask.name}${mask.origin ? ` · ${mask.origin}` : ''}</small></span>
@@ -597,10 +620,6 @@ function giftReveal(record) {
     `<p><span aria-hidden="true">✦</span> ${player === seat ? 'Your mask' : 'Other mask'} · <strong>${escape(record.gifts[player])} +2</strong></p>` : '').join('')}</div>`;
 }
 
-function transmission(line) {
-  return `<aside class="transmission"><span class="host-avatar" aria-hidden="true"></span><div><span class="eyebrow">THE HOST</span><p>${line}</p></div></aside>`;
-}
-
 const points = value => value >= 0 ? `+${value}` : `−${Math.abs(value)}`;
 
 function debrief(round) {
@@ -623,11 +642,11 @@ function draw(state) {
   clockEnd = performance.now() + state.endsIn;
   phaseDuration = state.duration ?? duration;
   if (previous?.phase === state.phase && previous?.round === state.round && previous?.locked === state.locked &&
-      previous.peekAnswer === state.peekAnswer && previous.secret?.name === state.secret?.name &&
+      previous.copied === state.copied && previous.peekAnswer === state.peekAnswer && previous.secret?.name === state.secret?.name &&
       !app.querySelector('[data-choice]:disabled')) return;
   const {
     phase, round, scores, records, prompt, options, locked,
-    crew, secret, claim, peekAnswer, peekAvailable,
+    crew, secret, claim, peekAnswer, peekAvailable, clues, ownAnswer, clue, copied,
   } = state;
   if (previous?.phase !== phase || previous?.round !== round) {
     lastAlarm = -1;
@@ -642,13 +661,11 @@ function draw(state) {
   const teamScore = scores[0] + scores[1];
   const score = crew ? `<div class="score"><span>CREW · ${teamScore} / ${crewTarget}</span><span>TEAM HEIST</span></div>` :
     `<div class="score"><span>YOU · ${scores[seat]}</span><span>${opponent} · ${scores[1 - seat]}</span></div>`;
-  const route = `<ol class="route" aria-label="Rounds">${acts.map((act, index) =>
-    `<li class="${index < round ? 'passed' : ''}" ${index === round ? 'aria-current="step"' : ''}><span aria-hidden="true">${index < round ? '✓' : index + 1}</span>${index <= round ? scenarioFor(index, state.route?.[index])?.name ?? act : act}</li>`).join('')}</ol>`;
   if (phase === 'briefing' && scenario) {
-    stage(`${score}${maskSeats(state)}${route}<div class="cinematic-title"><div><span class="eyebrow">ROUND ${round + 1} BRIEFING</span><h2>${scenario.name}</h2></div>${relic}</div>
+    stage(`${score}${maskSeats(state)}<div class="cinematic-title"><div><span class="eyebrow">ROUND ${round + 1} OF ${roundCount} · BRIEFING</span><h2>${scenario.name}</h2></div>${relic}</div>
       <p>${scenario.line}</p>
       <ul class="briefing-rules">
-        <li><b>${scenario.seconds}s</b> to answer</li>
+        <li><b>${scenario.seconds + extraTriviaSeconds}s</b> to answer</li>
         <li><b>+${scenario.trivia ?? 2}</b> for a correct answer</li>
         ${scenario.harmony ? '<li>Both keep trivia points <b>+1 each</b></li>' : ''}
         ${scenario.cardBonus ? `<li>${cardBonusLabel(scenario.cardBonus, crew)}</li>` : ''}
@@ -659,35 +676,57 @@ function draw(state) {
     tick();
     return;
   }
-  const label = `<span class="eyebrow">${phase === 'trivia' ? 'ANSWER THE QUESTION' : phase === 'claim' ? 'MAKE A CLAIM' : 'PLAY A SECRET CARD'}</span>`;
+  const progress = `<p class="eyebrow turn-progress">Round ${round + 1} of ${roundCount}${scenario ? ` · ${scenario.name}` : ''}</p>`;
   if (phase === 'trivia' || phase === 'claim' || phase === 'choice') {
     const bonus = pactMultiplier(round);
     const crewActions = `<button class="play-card trust" data-choice="Distract"><span aria-hidden="true" class="pact-mark">✦</span><strong>Distract</strong><small>Keep the host busy.</small></button>
       <button class="play-card betray" data-choice="Grab"><span aria-hidden="true" class="pact-mark">◆</span><strong>Grab</strong><small>Take the loot.</small></button>`;
-    const actions = phase === 'trivia'  ? options.map((option, index) =>
-      `<button data-choice="${index}">${escape(option)}</button>`).join('') : phase === 'claim' ? claims.map(text => `<button data-choice="${text}">${text}</button>`).join('') : crew ? crewActions :
-      `<button class="play-card trust" data-choice="Trust"><span aria-hidden="true" class="pact-mark">✦</span><strong>Trust</strong><small>Both trust <b>+${2 * bonus} each</b></small><small>They betray <b>0 for you</b></small></button>
-      <button class="play-card betray" data-choice="Betray"><span aria-hidden="true" class="pact-mark">◆</span><strong>Betray</strong><small>They trust <b>+${3 * bonus} for you</b></small><small>Both betray <b>0 each</b></small></button>
-      <button class="play-card call" data-choice="Call bluff"><span aria-hidden="true" class="pact-mark">⌕</span><strong>Call bluff</strong><small>Catch a lie or a peek <b>+${3 * bonus}</b></small><small>They didn’t <b>−${bonus}</b></small></button>`;
-    const announcement = round === 1 && phase === 'choice' ? (crew ? 'Vault bonus · Double loot points' : 'Double pact points') :
-      phase === 'trivia' && scenario?.harmony ? 'Both keep trivia points · +1 each' :
-      phase === 'trivia' && scenario?.trivia ? `Correct answer · +${scenario.trivia}` :
-      round === 2 && phase === 'choice' ? 'Final card · 12 seconds' : '';
-    const cardTwist = phase === 'choice' && scenario?.cardBonus ? cardBonusLabel(scenario.cardBonus, crew) : '';
-    const twist = [announcement, cardTwist].filter(Boolean).map(line => `<p class="twist">${line}</p>`).join(' ');
-    stage(`${score}${maskSeats(state)}${route}${label}<h2>${phase === 'trivia' ? escape(prompt) : phase === 'claim' ? 'What will you tell them?' : crew ? 'Who does what?' : 'How will you play it?'}</h2>${twist}
-      ${crew && phase === 'choice' && !locked ? `<p>Pick different jobs for <strong>+${4 * bonus} crew points</strong>. Same job scores 0.</p>` : ''}
-      ${phase === 'claim' ? '<p>You can tell the truth or bluff. Your friend will see your claim before picking a card.</p>' : ''}
-      ${phase === 'choice' && !crew ? `<p class="claim-banner">${claim ? `They said “${escape(claim)}.”` : 'They made no claim.'}</p>` : ''}
+    const clueActions = ownAnswer === null ? '<button data-choice="private">Keep it private</button>' :
+      `<button class="primary" data-choice="share">Show my answer</button>
+      <button data-choice="private">Keep it private</button>
+      <details class="decoy-options"><summary>Send a decoy</summary><div class="options">
+        ${options.map((option, index) => index === ownAnswer ? '' : `<button data-choice="decoy-${index}">${escape(option)}</button>`).join('')}
+      </div></details>`;
+    const actions = phase === 'trivia' ? options.map((option, index) =>
+      `<button data-choice="${index}">${escape(option)}</button>`).join('') : phase === 'claim' && clues ? clueActions : phase === 'claim' ? claims.map(text => `<button data-choice="${text}">${text}</button>`).join('') : crew ? crewActions :
+      `<button class="play-card trust" data-choice="Trust"><span aria-hidden="true" class="pact-mark">✦</span><strong>Trust</strong><small>+${2 * bonus} each if both trust</small></button>
+      <button class="play-card betray" data-choice="Betray"><span aria-hidden="true" class="pact-mark">◆</span><strong>Betray</strong><small>+${3 * bonus} if they trust</small></button>
+      <button class="play-card call" data-choice="Call bluff"><span aria-hidden="true" class="pact-mark">⌕</span><strong>Call bluff</strong><small>+${3 * bonus} if they sent a decoy or peeked · −${bonus} otherwise</small></button>`;
+    const announcement = [
+      phase === 'trivia' && scenario?.harmony ? '+1 each if both keep trivia points' : '',
+      phase === 'trivia' && scenario?.trivia ? `+${scenario.trivia} for a correct answer` : '',
+      phase === 'choice' && round === 1 ? 'Double card points' : '',
+      phase === 'choice' && scenario?.cardBonus ? cardBonusLabel(scenario.cardBonus, crew) : '',
+    ].filter(Boolean).join(' · ');
+    const heading = phase === 'trivia' ? escape(prompt) :
+      phase === 'claim' ? (clues ? 'Share a clue?' : 'What will you tell them?') :
+      crew ? 'Who does what?' : 'Play a card';
+    const instructions = phase === 'claim' ?
+      (clues ? `<p class="turn-note">${ownAnswer === null ? 'You ran out of time to choose an answer.' :
+        `You chose <strong>${escape(options[ownAnswer])}</strong>. Your friend can copy whatever you send.`}</p>` :
+        '<p class="turn-note">Tell the truth or bluff. Your friend sees your claim before picking a card.</p>') :
+      crew && phase === 'choice' ? `<p class="turn-note">Pick different jobs for <strong>+${4 * bonus} crew points</strong>.</p>` : '';
+    const cluePrompt = phase === 'choice' && !crew ?
+      (clues ? clue ? `<aside class="clue-box">
+        <p>Their clue <strong>${escape(clue)}</strong></p>
+        <p>${copied ? 'Using their clue.' : ownAnswer === null ? 'You have no answer yet.' :
+          `Your answer is ${escape(options[ownAnswer])}.`}</p>
+        ${!locked ? `<button class="quiet" data-choice="${copied ? 'keep' : 'copy'}">${copied ? 'Undo copy' : 'Copy their clue'}</button>` : ''}
+      </aside>` : '<p class="turn-note">No clue shared.</p>' : `<p class="claim-banner">${claim ? `They said “${escape(claim)}.”` : 'They made no claim.'}</p>`) : '';
+    stage(`${score}${progress}<h2>${heading}</h2>
+      <div class="clock-track"><span class="clock" id="clock" aria-label="Time remaining"></span><div class="bar" id="bar" aria-hidden="true"></div></div>
+      ${announcement ? `<p class="turn-note">${announcement}</p>` : ''}
+      ${instructions}${cluePrompt}
       ${peekAnswer ? `<p class="secret-note">Only you see this · <strong>${escape(peekAnswer)}</strong></p>` : ''}
       ${secret && phase === 'trivia' ? `<p class="secret-note"><strong>${escape(secret.name)}</strong> · ${escape(secret.hint)}</p>` : ''}
-      <div class="clock-track"><span class="clock" id="clock" aria-label="Time remaining"></span><div class="bar" id="bar" aria-hidden="true"></div></div>
-      ${locked ? '<p class="waiting">Your choice is sealed. Waiting for the other seat.</p>' : `<div class="options ${phase === 'choice' ? 'card-options' : ''}">${actions}</div>`}
-      ${phase === 'trivia' && !locked ? `<div class="secrets">
-        ${peekAvailable ? '<button class="quiet" data-choice="peek">Peek once · risk losing trivia points</button>' : ''}
+      ${locked ? '<p class="waiting">Locked in. Waiting for your friend.</p>' : `<div class="options ${phase === 'choice' ? crew ? 'card-options crew-actions' : 'card-options duel-actions' : ''}">${actions}</div>`}
+      ${phase === 'trivia' && !locked && (peekAvailable || !secret && round > 0) ? `<details class="round-tools"><summary>Secret tools</summary>
+        ${peekAvailable ? '<p class="turn-note">If they catch your peek, you lose your trivia points.</p>' : ''}
+        <div class="secrets">
+        ${peekAvailable ? '<button class="quiet" data-choice="peek">Peek once</button>' : ''}
         ${!secret && round > 0 ? `<button class="quiet" data-choice="door">${round === 1 ? 'Open the secret door' : 'Follow the lantern'}</button>` : ''}
-        </div>` : ''}
-      ${phase === 'trivia' && scenario ? '' : transmission(phase === 'claim' ? 'The truth is free. Lying may have a service charge.' : crew && phase === 'choice' ? 'I’m watching the vault. Please do something distracting over there.' : hostLines[phase][round])}`, false, `scene scene-${phase}${locationTone}`, locationStyle);
+      </div></details>` : ''}`,
+      false, `scene scene-${phase} focused-turn${locationTone}`, locationStyle);
     app.querySelectorAll('[data-choice]').forEach(button => {
       button.onclick = () => move(phase === 'trivia' && /^\d$/.test(button.dataset.choice) ? Number(button.dataset.choice) : button.dataset.choice);
     });
@@ -698,7 +737,10 @@ function draw(state) {
   const receipt = result => {
     const line = player => {
       const claim = result.claims?.[player];
-      const evidence = [claim && (result.falseClaims[player] ? 'Bluffed' : 'Told the truth'),
+      const clue = result.clues?.[player];
+      const evidence = [result.copied?.[player] && 'Copied their clue',
+        clue && `${result.falseClaims[player] ? 'Sent a decoy' : 'Shared answer'}: ${clue}`,
+        claim && (result.falseClaims[player] ? 'Bluffed' : 'Told the truth'),
         result.peeked?.[player] && 'Peeked', result.secrets?.[player], result.gifts?.[player] && `${result.gifts[player]} +2`,
         result.locationGains?.[player] && 'Location bonus +1'].filter(Boolean);
       return [result.responses[player], result.cards[player], ...evidence, points(result.gains[player])].map(escape).join(' · ');
@@ -746,7 +788,7 @@ if (roomId !== null || roomSeal !== null) {
     failure('This invite is incomplete. Ask your friend to share the full link again.');
   } else {
     stage(`<span class="icon" aria-hidden="true">✦</span><p class="eyebrow">SEALED SUMMONS</p><h2>Your seat is waiting.</h2>
-      <p>${roomAddress.get('mode') === 'crew' ? `Team up against the masked host. Answer questions, pick different jobs, and score ${crewTarget} points together to escape.` : 'Play three rounds with your friend. Answer a question, then decide how much you trust them.'}</p>
+      <p>${roomAddress.get('mode') === 'crew' ? `Team up against the masked host. Answer questions, pick different jobs, and score ${crewTarget} points together to escape.` : 'Pick an answer. Show it, send a decoy, or keep it private. Then decide whether to trust your friend.'}</p>
       <p class="muted">You’ll get a short briefing before the first question. Both choices are revealed after each round.</p>
       <div id="mask-picker"></div>
       <div class="row"><button class="primary" id="enter">Join game ↗</button>${homeButton}</div>`, true);
@@ -756,6 +798,7 @@ if (roomId !== null || roomSeal !== null) {
 } else {
   mountRoutePicker();
   mountMaskPicker();
+  document.querySelector('#choose-mask').onclick = () => { document.querySelector('.wardrobe').open = true; };
   document.querySelector('#host').onclick = () => host();
   document.querySelector('#crew').onclick = () => host(true);
   document.querySelector('#solo').onclick = () => start(true);

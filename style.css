@@ -14,9 +14,6 @@
 .clock-track .clock{min-width:3.3em;font-size:1.2rem;font-variant-numeric:tabular-nums}
 .clock-track .bar{margin:0}
 .under-pressure .clock{color:#ff9bb0;text-shadow:0 0 14px #fb5179}
-.transmission{display:flex;align-items:center;gap:12px;margin:24px 0 0;padding:12px 14px;background:#120c17cc;border:1px solid #5c414f;border-radius:7px}
-.transmission p{margin:4px 0 0;color:#eed8d9;line-height:1.45;font-size:.9rem}
-.host-avatar{display:block;flex:0 0 45px;height:45px;border:1px solid #9d7254;border-radius:50%;background:url(arena.jpg) 78% 37%/280px auto}
 .twist{display:inline-block;padding:7px 11px;background:#432532;color:var(--gold);border:1px solid #98605e;border-radius:4px;font-weight:800;font-size:.8rem;text-transform:uppercase;letter-spacing:.08em}
 .pact-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:20px 0}
 .pact-card{display:grid;gap:7px;text-align:center;border:1px solid #6e5364;border-radius:8px;padding:12px 8px;background:#27192a}
@@ -25,7 +22,7 @@
 .pact-card.empty{color:var(--dim)}
 .pact-mark{font-size:1.55rem}
 .pact-card small{color:var(--dim)}
-@media(max-width:680px){.scene::before{background-position:65% center}.transmission{margin-top:18px}.clock-track{margin:14px 0}.pact-card .eyebrow{font-size:.65rem}}
+@media(max-width:680px){.scene::before{background-position:65% center}.clock-track{margin:14px 0}.pact-card .eyebrow{font-size:.65rem}}
 .board .pair-code{display:inline-block;padding:10px 14px;background:#140e19;border:1px solid #9d7254;border-radius:6px;color:var(--gold);font:700 clamp(1.4rem,6vw,2.1rem) ui-monospace,monospace;letter-spacing:.2em}
 
 .quick-rules,.route{list-style:none;display:grid;grid-template-columns:repeat(3,1fr);padding:0;gap:8px}
@@ -154,6 +151,29 @@ button.mask-option{position:relative;display:grid;text-align:left;padding:0;over
 @media(prefers-reduced-motion:reduce){
   .scene::before,.card-turn,.scene .mask-seat img{transform:none}
 }
-.transmission .host-avatar{animation:portrait-arrival .7s ease-out both}
 
 .pact-card .reveal-portrait{width:52px;justify-self:center;border:1px solid currentColor;border-radius:50%}
+
+.focused-turn{align-items:start;min-height:0}
+.focused-turn .board{max-width:560px}
+.focused-turn.with-place::before{opacity:.32}
+.focused-turn .score{margin-bottom:16px}
+.focused-turn .turn-progress{margin:0 0 9px}
+.focused-turn h2{margin:0;font-size:clamp(1.65rem,5vw,2.6rem)}
+.focused-turn .clock-track{margin:12px 0}
+.focused-turn .turn-note{font-size:.88rem;color:var(--dim);line-height:1.35;margin:9px 0}
+.focused-turn .options{margin:12px 0;gap:8px}
+.focused-turn .options>button{min-height:48px}
+.decoy-options,.round-tools{border:1px solid var(--stroke);border-radius:6px;padding:10px;color:var(--dim)}
+.decoy-options{grid-column:1/-1}
+.decoy-options summary,.round-tools summary{cursor:pointer;font-size:.85rem;font-weight:700}
+.round-tools .secrets{margin-top:8px}
+.focused-turn .duel-actions{grid-template-columns:1fr}
+.duel-actions .play-card{grid-template-columns:28px minmax(0,1fr);padding:8px 12px;gap:3px 8px;align-items:center}
+.duel-actions .play-card .pact-mark{grid-row:span 2;font-size:1.15rem}
+.duel-actions .play-card strong{font-size:1rem}
+.duel-actions .play-card small{margin:0;font-size:.76rem}
+.clue-box{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;align-items:center;background:#271c2e;border-left:2px solid var(--gold);padding:9px 11px}
+.clue-box p,.board .clue-box p{grid-column:1;margin:0;font-size:.86rem;color:var(--dim)}
+.clue-box strong{color:var(--ink)}
+.clue-box button{grid-area:1/2/span 2;white-space:normal}

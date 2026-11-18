@@ -37,8 +37,9 @@ export const masks = {
   },
   confessor: {
     title: 'The Midnight Priest', name: 'Iona',
-    gift: 'Plain Truth', rule: 'Admit a wrong answer. In a heist, miss a question your teammate gets right.',
-    earns: ({ correct, crew, claim, otherCorrect }) => !correct && (crew ? otherCorrect : claim === 'I got it wrong'),
+    gift: 'Plain Truth', rule: 'Share your real answer when it’s wrong. In a heist, miss a question your teammate gets right.',
+    earns: ({ correct, crew, claim, otherCorrect, honestWrong }) =>
+      crew ? !correct && otherCorrect : Boolean(honestWrong) || !correct && claim === 'I got it wrong',
   },
   tracker: {
     title: 'The Night Tracker', name: 'Amara',
