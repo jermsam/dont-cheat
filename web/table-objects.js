@@ -1,5 +1,6 @@
 const views = new WeakMap();
 let preferPhysicalTable = true;
+let handCovered = false;
 
 export function mountTableObjects(app, board) {
   const holder = app.querySelector('.table-objects');
@@ -12,7 +13,18 @@ export function mountTableObjects(app, board) {
     const anchor = firstCards.matches('[data-tenzi]') ? firstCards.parentElement : firstCards;
     anchor.before(holder);
   }
+  const privateCards=[...app.querySelectorAll('[data-card-zone="hand"]')];
+  const stock=app.querySelector('[data-stock]:enabled');
+  const discard=app.querySelector('[data-discard-pile]:enabled');
+  const cover=document.createElement('button');
+  cover.type='button';
+  cover.className='quiet cover-hand';
+  if (privateCards.length) button.after(cover);
   const describe = () => ({
+    stock,
+    backs: board.key === 'holdem' || board.key === 'poker' ? (board.shown || board.showdown ? 0 : board.hand?.length ?? 0) :
+      Number.isInteger(board.count) ? board.count : board.counts?.length === 4 ?
+      board.counts.reduce((count,n,i)=>i===board.side?count:count+n,0) : board.key==='gin'?10:0,
     race:board.key === 'snakes' ? board : undefined,
     ludoTiles:[...app.querySelectorAll('.ludo-cell')].map(item=>({row:Number(item.style.gridRowStart)-1,column:Number(item.style.gridColumnStart)-1,
       lane:item.classList.contains('lane-0')?0:item.classList.contains('lane-1')?1:-1})),
@@ -26,9 +38,10 @@ export function mountTableObjects(app, board) {
       face:Number(item.dataset.die), button:item.matches('button')&&!item.disabled?item:null,
     })),
     cards:[...app.querySelectorAll('[data-table-card]')].map(item=>({
-      id:Number(item.dataset.tableCard), label:item.textContent.trim(),
-      zone:item.closest('[data-card-zone]')?.dataset.cardZone ?? 'table',
-      button:item.matches('button:not(:disabled)')?item:null,
+      id:Number(item.dataset.tableCard),
+      label:handCovered&&item.closest('[data-card-zone="hand"]')?'back':item.textContent.trim(),
+      zone:item.closest('[data-card-zone]')?.dataset.cardZone === 'hand' ? 'hand' : 'table',
+      button:item.matches('button:not(:disabled)')&&!(handCovered&&item.closest('[data-card-zone="hand"]'))?item:item.closest('[data-card-zone="discard"]')?discard:null,
     })),
   });
   let view=views.get(holder);
@@ -37,6 +50,17 @@ export function mountTableObjects(app, board) {
   hint.textContent='Tap a card with a gold corner to select it.';
   hint.hidden=true;
   holder.after(hint);
+  function updateCover() {
+    cover.textContent=handCovered?'Show my hand':'Cover my hand';
+    cover.setAttribute('aria-pressed',String(handCovered));
+    privateCards.forEach(hand=>{hand.hidden=handCovered;hand.inert=handCovered;});
+  }
+  updateCover();
+  cover.onclick=()=>{
+    handCovered=!handCovered;
+    updateCover();
+    if(view&&!holder.hidden)show(true);
+  };
   function show(open) {
     holder.hidden=!open;
     hint.hidden=true;
@@ -50,6 +74,7 @@ export function mountTableObjects(app, board) {
       const model=describe();
       hint.hidden=!model.cards.some(card=>card.button);
       holder.dataset.hand=String(model.cards.some(card=>card.zone==='hand'));
+      holder.dataset.stock=String(Boolean(stock));
       holder.dataset.cards=String(model.cards.some(card=>card.zone==='table'));
       view.update(model,board.serial);
     }
@@ -58,7 +83,7 @@ export function mountTableObjects(app, board) {
   async function start() {
     button.disabled=true;
     try {
-      const {createTableObjects}=await import('./table-objects-3d.js?v=3');
+      const {createTableObjects}=await import('./table-objects-3d.js?v=4');
       if (!holder.isConnected) return;
       view=createTableObjects(holder);
       views.set(holder,view);

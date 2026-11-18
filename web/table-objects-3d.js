@@ -148,7 +148,7 @@ export function createTableObjects(holder) {
     renderer.setSize(w,h,false);
     render();
   }
-  function update({cards,dice,ludoTiles,ludoTokens,pits,race},serial) {
+  function update({cards,dice,ludoTiles,ludoTokens,pits,race,stock,backs},serial) {
     animation?.stop();
     objects.clear();
     wideTable=cards.length>0||dice.length>0;
@@ -205,6 +205,7 @@ export function createTableObjects(holder) {
         if (button) model.userData.button=button;
         model.position.set(x,y,z);
         model.rotation.y=yaw;
+        if(zone==='hand') model.rotation.x=-.19;
         model.userData.button=button;
         objects.add(model);
         groundShadow(x,z);
@@ -215,13 +216,24 @@ export function createTableObjects(holder) {
       });
     }
     previousCards=currentCards;
-    if (cards.length) {
+    if (cards.length || stock) {
       for(let i=0;i<5;i++){
-        const deck=cardModel('back');
+        const deck=cardModel('back',stock);
+        if(stock) deck.userData.button=stock;
         deck.position.set(-2.28,.025+.028*i,-1.61);
         deck.rotation.y=-.12+i*.015;
         objects.add(deck);
       }
+    }
+    const rivalCount=Math.min(8,Math.max(0,backs??0));
+    for(let i=0;i<rivalCount;i++){
+      const back=cardModel('back');
+      const offset=i-(rivalCount-1)/2;
+      back.position.set(.75+offset*.24,.055+i*.016,-1.88);
+      back.rotation.x=.49;
+      back.rotation.y=offset*.052;
+      back.scale.setScalar(.65);
+      objects.add(back);
     }
     ludoTiles.forEach(({row,column,lane})=>{
       const tile=new THREE.Mesh(cellGeo,tokenPaint[lane<0?2:lane]);

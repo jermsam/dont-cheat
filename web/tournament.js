@@ -4,10 +4,10 @@ import { getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { masks, maskId } from './masks.js?v=2';
 
-import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=3';
+import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=4';
 import { bestHoldem } from './card-dice-rules.js?v=3';
-import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=3';
-import { matchMarkup, mountMatch, cardName } from './match-view.js?v=4';
+import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=4';
+import { matchMarkup, mountMatch } from './match-view.js?v=5';
 
 const limit = 6;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
@@ -146,7 +146,7 @@ export function hostTournament(env) {
       const snapshot = match.snapshot(seat);
       const hand = snapshot.showdown?.[side] ?? snapshot.shown?.[side];
       const ranking = hand && (snapshot.community ? bestHoldem([...hand,...snapshot.community]) : rankHand(hand));
-      const cards = ranking ? ` · ${pokerRanks[ranking[0]]} (${hand.map(cardName).join(' ')})` : '';
+      const cards = ranking ? ` · ${pokerRanks[ranking[0]]}` : '';
       players[seat].score += points;
       entries[seat] = {points, answer: `${winner === null ? 'Draw' : points ? 'Won' : 'Lost'} · ${reason}${cards}`};
     }));

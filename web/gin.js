@@ -89,7 +89,7 @@ export function gin() {
         const dead=rival.map(layout=>own.value===0?layout.value:reductions(layout.dead,own.groups)).reduce((min,value)=>Math.min(min,value),Infinity);
         const win=own.value===0||dead>own.value?active:1-active;
         scores[win]+=own.value===0?25+dead:win===active?dead-own.value:25+own.value-dead;
-        shown={hands,dead:[own.value,dead],knocker:active};
+        shown={dead:[own.value,dead],knocker:active};
         if(scores[win]>=100) return {winner:win,reason:'Reached 100 points'};
         deal();
         return {last:{knock:true}};
