@@ -29,8 +29,9 @@ export function createTableObjects(holder) {
   rim.position.set(4,2,-4);
   scene.add(rim);
   const cream=0xf4e3c6;
-  const slab=cardBody(.70,1.03);
-  const faceGeo=new THREE.PlaneGeometry(.70,1.03);
+  const cardWidth=.70, cardDepth=1.03;
+  const slab=cardBody(cardWidth,cardDepth);
+  const faceGeo=new THREE.PlaneGeometry(cardWidth,cardDepth);
   faceGeo.rotateX(-Math.PI/2);
   const contactGeo=new THREE.PlaneGeometry(.94,1.30);
   contactGeo.rotateX(-Math.PI/2);
@@ -152,6 +153,13 @@ export function createTableObjects(holder) {
     model.add(back);
     return model;
   }
+  function keepCardAboveFelt(card,height) {
+    card.updateMatrix();
+    const matrix=card.matrix.elements;
+    const [width,thickness,depth]=[matrix[1],matrix[5],matrix[9]];
+    const clearance=Math.abs(width)*cardWidth/2+Math.abs(thickness)*.014+Math.abs(depth)*cardDepth/2;
+    card.position.y=Math.max(height,clearance+.016);
+  }
   function refresh() {
     const {clientWidth:w,clientHeight:h}=holder;
     if (!w||!h) return;
@@ -225,13 +233,14 @@ export function createTableObjects(holder) {
         model.position.set(x,y,z);
         model.rotation.y=yaw;
         if(zone==='hand') model.rotation.x=-.19;
+        keepCardAboveFelt(model,y);
         model.userData.button=button;
         objects.add(model);
         groundShadow(x,z);
         const key=zone+':'+id;
         const previous=previousCards.get(key)??previousCards.get('hand:'+id);
-        currentCards.set(key,{x,y,z,yaw});
-        renderedCards.push({model,x,y,z,yaw,previous,i});
+        currentCards.set(key,{x,y:model.position.y,z,yaw});
+        renderedCards.push({model,x,y:model.position.y,z,yaw,previous,i});
       });
     }
     previousCards=currentCards;
@@ -252,6 +261,7 @@ export function createTableObjects(holder) {
       back.rotation.x=.49;
       back.rotation.y=offset*.052;
       back.scale.setScalar(.65);
+      keepCardAboveFelt(back,back.position.y);
       objects.add(back);
     }
     ludoTiles.forEach(({row,column,lane})=>{
@@ -300,6 +310,7 @@ export function createTableObjects(holder) {
           model.position.set(THREE.MathUtils.lerp(from.x,x,t),THREE.MathUtils.lerp(from.y,y,t)+Math.sin(Math.PI*t)*.26,THREE.MathUtils.lerp(from.z,z,t));
           model.rotation.y=THREE.MathUtils.lerp(from.yaw,yaw,t);
           model.rotation.z=previous?0:(1-t)*Math.PI;
+          keepCardAboveFelt(model,model.position.y);
         });
         tokens.forEach(({model,from,to})=>{
           if (from.join()===to.join()) return;
