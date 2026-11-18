@@ -1,3 +1,4 @@
+import { recordProgress, progressMarkup } from './progress.js';
 import { icon } from './icons.js?v=2';
 import { sideScreen, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=3';
 import { getPuzzle, majorityVerdict } from './challenges.js';
@@ -477,6 +478,8 @@ function makeView(env, send) {
   }
 
   let previousMatch;
+  let rewardedRound = -1;
+  let profile;
   const phaseIsNewMove = (state, previous) => state.phase === 'match' &&
     state.board && previous?.round === state.round && state.board.serial > previous.serial;
   function render(state) {
@@ -509,6 +512,7 @@ function makeView(env, send) {
     const header = '<span class="eyebrow">THE MIDNIGHT TRIAL · SEASON</span>';
     let content;
     let won = false;
+    let earned = false;
 
     if (phase === 'lobby') {
       const seated = players.filter(player => player.online).length;
@@ -528,13 +532,25 @@ function makeView(env, send) {
       const best = Math.max(...players.map(player => player.score));
       const winners = players.flatMap((player, i) => player.score === best ? [name(state, i)] : []);
       won = phase === 'verdict' && players[seat].score === best;
-      const headline = phase === 'reveal' ? 'The round is unsealed.' : won ?
+      if(rewardedRound!==round){
+        rewardedRound=round;
+        profile=recordProgress(env.room,state.records.length,phase==='verdict',won);
+        earned=true;
+      }
+      const points=state.records[round]?.entries[seat]?.points ?? 0;
+      const signed=points>0?`+${points}`:String(points);
+      const headline = phase === 'reveal' ? points>0 ? 'Points earned' : 'Round complete' : won ?
         winners.length === 1 ? 'You won the table.' : 'You tied for first.' : 'The table has spoken.';
       content = `${won ? '<span class="eyebrow">VICTORY</span>' : header}<div class="cinematic-title"><h2>${headline}</h2></div>
         ${phase === 'verdict' ? `<p>${winners.length === 1 ? 'Winner' : 'Joint winners'} <strong>${winners.map(esc).join(' / ')}</strong> · ${best} pts</p>` : ''}
         ${state.records[round]?.match ? `<p>${esc(state.records[round].entries[seat]?.answer ?? '')}</p>` : ''}
-        <p>Your score <strong>${players[seat].score} pts</strong></p>${won ? env.victoryControls() : ''}
-        ${phase === 'verdict' ? `<div class="row">${button('Share result', 'share-result', 'class="primary"')}${back}</div>` :
+        <div class="round-loot" aria-label="Round reward">
+          <span>${icon('trophy')} <b>${signed}</b> pts</span><span>${icon('layers')} <b>+2</b> coins</span>
+          ${(round+1)%3===0?`<span>${icon('timer')} <b>+1</b> time</span>`:''}
+        </div>
+        <p>Total <strong>${players[seat].score} pts</strong></p>${progressMarkup(profile)}
+        ${won ? env.victoryControls() : ''}
+        ${phase === 'verdict' ? `<div class="row">${button('Share result', 'share-result', 'class="quiet"')}<a class="another-season" href="./?season=new#brain-games">New season ${icon('arrow-right')}</a></div>` :
           roundAdvance(round + 2, host, state.recapPaused) + shop(state)}
         <div class="screen-links">
           ${sideScreen('table-scores', 'Scoreboard', roster(state))}
@@ -586,6 +602,18 @@ function makeView(env, send) {
     const art = (phases.includes(phase) || phase === 'match') && place?.art ? `--place-art:url(places/${place.art}.jpg)` : '';
     env.stage(content, false, `scene focused-turn tournament${phase === 'match' ? ' live-table-stage' : phase === 'lobby' ? ' arena-lobby' : ''}${won ? ' victory' : ''}${art ? ' with-place' : ''}`, art, `table:${round}:${phase}`);
     const app = document.querySelector('#app');
+    app.querySelector('.another-season')?.addEventListener('click', event=>{
+      if (location.search === '?season=new') {
+        event.preventDefault();
+        location.hash='brain-games';
+        location.reload();
+      }
+    });
+    if(earned && !matchMedia('(prefers-reduced-motion: reduce)').matches){
+      const loot=[...app.querySelectorAll('.round-loot span')];
+      globalThis.Motion.animate(loot,{opacity:[.2,1],y:[9,0],scale:[.9,1]},
+        {type:'spring',stiffness:240,damping:19,delay:globalThis.Motion.stagger(.07)});
+    }
     app.querySelector('#next')?.addEventListener('click', () => send({type: 'next'}));
     app.querySelector('#hold-round')?.addEventListener('click', () => send({type: 'hold'}));
     if (phase === 'match') {

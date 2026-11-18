@@ -1,10 +1,11 @@
+import { readProgress, progressMarkup, achievementMarkup, weeklyPick } from './progress.js';
 import { icon } from './icons.js?v=2';
 import './control-hints.js';
 import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=3';
-import { hostTournament, joinTournament } from './tournament.js?v=32';
+import { hostTournament, joinTournament } from './tournament.js?v=33';
 
 import { challenges } from './challenges.js';
 import { matchTitles } from './match-rules.js?v=10';
@@ -405,7 +406,7 @@ async function approveGuest(code) {
 }
 
 function tableEnvironment(playlist) {
-  return { arena, key, invite: invitation, mask: chosenMask, playlist, stage, timeout, share, copy,
+  return { arena, key, room: roomId ?? (invitation && new URL(invitation).searchParams.get('room')), invite: invitation, mask: chosenMask, playlist, stage, timeout, share, copy,
     notice: say, escape, victoryControls, shuffle: shuffled, cue: playCue, destination: chosenDestination };
 }
 
@@ -921,6 +922,12 @@ function mountLobby() {
   const lobby = document.querySelector('#game-modes');
   const hero = document.querySelector('.hero');
   const entry = hero.querySelector('.hero-start');
+  const career=hero.querySelector('#career');
+  const profile=readProgress();
+  if(profile.marks){
+    career.innerHTML=progressMarkup(profile)+`<small>${profile.seasons} seasons · ${profile.wins} titles</small>`+achievementMarkup(profile);
+    career.hidden=false;
+  }
   const panels = [...lobby.querySelectorAll('.setup-section')];
   const progress = lobby.querySelector('#setup-progress');
   const back = lobby.querySelector('#setup-back');
@@ -939,6 +946,13 @@ function mountLobby() {
     };
   });
   filters[0].click();
+  const weekly=weeklyPick();
+  const spotlight=document.querySelector('#weekly-table');
+  spotlight.innerHTML=`<button type="button" class="quiet icon-tool">${icon('flag')} <span>Weekly table · ${escape(matchTitles[weekly])}</span></button>`;
+  spotlight.firstElementChild.onclick=()=>{
+    filters.find(filter=>groups[filter.dataset.libraryFilter].includes(weekly)).click();
+    gameButtons.find(button=>button.dataset.game===weekly).click();
+  };
   gameButtons.forEach(button => {
     button.onclick = () => {
       playlist = button.dataset.game;
