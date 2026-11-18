@@ -647,3 +647,11 @@ select, .destination-picker select, .table-menu select, .table-accuse select {
 .bait-winner,.draft-encore{display:inline-flex;gap:.4rem;align-items:center;color:#ffe0a2;font-weight:700;font-size:.85rem}
 .table-draft .draft-encore{flex-basis:100%;margin:.2rem 0;color:#bdf9d9}
 #table-draft select{display:block;max-width:100%;min-height:44px;margin:.5rem 0;background-color:#221827;color:var(--ink)}
+
+.pact-target-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.4rem;margin-top:.55rem}
+.pact-target-actions button{padding:.55rem .65rem}
+.pact-target-actions :is([data-card="Gift coin"],[data-card="Gift time"]){border-color:#6a9d87;background:#23372e}
+.pact-target-actions [data-card="Alliance"]{border-color:#c4a067;background:#3a2b23}
+@media(max-width:340px){.pact-target-actions{grid-template-columns:1fr}}
+.pact-gift-notices{display:grid;gap:.25rem;color:#bcf2da;font-size:.84rem}
+.pact-gift-notices span{display:flex;align-items:center;gap:.35rem}

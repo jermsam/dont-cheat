@@ -14,6 +14,8 @@ const limit = 6;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
 const statuses = ['Ready', 'Thinking', 'I trust you', 'Well played'];
 const phases = ['draft', 'clue', 'final', 'pact'];
+const gifts = {'Gift coin':'coins','Gift time':'time'};
+const directedCards = ['Call bluff','Alliance','Persuade',...Object.keys(gifts)];
 
 export function hostTournament(env) {
   const players = [{ mask: maskId(env.mask), moves: {}, score: 0, online: true, status: '' }];
@@ -112,6 +114,14 @@ export function hostTournament(env) {
     const item = lineup[round];
     const { right } = getPuzzle(item.key, item.index, item.seed);
     const verdict = item.key === 'verdict' ? majorityVerdict(players.map(player => player.moves.final?.option)) : null;
+    players.forEach((player,seat)=>{
+      const pact=player.moves.pact;
+      const currency=gifts[pact?.card];
+      if(currency && Object.hasOwn(gifts,pact.card)){
+        wallet.get(seat)[currency]--;
+        wallet.get(pact.target)[currency]++;
+      }
+    });
     const entries = players.map((player, seat) => {
       const { final, pact, clue } = player.moves;
       const answer = item.options[final?.option];
@@ -120,14 +130,17 @@ export function hostTournament(env) {
       const fooled = players.some(rival => rival.moves.final?.from === seat) && clue?.decoy;
       const trusted = players.some((rival, index) => index !== seat && rival.moves.pact?.card === 'Trust');
       const caught = players[pact?.target]?.moves.clue?.decoy;
+      const partner=players[pact?.target]?.moves;
+      const allied=pact?.card==='Alliance' && partner?.pact?.card==='Alliance' && partner.pact.target===seat;
+      const persuaded=pact?.card==='Persuade' && partner?.final?.from===seat && clue?.option!=null && !clue.decoy;
       const bonus = pact?.card === 'Trust' && trusted ? 2 : pact?.card === 'Betray' && fooled ? 3 :
-        pact?.card === 'Call bluff' ? caught ? 3 : -1 : 0;
+        pact?.card === 'Call bluff' ? caught ? 3 : -1 : allied ? 3 : persuaded ? 2 : 0;
       const points = trivia + bonus;
       player.score += points;
       return {
         answer, clue: item.options[clue?.option], decoy: Boolean(clue?.decoy),
         from: final?.from, card: pact?.card, target: pact?.target,
-        caught: pact?.card === 'Call bluff' && Boolean(caught), fooled: Boolean(fooled), points,
+        caught: pact?.card === 'Call bluff' && Boolean(caught), fooled: Boolean(fooled), allied, persuaded, points,
       };
     });
     records.push({ title: item.title, right, entries, verdict: verdict ? {
@@ -330,8 +343,12 @@ export function hostTournament(env) {
         player.moves.final = { option, from };
       }
     }
-    if (phase === 'pact' && (['Trust', 'Betray'].includes(card) || card === 'Call bluff' && rival(target))) {
-      player.moves.pact = { card, target: card === 'Call bluff' ? target : undefined };
+    if (phase === 'pact') {
+      if (['Trust','Betray'].includes(card)) player.moves.pact={card};
+      else if (directedCards.includes(card) && rival(target) && players[target].online &&
+               (!Object.hasOwn(gifts,card) || wallet.get(seat)[gifts[card]]>0)) {
+        player.moves.pact={card,target};
+      }
     }
     publish();
     advanceIfReady();
@@ -486,6 +503,7 @@ function makeView(env, send) {
         <small>${esc(entry.answer ?? 'Passed')}${entry.from === undefined ? '' : ` · copied Seat ${entry.from + 1}`}
         ${entry.clue ? ` · ${entry.decoy ? 'Decoy' : 'Shared'} ${esc(entry.clue)}` : ''}
         ${entry.card ? ` · ${esc(entry.card)}` : ''}${entry.target === undefined ? '' : ` on Seat ${entry.target + 1}`}${entry.caught ? ' · caught the bluff' : entry.card === 'Call bluff' ? ' · accusation missed' : ''}
+        ${entry.allied ? ' · alliance sealed' : entry.persuaded ? ' · honest clue copied' : ''}
         ${entry.fooled ? ' · someone took the decoy' : ''} · ${entry.points >= 0 ? '+' : ''}${entry.points}</small></li>`).join('')}</ul>`))}</div>`;
   }
   function tableDraft(state) {
@@ -621,7 +639,10 @@ function makeView(env, send) {
         profile=recordProgress(env.room,state.records.length,phase==='verdict',won);
         earned=true;
       }
-      const points=state.records[round]?.entries[seat]?.points ?? 0;
+      const roundEntries=state.records[round]?.entries ?? [];
+      const points=roundEntries[seat]?.points ?? 0;
+      const giftNotices=roundEntries.flatMap((entry,i)=>entry.target===seat && Object.hasOwn(gifts,entry.card) ?
+        [`<span>${icon(entry.card==='Gift time'?'timer':'layers')} ${esc(name(state,i))} gave you 1 ${entry.card==='Gift time'?'time token':'coin'}</span>`] : []);
       const signed=points>0?`+${points}`:String(points);
       const headline = phase === 'reveal' ? points>0 ? 'Points earned' : 'Round complete' : won ?
         winners.length === 1 ? 'You won the table.' : 'You tied for first.' : 'The table has spoken.';
@@ -633,6 +654,7 @@ function makeView(env, send) {
           <span class="loot-points">${icon('trophy')} <b>${signed}</b><small>Points</small></span><span class="loot-coins">${icon('layers')} <b>+2</b><small>Coins</small></span>
           ${(round+1)%3===0?`<span class="loot-time">${icon('timer')} <b>+1</b><small>Time</small></span>`:''}
         </div>
+        ${giftNotices.length?`<div class="pact-gift-notices">${giftNotices.join('')}</div>`:''}
         <p class="recap-total">Total <strong>${players[seat].score} pts</strong></p>
         ${won ? env.victoryControls() : ''}</div>
         <div class="recap-next">${progressMarkup(profile)}
@@ -673,13 +695,22 @@ function makeView(env, send) {
           <div class="options table-final">${picks}${button('Pass', 'pass')}</div>`;
       } else {
         heading = 'Play a card';
-        details = '<p class="muted">Cards score alongside your final answer.</p>';
+        details = '<p class="muted">Choose one card. Everyone reveals together.</p>';
         actions = `<div class="options table-cards">
           ${button('Trust · +2 if another player trusts', 'card', 'data-card="Trust" class="trust"')}
           ${button('Betray · +3 if someone copied your decoy', 'card', 'data-card="Betray" class="betray"')}
-          <div class="table-accuse"><label for="target-seat">Call bluff · +3 if right, −1 if wrong</label>
-          <select id="target-seat">${players.map((player, i) => i !== seat ? `<option value="${i}">${esc(name(state, i))}${options[player.clue] ? ` · ${esc(options[player.clue])}` : ''}</option>` : '').join('')}</select>
-          ${button('Call bluff', 'card', 'data-card="Call bluff"')}</div></div>`;
+          <div class="table-accuse"><label for="target-seat">Choose a player</label>
+          <select id="target-seat">${players.map((player, i) => i !== seat && player.online ? `<option value="${i}">${esc(name(state, i))}</option>` : '').join('')}</select>
+          <div class="pact-target-actions">
+            ${[
+              ['Alliance','+3 each if you choose each other',true],
+              ['Persuade','+2 if they copied your honest clue',true],
+              ['Call bluff','+3 if right · −1 if wrong',true],
+              ['Gift coin','Give them 1 coin',state.wallet?.coins],
+              ['Gift time','Give them 1 time token',state.wallet?.time],
+            ].map(([card,tip,available])=>`<button type="button" data-table="card" data-card="${card}" ${available && players.some((p,i)=>i!==seat&&p.online)?'':'disabled'}>
+              <strong>${card}</strong><small>${tip}</small></button>`).join('')}
+          </div></div></div>`;
       }
       content = `${top}<h2>${esc(heading)}</h2>${timer}${details}${state.locked ?
         '<p class="waiting">Locked in. Waiting for the other seats.</p>' : actions}`;
@@ -749,7 +780,7 @@ function makeView(env, send) {
         else if (type === 'admit' || type === 'decline') send({ type: 'admit', id: Number(id), accept: type === 'admit' });
         else if (type === 'start' || type === 'next') send({ type });
         else {
-          const target = card === 'Call bluff' ? Number(app.querySelector('#target-seat').value) : undefined;
+          const target = directedCards.includes(card) ? Number(app.querySelector('#target-seat').value) : undefined;
           send({ type: 'move', phase, round, option: type === 'pass' ? null : option === undefined ? undefined : Number(option),
             from: from === undefined ? undefined : Number(from), card, target });
         }
