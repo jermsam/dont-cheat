@@ -15,8 +15,8 @@
 <meta property="og:image:alt" content="Don't Cheat: The Midnight Trial">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="icon.png">
-<link rel="stylesheet" href="style.css?v=19">
-<script type="module" src="game.js?v=24"></script>
+<link rel="stylesheet" href="style.css?v=20">
+<script type="module" src="game.js?v=25"></script>
 </head>
 <body>
 <header class="mast"><a class="brand" href="./"><span class="sigil">✦</span> DON'T CHEAT</a><button id="sound" class="quiet" type="button" aria-pressed="false">Sound off</button></header>
@@ -50,7 +50,7 @@
   </section>
   <section class="setup-section destination-picker" aria-labelledby="destination-heading" hidden>
     <h2 id="destination-heading" tabindex="-1"> Pick a destination <small>Optional</small></h2>
-    <p>Choose one stop. The rest are a surprise.</p>
+    <p id="destination-help">Choose the opening destination. The rest are a surprise.</p>
     <select id="destination" aria-label="Destination"><option value="">Surprise me</option></select>
     <figure id="destination-preview" hidden><img alt=""><figcaption></figcaption></figure>
   </section>

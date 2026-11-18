@@ -1,13 +1,13 @@
-import { roomMarkup, mountRoomWindow } from './room-window.js';
+import { roomMarkup, mountRoomWindow } from './room-window.js?v=2';
 import { sideScreen, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
 import { getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { masks, maskId } from './masks.js?v=2';
 
-import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=4';
+import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=5';
 import { bestHoldem } from './card-dice-rules.js?v=3';
-import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=4';
-import { matchMarkup, mountMatch } from './match-view.js?v=5';
+import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=5';
+import { matchMarkup, mountMatch } from './match-view.js?v=6';
 
 const limit = 6;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
@@ -21,6 +21,8 @@ export function hostTournament(env) {
   const records = [];
   const route = routes.map(places =>
     (places.find(place => place.id === env.destination) ?? env.shuffle(places)[0]).id);
+  const openingStop=route.indexOf(env.destination);
+  if(openingStop>0)route.unshift(...route.splice(openingStop,1));
   let phase = 'lobby', round = 0, deadline = 0, timer, requestId = 0;
   let matches = [];
   const wallet = new Map();
@@ -477,7 +479,7 @@ function makeView(env, send) {
     previousPhase = state.phase;
     previousRound = state.round;
     const { phase, round, seat, players, challenge } = state;
-    const place = scenarioFor(round % routes.length, state.location);
+    const place = routes.flat().find(location=>location.id===state.location) ?? scenarioFor(round % routes.length, state.location);
     const host = seat === 0;
     const back = '<a class="quiet" href="./">Back to the lobby ↗</a>';
     const header = '<span class="eyebrow">THE MIDNIGHT TRIAL · SEASON</span>';

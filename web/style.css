@@ -465,3 +465,20 @@ button.table-card:hover,button.table-card:focus-visible{background:#ffd6a0;color
 [data-card-zone="hand"][hidden]{display:none}
 .cover-hand{margin-left:6px}
 .physical-table[data-stock="true"] canvas{cursor:pointer}
+.ludo-layout[hidden]{display:none}
+.ludo-roll{display:flex;align-items:center;min-height:54px;gap:12px;flex-wrap:wrap}
+.ludo-die{width:42px;height:42px;position:relative;perspective:140px}
+.ludo-die b{position:absolute;inset:0;display:grid;place-items:center;font:2.12rem/1 system-ui;color:#2c2228;background:#fff0cf;border:1px solid #e5c28a;border-radius:8px}
+.die-cube{position:absolute;inset:0;transform-style:preserve-3d;visibility:hidden}
+.die-cube span{position:absolute;inset:0;display:grid;place-items:center;font:2.12rem/1 system-ui;color:#2c2228;background:#fff0cf;border-radius:7px}
+.die-cube span:nth-child(1){transform:translateZ(21px)}.die-cube span:nth-child(2){transform:rotateY(90deg) translateZ(21px)}
+.die-cube span:nth-child(3){transform:rotateX(90deg) translateZ(21px)}.die-cube span:nth-child(4){transform:rotateX(-90deg) translateZ(21px)}
+.die-cube span:nth-child(5){transform:rotateY(-90deg) translateZ(21px)}.die-cube span:nth-child(6){transform:rotateY(180deg) translateZ(21px)}
+.ludo-die.rolling .die-cube{animation:ludo-tumble .68s cubic-bezier(.24,.7,.36,1)}
+.ludo-die.rolling b{animation:ludo-result .68s steps(1)}
+@keyframes ludo-tumble{0%{visibility:visible;transform:translate(-10px,-8px) rotateX(15deg) rotateY(10deg)}77%{visibility:visible;transform:translateY(-6px) rotateX(610deg) rotateY(540deg)}99%{visibility:visible;transform:rotateX(720deg) rotateY(720deg)}100%{visibility:hidden}}
+@keyframes ludo-result{0%{visibility:hidden}100%{visibility:visible}}
+.room-destination{position:absolute;left:10px;bottom:10px;max-width:54%;padding:5px 8px;border:1px solid #c4986d77;border-radius:4px;background:#140f1be8;color:#f2d5ad;font-size:.78rem}
+.room-cast-controls{position:absolute;top:9px;left:9px;display:flex;gap:5px}
+.room-cast-controls button.quiet{min-height:30px;padding:2px;border-color:#ae875b;background:#201824e8}
+.room-cast-controls img{display:block;width:27px;height:27px;object-fit:cover;border-radius:3px}

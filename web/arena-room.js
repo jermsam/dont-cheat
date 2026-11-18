@@ -1,5 +1,5 @@
 import * as THREE from './vendor/three.module.min.js';
-import { makeCast } from './room-cast.js';
+import { makeCast } from './room-cast.js?v=2';
 import { feltTexture } from './table-art.js';
 
 const seats = [
@@ -8,11 +8,13 @@ const seats = [
 ];
 const themes={
   hall:{wall:0x241e35,stone:0x51475c,floor:0x383041,trim:0xb99153,light:0xffb76e,sky:0x241b31},
+  hearth:{wall:0x432c2a,stone:0x80574b,floor:0x534039,trim:0xc38d58,light:0xffb66b,sky:0x3b2727},
+  outdoor:{wall:0x1c332c,stone:0x4e6752,floor:0x3d5041,trim:0x9b8455,light:0xc0dd94,sky:0x263d33},
   vault:{wall:0x202e34,stone:0x526464,floor:0x2c3a42,trim:0x779b94,light:0x8be9db,sky:0x142329},
   sky:{wall:0x2a2141,stone:0x49456c,floor:0x322c4a,trim:0xa597c3,light:0xc394ff,sky:0x1b1743},
 };
 
-export function createArenaRoom(holder,kind='hall'){
+export function createArenaRoom(holder,kind='hall',place){
   const theme=themes[kind]??themes.hall;
   const renderer=new THREE.WebGLRenderer({alpha:false,antialias:true});
   renderer.setPixelRatio(Math.min(devicePixelRatio,1.35));
@@ -25,10 +27,10 @@ export function createArenaRoom(holder,kind='hall'){
   holder.append(renderer.domElement);
   renderer.domElement.setAttribute('aria-hidden','true');
   const geometries=new Set(),materialSet=new Set(),textures=new Set();
-  const cast=makeCast();
+  const cast=makeCast(render);
   const castStates=new Map();
   const motion=matchMedia('(prefers-reduced-motion: reduce)');
-  let angle=.06, cameraAnimation, ready=true;
+  let angle=.06, cameraAnimation, ready=true, focusSeat=null, closeup=0;
   const material=(color,options={})=>{
     const use=new THREE.MeshStandardMaterial({color,roughness:.78,...options});
     materialSet.add(use);return use;
@@ -79,7 +81,7 @@ export function createArenaRoom(holder,kind='hall'){
   for(const x of [-.69,.69])block(bronze,x,.023,-3.58,.023,.010,5.72);
   block(wall,0,2.7,-6.33,12,5.4,.36);
   for(const side of [-1,1]) {
-    block(wall,side*5.55,2.7,-1.4,.34,5.4,9.9);
+    if(kind!=='outdoor')block(wall,side*5.55,2.7,-1.4,.34,5.4,9.9);
     block(stone,side*5.33,.33,-1.4,.29,.60,9.7);
     block(bronze,side*5.28,4.70,-1.4,.08,.055,9.75);
     for(const z of [-5.37,-3.25,-1.12,1.0]){
@@ -104,7 +106,22 @@ export function createArenaRoom(holder,kind='hall'){
     for(const side of [-1,1])block(bronze,cx+radius*.86*side,base/2,z+.195,.027,base,.018);
   }
   for(const x of [-3.3,3.3]){
-    if(kind==='vault'){
+    if(kind==='hearth'){
+      block(wood,x,.62,-5.69,2.0,1.22,.63);
+      block(stone,x,1.24,-5.66,2.05,.095,.70);
+      for(const dx of [-.52,.52]){
+        block(bronze,x+dx,.83,-5.34,.43,.05,.07);
+        mesh(round,dark,x+dx,1.44,-5.60,.21,.31,.21);
+        mesh(round,bronze,x+dx,1.61,-5.60,.22,.055,.22);
+      }
+    }else if(kind==='outdoor'){
+      block(wood,x,1.12,-5.34,1.6,.11,.74);
+      for(const dx of [-.69,.69]){
+        block(wood,x+dx,.53,-5.32,.10,1.03,.1);
+        block(wood,x+dx,1.84,-5.45,.066,1.43,.066);
+      }
+      block(path,x,2.62,-5.42,1.66,.075,.86).rotation.x=.23;
+    }else if(kind==='vault'){
       block(deep,x,2.6,-6.09,2.13,3.1,.075);
       for(let i=0;i<5;i++)block(bronze,x-.88+i*.44,2.61,-6.01,.036,3.01,.045);
       block(warm,x,3.58,-5.95,1.93,.035,.055);
@@ -125,6 +142,26 @@ export function createArenaRoom(holder,kind='hall'){
   arch(0,2.64,2.67,.89,-6.05);
   block(deep,0,1.50,-6.08,2.34,3.07,.065);
   const threshold=block(warm,0,.038,-5.73,2.16,.012,.06);
+  if(place?.art){
+    const scenicGeo=new THREE.PlaneGeometry(11.95,5.4);
+    geometries.add(scenicGeo);
+    const backdrop=new THREE.MeshBasicMaterial({color:0xc7b7b4,toneMapped:false});
+    materialSet.add(backdrop);
+    const scenic=mesh(scenicGeo,backdrop,0,2.7,-6.12);
+    scenic.visible=false;
+    new THREE.TextureLoader().load(`places/${place.art}.jpg`,texture=>{
+      if(!ready){texture.dispose();return;}
+      texture.colorSpace=THREE.SRGBColorSpace;
+      texture.repeat.y=Math.min(1,5.4/11.95*(texture.image.width/texture.image.height));
+      texture.offset.y=(1-texture.repeat.y)*.5;
+      textures.add(texture);
+      backdrop.map=texture;
+      backdrop.needsUpdate=true;
+      scenic.visible=true;
+      holder.dataset.scenery=place.art;
+      render();
+    },undefined,()=>{});
+  }
   const doors=[-1,1].map(side=>{
     const hinge=new THREE.Group();
     hinge.position.set(side*1.12,0,-5.86);
@@ -186,8 +223,16 @@ export function createArenaRoom(holder,kind='hall'){
     if(!ready || !holder.clientWidth || !holder.clientHeight)return;
     const narrow=camera.aspect<1.4;
     const distance=narrow?8.2:7.7;
-    camera.position.set(Math.sin(angle)*distance,narrow?3.25:3.08,Math.cos(angle)*distance-.7);
-    camera.lookAt(0,1.54,-1.48);
+    const position=new THREE.Vector3(Math.sin(angle)*distance,narrow?3.25:3.08,Math.cos(angle)*distance-.7);
+    const target=new THREE.Vector3(0,1.54,-1.48);
+    if(focusSeat!==null){
+      const [x,z,rotation]=seats[focusSeat];
+      position.lerp(new THREE.Vector3(x+Math.sin(rotation)*2.2,1.62,z+Math.cos(rotation)*2.2),closeup);
+      target.lerp(new THREE.Vector3(x,1.31,z),closeup);
+    }
+    camera.position.copy(position);
+    camera.lookAt(target);
+    holder.dataset.portraits=[...castStates.values()].map(entry=>entry.actor.root.userData.portrait).filter(Boolean).join(',');
     renderer.render(scene,camera);
   }
   function adjust(){
@@ -244,7 +289,23 @@ export function createArenaRoom(holder,kind='hall'){
     holder.dataset.actors=String(castStates.size);
     render();
   }
+  function focus(id){
+    if(!castStates.has(id))return;
+    if(focusSeat!==id)closeup=0;
+    focusSeat=id;
+    cameraAnimation?.stop();
+    if(motion.matches){closeup=1;render();return;}
+    cameraAnimation=globalThis.Motion.animate(closeup,1,{duration:.48,ease:'easeInOut',
+      onUpdate:value=>{closeup=value;render();}});
+  }
   function orbit(){
+    if(focusSeat!==null){
+      cameraAnimation?.stop();
+      if(motion.matches){closeup=0;focusSeat=null;render();return;}
+      cameraAnimation=globalThis.Motion.animate(closeup,0,{duration:.45,ease:'easeInOut',
+        onUpdate:value=>{closeup=value;render();},onComplete:()=>{focusSeat=null;}});
+      return;
+    }
     const target=angle> .2?-.28:.34;
     cameraAnimation?.stop();
     if(motion.matches){angle=target;render();return;}
@@ -264,5 +325,5 @@ export function createArenaRoom(holder,kind='hall'){
   });
   removal.observe(holder.closest('main'),{childList:true,subtree:true});
   adjust();
-  return {update,orbit,adjust};
+  return {update,orbit,adjust,focus};
 }

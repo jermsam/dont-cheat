@@ -1,12 +1,12 @@
-import { roomMarkup, mountRoomWindow } from './room-window.js';
+import { roomMarkup, mountRoomWindow } from './room-window.js?v=2';
 import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { drawRelic, stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
-import { hostTournament, joinTournament } from './tournament.js?v=11';
+import { hostTournament, joinTournament } from './tournament.js?v=12';
 
 import { challenges } from './challenges.js';
-import { matchTitles } from './match-rules.js?v=4';
+import { matchTitles } from './match-rules.js?v=5';
 import { mountPuzzleBoard } from './puzzle-board.js';
 
 const app = document.querySelector('#app');
@@ -371,7 +371,7 @@ function waitingRoom(crew) {
   <div class="row"><button class="primary" id="share">Share to WhatsApp ↗</button><button id="copy">Copy invite</button></div>
   <div hidden><label for="invite" class="eyebrow">Invite link</label><input id="invite" class="invite" readonly value="${escape(invitation)}"></div>
   <p class="waiting">Waiting for your friend. Keep this tab open and come back after sharing.</p>${homeButton}`, true, 'arena-lobby', '', 'private-lobby');
-  mountRoomWindow(app,[{online:true,mask:chosenMask}]);
+  mountRoomWindow(app,[{online:true,mask:chosenMask}],routes.flat().find(place=>place.id===chosenDestination));
   document.querySelector('#share').onclick = share;
   document.querySelector('#copy').onclick = copy;
 }
@@ -1003,6 +1003,8 @@ function mountLobby() {
       selected = button.dataset.mode;
       modes.forEach(item => item.setAttribute('aria-pressed', item === button));
       gamesDescription.textContent = 'Pick the opening event. The same season mixes board matches, card games, dice, and a group vote.';
+      lobby.querySelector('#destination-help').textContent=selected==='tournament' ?
+        'Choose the opening destination. The rest are a surprise.' : 'Choose one stop. The rest are a surprise.';
       [launch.textContent, next.textContent] = descriptions[selected];
       updateMask(selected);
       showScene();
