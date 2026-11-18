@@ -336,3 +336,21 @@ body:has(.side-screen[open]){overflow:hidden}
 .victory-confetti i:nth-child(3n){background:#ff9db6;border-radius:50%}
 .victory-confetti i:nth-child(4n){background:#fff1c0;width:4px}
 @keyframes victory-fall{15%{opacity:.95}100%{opacity:0;transform:translate(var(--drift),360px) rotate(480deg)}}
+
+.hero-arcade{display:inline-block;margin:10px 0 0 12px;font-size:.86rem;font-weight:800;text-decoration:underline;text-underline-offset:4px}
+.mode-choice #arcade{grid-column:1/-1}
+#games-description{color:var(--dim);font-size:.9rem;line-height:1.4;margin:0 0 12px}
+.game-library{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.game-library button{padding:7px 9px;font-size:.85rem;text-align:left}
+.game-library button[aria-pressed="true"]{border-color:var(--gold);color:var(--gold);background:#3c2935}
+.round-advance{padding:10px 0;margin:8px 0 12px}
+.round-advance p{margin:0 0 8px}
+.puzzle-3d{max-width:520px;height:clamp(200px,47vw,340px);margin:8px auto;border:1px solid var(--stroke);border-radius:12px;overflow:hidden;background:radial-gradient(ellipse,#5b354b,#1b121f 74%)}
+.puzzle-3d canvas{display:block}
+.puzzle-grid[hidden],.puzzle-3d[hidden],.board-controls [hidden]{display:none}
+.board-controls{display:flex;gap:6px;margin:6px 0 10px;justify-content:center}
+.victory-actions #victory-music{color:#20131a;background:var(--gold);border-color:var(--gold)}
+@media(max-width:680px){
+  .hero-arcade{margin-left:0;display:block;width:max-content}
+  .setup-visual[data-step="3"]{min-height:105px}
+}
