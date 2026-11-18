@@ -1,6 +1,7 @@
 use iroh::{
-    Endpoint, EndpointId,
-    endpoint::{Connection, presets::N0},
+    Endpoint, EndpointAddr, EndpointId, RelayMap, RelayUrl,
+    defaults::prod::default_relay_map,
+    endpoint::{Connection, RelayMode, presets::N0},
 };
 use wasm_bindgen::prelude::*;
 
@@ -11,6 +12,16 @@ fn js(error: impl std::fmt::Display) -> JsError {
     JsError::new(&error.to_string())
 }
 
+// Safari rejects TLS connections to these relay hosts when the DNS root dot is present.
+fn browser_relays() -> Result<RelayMap, JsError> {
+    let urls: Vec<RelayUrl> = default_relay_map().urls();
+    let addresses: Vec<_> = urls
+        .iter()
+        .map(|url| url.to_string().replace("./", "/"))
+        .collect();
+    RelayMap::try_from_iter(addresses.iter().map(String::as_str)).map_err(js)
+}
+
 #[wasm_bindgen]
 pub struct Arena(Endpoint);
 
@@ -18,6 +29,7 @@ pub struct Arena(Endpoint);
 impl Arena {
     pub async fn start() -> Result<Arena, JsError> {
         let endpoint = Endpoint::builder(N0)
+            .relay_mode(RelayMode::Custom(browser_relays()?))
             .alpns(vec![PROTOCOL.to_vec()])
             .bind()
             .await
@@ -30,6 +42,15 @@ impl Arena {
         self.0.id().to_string()
     }
 
+    pub fn relay_host(&self) -> Option<String> {
+        self.0
+            .addr()
+            .relay_urls()
+            .next()?
+            .host_str()
+            .map(str::to_owned)
+    }
+
     pub async fn accept(&self) -> Result<Link, JsError> {
         let incoming = self
             .0
@@ -39,9 +60,18 @@ impl Arena {
         Ok(Link(incoming.await.map_err(js)?))
     }
 
-    pub async fn dial(&self, id: String) -> Result<Link, JsError> {
+    pub async fn dial(&self, id: String, relay_host: Option<String>) -> Result<Link, JsError> {
         let id = id.parse::<EndpointId>().map_err(js)?;
-        Ok(Link(self.0.connect(id, PROTOCOL).await.map_err(js)?))
+        let mut address = EndpointAddr::new(id);
+        if let Some(host) = relay_host {
+            let relays: Vec<RelayUrl> = browser_relays()?.urls();
+            let relay = relays
+                .into_iter()
+                .find(|url| url.host_str() == Some(host.as_str()))
+                .ok_or_else(|| JsError::new("Unrecognized relay address"))?;
+            address = address.with_relay_url(relay);
+        }
+        Ok(Link(self.0.connect(address, PROTOCOL).await.map_err(js)?))
     }
 
     pub async fn close(&self) {
