@@ -206,7 +206,7 @@ export function makeCast(refresh, useTripo=false){
       const forearm=direction.clone().multiplyScalar(distance).sub(jointDirection).normalize();
       elbow.quaternion.setFromUnitVectors(down,forearm.applyQuaternion(arm.quaternion.clone().invert()));
       head.rotation.x=.09+amount*.12;
-      model?.sync(pinch,amount);
+      model?.sync(pinch,amount,target);
       return model?.contact() ?? {position:elbow.localToWorld(fingertips.clone())};
     }
     const legs=[-1,1].map(side=>{
@@ -334,8 +334,8 @@ export function makeCast(refresh, useTripo=false){
     }
     pose();
     if(useTripo && (mask==='saint'||mask==='prince')){
-      void import('./tripo-cast.js?v=5').then(({loadTripoCast})=>loadTripoCast(mask,root,{
-        hip,head,shoulder,legs,cardGrip,gripParent:shoulder[0].elbow
+      void import('./tripo-cast.js?v=8').then(({loadTripoCast})=>loadTripoCast(mask,root,{
+        hip,head,shoulder,legs,cardGrip
       })).then(asset=>{
         if(released||disposed){asset.dispose();return;}
         model=asset;

@@ -32,3 +32,14 @@ export function cardContact(thumb,index,wrist){
   const rotation=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(right,up,along));
   return {position,rotation,gap:a.distanceTo(b)};
 }
+
+export function arrangeHeldCards(grip){
+  const cards=grip.children;
+  for(const [i,card] of cards.entries()){
+    const angle=(i-(cards.length-1)/2)*.18;
+    const offset=new THREE.Vector3(0,0,.057).applyAxisAngle(new THREE.Vector3(0,1,0),angle);
+    card.position.copy(offset);
+    card.position.y=i*.0015;
+    card.rotation.set(0,angle,0);
+  }
+}
