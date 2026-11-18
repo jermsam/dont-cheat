@@ -963,6 +963,7 @@ function makeView(env, send) {
     const changedMove = phaseIsNewMove(board,matchId,previousMatch);
     if (board) {
       if (changedMove && board.key==='ludo' && board.last?.to===(board.finish ?? 56)) env.cue('crown');
+      else if (changedMove && board.key==='chess' && board.result?.reason==='Checkmate') env.cue('checkmate');
       else if (changedMove && board.result) env.cue(board.result.winner===null ? 'reveal' :
         (board.result.winners?.includes(board.side) ?? board.result.winner===board.side) ? 'crown' : 'pass');
       if (changedMove && board.toss?.serial === board.serial) env.cue('dice');

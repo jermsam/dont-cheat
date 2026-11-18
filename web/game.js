@@ -5,7 +5,7 @@ import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=3';
-import { hostTournament, joinTournament, cleanDisplayName } from './tournament.js?v=46';
+import { hostTournament, joinTournament, cleanDisplayName } from './tournament.js?v=47';
 
 import { challenges } from './challenges.js';
 import { matchTitles } from './match-rules.js?v=12';
@@ -114,6 +114,10 @@ function chime(notes = [147, 220, 294], { wave = 'triangle', volume = .08, lengt
 }
 
 function playCue(name) {
+  if (name === 'checkmate') {
+    if (enabled && audio) void playCheckmate();
+    return;
+  }
   const cue = soundCues[name];
   if (cue) chime(cue.notes, cue);
   if (!enabled || !audio || audio.state !== 'running' || !['dice','draw','penalty'].includes(name)) return;
@@ -156,6 +160,32 @@ async function prepareAudio() {
     audioOut.gain.value = enabled ? 1 : 0;
   }
   return audio.resume();
+}
+
+let checkmateBuffer;
+
+function loadCheckmate() {
+  checkmateBuffer ??= fetch('music/checkmate.mp3').then(response => {
+    if (!response.ok) throw new Error('Checkmate voice unavailable');
+    return response.arrayBuffer();
+  }).then(buffer => audio.decodeAudioData(buffer)).catch(error => {
+    checkmateBuffer = null;
+    throw error;
+  });
+  return checkmateBuffer;
+}
+
+async function playCheckmate() {
+  try {
+    const buffer = await loadCheckmate();
+    if (!enabled || audio.state !== 'running') return;
+    const source = audio.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioOut);
+    source.start();
+  } catch {
+    if (enabled) chime(soundCues.crown.notes, soundCues.crown);
+  }
 }
 
 function loadFanfare() {
@@ -242,7 +272,7 @@ showSound();
 
 document.addEventListener('click', event => {
   if (!enabled || event.target.closest('#sound, #victory-music') || audio?.state === 'running') return;
-  void prepareAudio().then(loadFanfare).catch(() => {});
+  void prepareAudio().then(() => Promise.allSettled([loadFanfare(), loadCheckmate()])).catch(() => {});
 }, {capture: true});
 
 soundButton.onclick = () => {
@@ -252,6 +282,7 @@ soundButton.onclick = () => {
   }
   setSound(true);
   void playFanfare(!app.querySelector('#victory-music'));
+  if (audio) void loadCheckmate().catch(() => {});
 };
 
 function victoryControls() {
