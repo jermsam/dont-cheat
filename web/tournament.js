@@ -541,22 +541,25 @@ function makeView(env, send) {
       const signed=points>0?`+${points}`:String(points);
       const headline = phase === 'reveal' ? points>0 ? 'Points earned' : 'Round complete' : won ?
         winners.length === 1 ? 'You won the table.' : 'You tied for first.' : 'The table has spoken.';
-      content = `${won ? '<span class="eyebrow">VICTORY</span>' : header}<div class="cinematic-title"><h2>${headline}</h2></div>
+      content = `${won ? '<span class="eyebrow">VICTORY</span>' : header}
+        <div class="recap-layout"><div class="recap-result"><h2>${headline}</h2>
         ${phase === 'verdict' ? `<p>${winners.length === 1 ? 'Winner' : 'Joint winners'} <strong>${winners.map(esc).join(' / ')}</strong> · ${best} pts</p>` : ''}
         ${state.records[round]?.match ? `<p>${esc(state.records[round].entries[seat]?.answer ?? '')}</p>` : ''}
         <div class="round-loot" aria-label="Round reward">
           <span>${icon('trophy')} <b>${signed}</b> pts</span><span>${icon('layers')} <b>+2</b> coins</span>
           ${(round+1)%3===0?`<span>${icon('timer')} <b>+1</b> time</span>`:''}
         </div>
-        <p>Total <strong>${players[seat].score} pts</strong></p>${progressMarkup(profile)}
-        ${won ? env.victoryControls() : ''}
+        <p class="recap-total">Total <strong>${players[seat].score} pts</strong></p>
+        ${won ? env.victoryControls() : ''}</div>
+        <div class="recap-next">${progressMarkup(profile)}
         ${phase === 'verdict' ? `<div class="row">${button('Share result', 'share-result', 'class="quiet"')}<a class="another-season" href="./?season=new#brain-games">New season ${icon('arrow-right')}</a></div>` :
           roundAdvance(round + 2, host, state.recapPaused) + shop(state)}
-        <div class="screen-links">
+        </div></div>
+        <div class="screen-links recap-links">
           ${sideScreen('table-scores', 'Scoreboard', roster(state))}
           ${sideScreen('table-results', 'Round history', receipt(state) +
             (state.records.some(record => record.verdict) ? '<p>Did someone’s clue change your mind?</p>' : ''))}
-        </div>${statusOptions(state)}`;
+          ${statusOptions(state)}</div>`;
     } else {
       const puzzle = getPuzzle(challenge.key, challenge.index, challenge.seed);
       const options = challenge.options;
@@ -600,7 +603,7 @@ function makeView(env, send) {
 
     clearInterval(ticker);
     const art = (phases.includes(phase) || phase === 'match') && place?.art ? `--place-art:url(places/${place.art}.jpg)` : '';
-    env.stage(content, false, `scene focused-turn tournament${phase === 'match' ? ' live-table-stage' : phase === 'lobby' ? ' arena-lobby' : ''}${won ? ' victory' : ''}${art ? ' with-place' : ''}`, art, `table:${round}:${phase}`);
+    env.stage(content, false, `scene focused-turn tournament${phase === 'match' ? ' live-table-stage' : phase === 'lobby' ? ' arena-lobby' : phase === 'reveal' || phase === 'verdict' ? ' season-recap' : ''}${won ? ' victory' : ''}${art ? ' with-place' : ''}`, art, `table:${round}:${phase}`);
     const app = document.querySelector('#app');
     app.querySelector('.another-season')?.addEventListener('click', event=>{
       if (location.search === '?season=new') {
