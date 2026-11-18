@@ -62,7 +62,7 @@ Each player starts with 5 coins and 1 time token and earns 2 coins after each ro
 
 ## Motion and sound
 
-The briefing and verdict show a rendered 3D relic. Scene art shifts with the pointer on desktop, and cards turn over together at the reveal. Player portraits animate at the start of each phase. Tap **Sound off** to enable the synthesized door, countdown, and reveal cues. Reduced-motion settings keep the relic still and skip scene and card animations.
+Scene art shifts with the pointer on desktop, and cards turn over together at the reveal. Player portraits animate at the start of each phase. Tap **Sound off** to enable the synthesized door, countdown, and reveal cues. Reduced-motion settings skip scene and card animations.
 
 ## Development
 
@@ -98,22 +98,10 @@ Spades, Hearts, Euchre, President, Kings, and Left Center Right use four-seat ta
 
 In Matatu, if you have no match, draw from the stock. Play the drawn card immediately if it fits, or pass. An unusable draw passes the turn automatically. Tap the face-down stock in 3D or use the Draw button above the table. When a 2 is played, the button shows the number of penalty cards. Taking the penalty ends the turn.
 
-### Rooms and cast
+### Destinations and portraits
 
-Season lobbies render a 3D room that reflects the live seat roster. Joining players enter the room and sit at the table in their chosen masks. The original cast uses articulated meshes, and the scene adapts its architecture and lighting for hall, vault, and observatory themes. Use **Look around** to change the angle or **Look inside the room** during a match. Reduced-motion mode seats players immediately. The roster and room controls also work when WebGL is unavailable.
+Season lobbies show the live seat roster and player portraits. The selected destination opens the season and is shared by the lobby and the first event. Destination art accompanies the relevant screens.
 
-Card tables show opponents’ card backs when the rules expose their hand size. **Cover my hand** hides your cards on your screen. Only game-required reveals are shown at the table, and the season recap leaves out card faces from private hands. The host browser still runs the deck and rules.
+Card tables show opponents’ card backs when the rules expose their hand size. **Cover my hand** hides your cards on your screen. The table shows game-required reveals, and the season recap keeps private hands out of the record. The host browser runs the deck and rules.
 
-In Tournament, the selected destination opens the season and is shared by the lobby and first event. The 3D room uses destination artwork with setting-specific lighting and set pieces. The cast uses the selected portrait textures on its 3D head meshes with matching wardrobe colors. Tap a player's portrait for a close-up. Ludo rolls animate in flat and 3D views, including consecutive identical results. The host still resolves the die under the same rules.
-
-### Physical materials
-
-The room and props use [Wood Table 001](https://polyhaven.com/a/wood_table_001), [Marble 01](https://polyhaven.com/a/marble_01), [Fabric Pattern 07](https://polyhaven.com/a/fabric_pattern_07) and [Brown Photostudio 07](https://polyhaven.com/a/brown_photostudio_07) from Poly Haven under CC0. Color and normal textures are resized and served as WebP, and the lighting probe is the 1K HDR. The animated character rigs and printed deck faces are built in the browser.
-
-The Midnight Kitchen is modeled in Three.js, including the stove, cabinets, windows and furnishings. The Saint and The Prince use their selected portrait textures, sculpted facial contours and modeled clothing and accessories. Open **Look inside the room** during Matatu to play from the kitchen view. Motion animates the opening deal, draws and public discards from the shared match state. Each player can open their own legal card choices. The cards held by the seated characters show their backs to every viewer.
-
-The Midnight Kitchen uses three additional CC0 Poly Haven assets for its close-ups and table view. [Painted Wooden Chair 01](https://polyhaven.com/a/painted_wooden_chair_01), [Painted Plaster Wall](https://polyhaven.com/a/painted_plaster_wall), and [Kitchen Wood](https://polyhaven.com/a/kitchen_wood).
-
-Rock terrain uses [Rock Face 01](https://polyhaven.com/a/rock_face_01), also CC0.
-
-The Midnight Kitchen's dining table, electric stove, kettle, cookware, cutting board, apples, cabinet, lantern, wall tile and nighttime window panorama are [Poly Haven CC0 assets](https://polyhaven.com/license). The Saint and Prince use project-owned portrait artwork registered to their existing mesh landmarks. The card animation uses the live Matatu actions and keeps private card values out of the room animation.
+Ludo rolls animate in flat and 3D views, including consecutive identical results. The host resolves the die under the same rules.

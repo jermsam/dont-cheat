@@ -1,9 +1,8 @@
-import { roomMarkup, mountRoomWindow } from './room-window.js?v=13';
 import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
-import { drawRelic, stageDepth } from './relic.js';
+import { stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
-import { hostTournament, joinTournament } from './tournament.js?v=23';
+import { hostTournament, joinTournament } from './tournament.js?v=24';
 
 import { challenges } from './challenges.js';
 import { matchTitles } from './match-rules.js?v=6';
@@ -60,7 +59,7 @@ let arena, link, key, game, revision = 0, shown, audio, enabled = false;
 let seat = 0, clockEnd = 0, phaseDuration = duration, solo = false, pending = false, guestAccepted = false;
 let invitation = '';
 let lastAlarm = -1;
-let audioOut, stopRelic, currentScreen;
+let audioOut, currentScreen;
 let chosenMask = null;
 let chosenDestination = null;
 
@@ -257,7 +256,6 @@ function celebrate(stageElement, fresh) {
   if (enabled) void playFanfare();
 }
 
-const relic = '<div class="relic" aria-hidden="true"><canvas width="260" height="260"></canvas></div>';
 
 function stage(content, summons = false, scene = '', placeArt = '', screen = null) {
   const sameScreen = screen !== null && screen === currentScreen;
@@ -270,8 +268,6 @@ function stage(content, summons = false, scene = '', placeArt = '', screen = nul
   const resignOpen = sameScreen && app.querySelector('[data-resign-confirm]:not([hidden])');
   const liveBoard = sameScreen ? [...app.querySelectorAll('.live-3d, .table-objects, .room-window')] : [];
   currentScreen = screen;
-  stopRelic?.();
-  stopRelic = undefined;
   app.innerHTML = `<section class="stage ${summons ? 'summons' : ''} ${scene}"${placeArt ? ` style="${placeArt}"` : ''}><div class="board">${content}</div></section>`;
   choices.forEach(([id,value])=>{
     const select=document.getElementById(id);
@@ -286,20 +282,6 @@ function stage(content, summons = false, scene = '', placeArt = '', screen = nul
   if (!sameScreen) {
     arrive(app.querySelector('.board'));
     window.scrollTo(0, 0);
-  }
-  const sculpture = app.querySelector('.relic');
-  if (sculpture) {
-    const fallback = sculpture.querySelector('canvas');
-    stopRelic = drawRelic(fallback);
-    import('./setup-scene.js?v=2').then(({ mountSetupScene }) => {
-      if (!sculpture.isConnected) return;
-      const model = mountSetupScene(sculpture, true);
-      if (!model) return;
-      stopRelic?.();
-      stopRelic = undefined;
-      fallback.remove();
-      model.update(2, 'tournament');
-    }).catch(() => {});
   }
   const sceneElement = app.querySelector('.scene');
   if (sceneElement) stageDepth(sceneElement);
@@ -367,11 +349,10 @@ async function copy() {
 }
 function waitingRoom(crew) {
   stage(`<span class="eyebrow">PRIVATE SUMMONS</span><h2>${crew ? 'Build your crew.' : 'One seat left.'}</h2>
-  <p>Send your friend the invite. They tap the card or link, then <strong>Continue</strong> to join.</p>${roomMarkup}
+  <p>Send your friend the invite. They tap the card or link, then <strong>Continue</strong> to join.</p>
   <div class="row"><button class="primary" id="share">Share to WhatsApp ↗</button><button id="copy">Copy invite</button></div>
   <div hidden><label for="invite" class="eyebrow">Invite link</label><input id="invite" class="invite" readonly value="${escape(invitation)}"></div>
   <p class="waiting">Waiting for your friend. Keep this tab open and come back after sharing.</p>${homeButton}`, true, 'arena-lobby', '', 'private-lobby');
-  mountRoomWindow(app,[{online:true,mask:chosenMask}],routes.flat().find(place=>place.id===chosenDestination));
   document.querySelector('#share').onclick = share;
   document.querySelector('#copy').onclick = copy;
 }
@@ -394,7 +375,7 @@ async function approveGuest(code) {
 
 function tableEnvironment(playlist) {
   return { arena, key, invite: invitation, mask: chosenMask, playlist, stage, timeout, share, copy,
-    notice: say, escape, relic, victoryControls, shuffle: shuffled, cue: playCue, destination: chosenDestination };
+    notice: say, escape, victoryControls, shuffle: shuffled, cue: playCue, destination: chosenDestination };
 }
 
 async function host(crew = false, playlist = null) {
@@ -812,31 +793,10 @@ function mountRoutePicker() {
     select.append(group);
   });
   const preview = document.querySelector('#destination-preview');
-  const image=preview.querySelector('img');
-  const model=preview.querySelector('[data-destination-model]');
-  const previewButton=preview.querySelector('#preview-destination-3d');
-  previewButton.hidden=!window.WebGL2RenderingContext;
-  previewButton.onclick=()=>{
-    const scenario=routes.flat().find(place=>place.id===chosenDestination);
-    if(!scenario)return;
-    if(model.firstElementChild){
-      model.replaceChildren();
-      image.hidden=false;
-      previewButton.textContent='Preview in 3D';
-      return;
-    }
-    model.innerHTML=roomMarkup;
-    image.hidden=true;
-    previewButton.textContent='Show destination art';
-    mountRoomWindow(model,[],scenario);
-  };
   select.onchange = () => {
     chosenDestination = select.value || null;
     const scenario = routes.flat().find(place => place.id === chosenDestination);
     preview.hidden = !scenario;
-    model.replaceChildren();
-    image.hidden=false;
-    previewButton.textContent='Preview in 3D';
     if (scenario) {
       preview.querySelector('img').src = scenario.art ? `places/${scenario.art}.jpg` : 'arena.jpg';
       preview.querySelector('figcaption').textContent = scenario.line;
@@ -956,15 +916,11 @@ function mountLobby() {
       showScene();
     };
   });
-  let scene;
-  let sceneLoading = false;
-
   function showScene() {
     const place = routes.flat().find(location => location.id === chosenDestination);
     const panel = flow()[step];
     visual.style.setProperty('--setup-art', panel === 2 && place?.art ? `url(places/${place.art}.jpg)` : '');
     visual.dataset.step = panel;
-    scene?.update(panel === 3 ? 0 : panel, selected, chosenMask, place?.id);
   }
 
   function showStep(index) {
@@ -987,12 +943,6 @@ function mountLobby() {
     hero.hidden = true;
     lobby.hidden = false;
     showStep(at);
-    if (sceneLoading) return;
-    sceneLoading = true;
-    import('./setup-scene.js?v=2').then(({ mountSetupScene }) => {
-      if (visual.isConnected) scene = mountSetupScene(visual);
-      showScene();
-    }).catch(() => {});
   }
 
   entry.onclick = event => {
@@ -1128,9 +1078,8 @@ function draw(state) {
   const score = crew ? `<div class="score"><span>CREW · ${teamScore} / ${crewTarget}</span><span>TEAM HEIST</span></div>` :
     `<div class="score"><span>YOU · ${scores[seat]}</span><span>${opponent} · ${scores[1 - seat]}</span></div>`;
   if (phase === 'briefing' && scenario) {
-    stage(`${score}${maskSeats(state)}<div class="cinematic-title"><div><span class="eyebrow">ROUND ${round + 1} OF ${roundCount} · BRIEFING</span><h2>${scenario.name}</h2></div>${relic}</div>
+    stage(`${score}${maskSeats(state)}<div class="cinematic-title"><div><span class="eyebrow">ROUND ${round + 1} OF ${roundCount} · BRIEFING</span><h2>${scenario.name}</h2></div></div>
       <p>${scenario.line}</p>
-      ${!state.solo ? sideScreen('arena-view','Game room',roomMarkup,'Look inside the room') : ''}
       <ul class="briefing-rules">
         <li><b>${crew ? crewTriviaTime(scenario) : scenario.seconds + extraTriviaSeconds}s</b> to answer</li>
         <li><b>+${scenario.trivia ?? 2}</b> for a correct answer</li>
@@ -1140,7 +1089,6 @@ function draw(state) {
       </ul>
       <div class="clock-track"><span class="eyebrow">Round starts in</span><span class="clock" id="clock" aria-label="Round starts in"></span><div class="bar" id="bar" aria-hidden="true"></div></div>`,
       false, `scene scene-briefing${locationTone}`, locationStyle);
-    if (!state.solo) mountRoomWindow(app,state.masks.map(mask=>({online:true,mask})),scenario,app.querySelector('[data-open-screen="arena-view"]'));
     tick();
     return;
   }
@@ -1246,7 +1194,7 @@ function draw(state) {
   const [you, them] = [scores[seat], scores[1 - seat]];
   const won = crew ? teamScore >= crewTarget : you > them;
   const verdict = crew ? (teamScore >= crewTarget ? 'Your crew got away.' : 'The host kept the loot.') : you === them ? 'The trial ends in a draw.' : you > them ? 'You won the trial.' : 'The other seat won.';
-  stage(`${score}<div class="cinematic-title"><div><span class="eyebrow">${won ? 'VICTORY' : 'FINAL VERDICT'}</span><h2>${verdict}</h2></div>${relic}</div>${won ? victoryControls() : ''}<div class="pact-cards">${pactCards(record, state)}</div>${giftReveal(record)}<div class="row">${sideScreen('round-results', 'Round history', roundPages(records.map(result => `<ul class="receipt"><li>${receipt(result)}</li></ul>`)) + (!state.solo ? debrief(round) : ''))}${homeButton}</div>`, false, `scene scene-verdict${won ? ' victory' : ''}${locationTone}`, locationStyle, 'duo:verdict');
+  stage(`${score}<div class="cinematic-title"><div><span class="eyebrow">${won ? 'VICTORY' : 'FINAL VERDICT'}</span><h2>${verdict}</h2></div></div>${won ? victoryControls() : ''}<div class="pact-cards">${pactCards(record, state)}</div>${giftReveal(record)}<div class="row">${sideScreen('round-results', 'Round history', roundPages(records.map(result => `<ul class="receipt"><li>${receipt(result)}</li></ul>`)) + (!state.solo ? debrief(round) : ''))}${homeButton}</div>`, false, `scene scene-verdict${won ? ' victory' : ''}${locationTone}`, locationStyle, 'duo:verdict');
   if (!won && previous?.phase !== 'verdict') playCue('verdict');
 }
 function tick() {

@@ -1,4 +1,3 @@
-import { roomMarkup, mountRoomWindow } from './room-window.js?v=13';
 import { sideScreen, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
 import { getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
@@ -7,7 +6,7 @@ import { masks, maskId } from './masks.js?v=2';
 import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=6';
 import { bestHoldem } from './card-dice-rules.js?v=3';
 import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=6';
-import { cardName, matchMarkup, mountMatch } from './match-view.js?v=8';
+import { matchMarkup, mountMatch } from './match-view.js?v=8';
 
 const limit = 6;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
@@ -493,7 +492,7 @@ function makeView(env, send) {
 
     if (phase === 'lobby') {
       const seated = players.filter(player => player.online).length;
-      content = `${header}<h2>Seats are open.</h2><p>${seated} of ${limit} seats filled</p>${roomMarkup}
+      content = `${header}<h2>Seats are open.</h2><p>${seated} of ${limit} seats filled</p>
         ${host ? `<div class="row"><button id="share" class="primary">Share to WhatsApp ↗</button><button id="copy">Copy invite</button></div>
           <div hidden><label for="invite">Invite link</label><input id="invite" class="invite" readonly value="${esc(env.invite)}"></div>
           ${state.approvals.map(request => `<div class="table-admission"><p>Match this code with your guest <strong>${esc(request.code)}</strong></p>
@@ -511,7 +510,7 @@ function makeView(env, send) {
       won = phase === 'verdict' && players[seat].score === best;
       const headline = phase === 'reveal' ? 'The round is unsealed.' : won ?
         winners.length === 1 ? 'You won the table.' : 'You tied for first.' : 'The table has spoken.';
-      content = `${won ? '<span class="eyebrow">VICTORY</span>' : header}<div class="cinematic-title"><h2>${headline}</h2>${env.relic}</div>
+      content = `${won ? '<span class="eyebrow">VICTORY</span>' : header}<div class="cinematic-title"><h2>${headline}</h2></div>
         ${phase === 'verdict' ? `<p>${winners.length === 1 ? 'Winner' : 'Joint winners'} <strong>${winners.map(esc).join(' / ')}</strong> · ${best} pts</p>` : ''}
         <p>Your score <strong>${players[seat].score} pts</strong></p>${won ? env.victoryControls() : ''}
         ${phase === 'verdict' ? `<div class="row">${button('Share result', 'share-result', 'class="primary"')}${back}</div>` :
@@ -562,30 +561,10 @@ function makeView(env, send) {
         '<p class="waiting">Locked in. Waiting for the other seats.</p>' : actions}`;
     }
 
-    const kitchenTable=phase==='match' && place.id==='midnight-kitchen' && state.board?.key==='matatu';
-    let roomControls='';
-    if(kitchenTable){
-      const {legal, penalty}=state.board;
-      const direct=legal.flatMap((move,index)=>move.take?
-        [`<button type="button" data-kitchen-move="${index}">Draw ${penalty||1}</button>`]:
-        move.choice==='Pass'?[ `<button type="button" data-kitchen-move="${index}">Pass</button>` ]:[]);
-      const plays=legal.flatMap((move,index)=>Number.isInteger(move.card)?
-        [`<button type="button" data-kitchen-move="${index}">${cardName(move.card)}${move.call===undefined?'':` · Call ${['clubs','diamonds','hearts','spades'][move.call]}`}</button>`]:[]);
-      roomControls=legal.length?`<div class="row">${direct.join('')}</div>${plays.length?
-        `<details><summary>Show my playable cards</summary><div class="row">${plays.join('')}</div></details>`:''}`:
-        '<p class="muted">Waiting for the other player.</p>';
-    }
-    if(phase !== 'lobby') content += sideScreen('arena-view',kitchenTable?'Matatu in the Midnight Kitchen':'Game room',
-      roomMarkup+roomControls,'Look inside the room');
     clearInterval(ticker);
     const art = (phases.includes(phase) || phase === 'match') && place?.art ? `--place-art:url(places/${place.art}.jpg)` : '';
     env.stage(content, false, `scene focused-turn tournament${phase === 'match' ? ' live-table-stage' : phase === 'lobby' ? ' arena-lobby' : ''}${won ? ' victory' : ''}${art ? ' with-place' : ''}`, art, `table:${round}:${phase}`);
     const app = document.querySelector('#app');
-    mountRoomWindow(app,players,place,app.querySelector('[data-open-screen="arena-view"]'),state.board);
-    if(kitchenTable)app.querySelectorAll('[data-kitchen-move]').forEach(button=>{
-      button.onclick=()=>send({type:'match-move',serial:state.board.serial,round,
-        action:state.board.legal[Number(button.dataset.kitchenMove)]});
-    });
     app.querySelector('#next')?.addEventListener('click', () => send({type: 'next'}));
     app.querySelector('#hold-round')?.addEventListener('click', () => send({type: 'hold'}));
     if (phase === 'match') {
