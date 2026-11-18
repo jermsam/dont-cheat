@@ -407,3 +407,11 @@ button.table-card:hover,button.table-card:focus-visible{background:#ffd6a0;color
 #opening-game{margin:0 0 10px;font-size:.82rem;color:var(--gold)}
 .claim-hand{max-height:162px;overflow:auto}
 .table-card[aria-pressed="true"]{background:var(--gold);border-color:var(--rose);box-shadow:inset 0 0 0 2px #8e5b49}
+.race-board{display:grid;grid-template:repeat(10,1fr)/repeat(10,1fr);width:min(100%,350px);aspect-ratio:1;margin:10px auto;background:#352536;border:1px solid #927064}
+.race-cell{background:#483347;border:1px solid #64475b;text-align:center;font-size:clamp(.56rem,2vw,.76rem);padding-top:1px}
+.race-cell.ladder{color:#cbffdf;background:#315847}.race-cell.snake{color:#ffd5de;background:#65424e}
+.race-cell small{display:block;font-size:.65em;line-height:1}
+.race-pawn{z-index:1;place-self:end start;background:#ffbe85;color:#231621;border-radius:50%;width:44%;text-align:center;font-size:.6rem}
+.race-pawn.lane-1{place-self:end end;background:#9eebdd}
+
+.race-board[hidden]{display:none}

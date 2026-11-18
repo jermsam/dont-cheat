@@ -5,6 +5,7 @@ export function mountTableObjects(app, board) {
   const button = app.querySelector('[data-table-objects]');
   if (!holder || !button) return;
   const describe = () => ({
+    race:board.key === 'snakes' ? board : undefined,
     ludoTiles:[...app.querySelectorAll('.ludo-cell')].map(item=>({row:Number(item.style.gridRowStart)-1,column:Number(item.style.gridColumnStart)-1,
       lane:item.classList.contains('lane-0')?0:item.classList.contains('lane-1')?1:-1})),
     ludoTokens:[...app.querySelectorAll('[data-ludo-token]')].map(item=>{
@@ -21,6 +22,8 @@ export function mountTableObjects(app, board) {
   let view=views.get(holder);
   function show(open) {
     holder.hidden=!open;
+    const race=app.querySelector('.race-board');
+    if (race) race.hidden=open;
     button.textContent=open?'Hide 3D table':'Show 3D table';
     button.setAttribute('aria-pressed',String(open));
     if (open) view.update(describe(),board.serial);
@@ -30,7 +33,7 @@ export function mountTableObjects(app, board) {
     if (view) {show(holder.hidden); return;}
     button.disabled=true;
     try {
-      const {createTableObjects}=await import('./table-objects-3d.js');
+      const {createTableObjects}=await import('./table-objects-3d.js?v=2');
       if (!holder.isConnected) return;
       view=createTableObjects(holder);
       views.set(holder,view);

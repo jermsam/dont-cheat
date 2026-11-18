@@ -1,6 +1,7 @@
-import { diceCategories } from './card-dice-rules.js';
-import { pokerRanks, rankHand } from './match-rules.js';
-import { mountTableObjects } from './table-objects.js';
+import { jumps, squarePosition } from './snakes.js';
+import { diceCategories } from './card-dice-rules.js?v=2';
+import { pokerRanks, rankHand } from './match-rules.js?v=2';
+import { mountTableObjects } from './table-objects.js?v=2';
 import { mountLiveBoard } from './live-board.js';
 
 const glyph = {p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', m:'●'};
@@ -84,6 +85,24 @@ function ludo(board) {
     <p>${board.last?.rolled ? `Last roll <strong>${Number(board.last.rolled)}</strong>` : ''}</p>
     ${board.legal.some(action => action.roll) ? '<button type="button" class="primary" data-roll>Roll die</button>' :
       board.legal.length ? `<p>Rolled <strong>${Number(board.die)}</strong>. Choose a token.</p>` : ''}`;
+}
+
+function snakes(board) {
+  const {last,positions} = board;
+  const describe = !last ? 'Both pawns are at the start.' :
+    last.from === last.to ? `Rolled ${Number(last.rolled)}. An exact roll is needed to finish.` :
+    last.to === last.landing ? `Rolled ${Number(last.rolled)}. Moved to ${Number(last.to)}.` :
+    `Rolled ${Number(last.rolled)}. ${last.to > last.landing ? 'Climbed' : 'Slid'} from ${Number(last.landing)} to ${Number(last.to)}.`;
+  const cells = Array.from({length:100}, (_, index) => {
+    const n = index + 1, exit = jumps[n];
+    const kind = exit ? (exit > n ? 'ladder' : 'snake') : '';
+    return `<span class="race-cell ${kind}" style="${cell(squarePosition(n))}">${n}${exit ? `<small>${exit > n ? '↑' : '↓'}${exit}</small>` : ''}</span>`;
+  }).join('');
+  return `<p>Roll to move. Land at a ladder’s foot to climb or on a snake’s head to slide. Reach 100 exactly to win.</p>
+    <div class="race-board" aria-hidden="true">${cells}${positions.map((square,side) => square ?
+      `<b class="race-pawn lane-${side}" style="${cell(squarePosition(square))}">${side + 1}</b>` : '').join('')}</div>
+    <p>${positions.map((square,side) => `${side === board.side ? 'You' : sideName(board,side)} · ${Number(square) || 'Start'}`).join(' / ')}</p>
+    <p class="turn-note">${describe}</p>${board.legal.length ? '<button type="button" class="primary" data-choice-label="Roll">Roll</button>' : ''}`;
 }
 
 function mweso(board) {
@@ -179,9 +198,9 @@ export function matchMarkup(board, wallet) {
   const result = board.result;
   const headline = result ? result.winner === null ? 'Table drawn' : result.winner === board.side ? 'You won this table' : 'You lost this table' :
     active ? 'Your move' : `${sideName(board, board.active)} to move`;
-  const classic = ['poker','ludo','mweso'].includes(board.key);
+  const classic = ['poker','ludo','mweso','snakes'].includes(board.key);
   const play = (board.key === 'poker' ? poker(board) : board.key === 'ludo' ? ludo(board) :
-    board.key === 'mweso' ? mweso(board) : board.pieces ? grid(board) : cardDiceMarkup(board)) +
+    board.key === 'snakes' ? snakes(board) : board.key === 'mweso' ? mweso(board) : board.pieces ? grid(board) : cardDiceMarkup(board)) +
     (classic ? '<div class="table-objects" hidden></div><button type="button" class="quiet" data-table-objects>Show 3D table</button>' : '');
   return `<h2>${headline}</h2>${result ? `<p>${escape(result.reason)}. Scores update when all tables finish.</p>` : ''}
     <div class="match-clocks">${[board.side, 1 - board.side].map(side => `<span>${sideName(board, side)}

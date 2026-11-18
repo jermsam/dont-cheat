@@ -1,3 +1,4 @@
+import { makeRaceBoard } from './snakes-3d.js';
 import * as THREE from './vendor/three.module.min.js';
 
 const dots = [
@@ -37,7 +38,7 @@ export function createTableObjects(holder) {
   scene.add(table);
   const mats=new Map();
   const motion=matchMedia('(prefers-reduced-motion: reduce)');
-  let animation, lastSerial=-1;
+  let animation, lastSerial=-1, raceBoard;
   const render=()=>renderer.render(scene,camera);
   function paint(label,value=0) {
     const key=label || value;
@@ -74,7 +75,7 @@ export function createTableObjects(holder) {
     const {clientWidth:w,clientHeight:h}=holder;
     if (!w||!h) return;
     const aspect=w/h;
-    camera.left=-Math.max(2.9,1.84*aspect);
+    camera.left=-(raceBoard ? Math.max(3.35,3.1*aspect) : Math.max(2.9,1.84*aspect));
     camera.right=-camera.left;
     camera.top=camera.right/aspect;
     camera.bottom=-camera.top;
@@ -82,9 +83,23 @@ export function createTableObjects(holder) {
     renderer.setSize(w,h,false);
     render();
   }
-  function update({cards,dice,ludoTiles,ludoTokens,pits},serial) {
+  function update({cards,dice,ludoTiles,ludoTokens,pits,race},serial) {
     animation?.stop();
     objects.clear();
+    if (race) {
+      if (!raceBoard) {
+        raceBoard=makeRaceBoard();
+        scene.add(raceBoard.group);
+      }
+      const animate = !!race.last && serial!==lastSerial && !motion.matches;
+      lastSerial=serial;
+      raceBoard.update(race,animate ? 0 : 1);
+      refresh();
+      if (animate) animation=globalThis.Motion.animate(0,1,{
+        duration:1.05,ease:'linear',onUpdate:value=>{raceBoard.update(race,value);render();},
+      });
+      return;
+    }
     const diceObjects=dice.map((face,i)=>{
       if (!dots[face-1]) return null;
       const rest=[1,2,3,4,5,6].filter(value=>value!==face);
@@ -172,6 +187,7 @@ export function createTableObjects(holder) {
     removal.disconnect();
     [slab,cube,tableGeo,tokenGeo,cellGeo,pitGeo,seedGeo].forEach(item=>item.dispose());
     [tableInk,edges,pitPaint,seedPaint,...tokenPaint,...mats.values()].forEach(material=>{material.map?.dispose();material.dispose();});
+    raceBoard?.dispose();
     renderer.dispose();
   });
   removal.observe(holder.closest('main'),{childList:true,subtree:true});
