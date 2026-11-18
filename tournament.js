@@ -6,12 +6,19 @@ import { getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { masks, maskId } from './masks.js?v=2';
 
-import { seasonLength, seasonLineup, seasonMatches } from './season.js?v=13';
+import { seasonLength, seasonLineup, seasonMatches } from './season.js?v=14';
 import { bestHoldem } from './card-dice-rules.js?v=7';
 import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=12';
 import { matchMarkup, mountMatch } from './match-view.js?v=20';
 
 const limit = 6;
+const teamNames = ['Gold','Violet'];
+const teamSizes = [0,2,3];
+const teamScores = players => teamNames.map((_,team)=>
+  players.reduce((score,player)=>score+(player.team===team?player.score:0),0));
+const teamCount = (players, team) => players.filter(player=>player.online && player.team===team).length;
+const readyToStart = (players, size) => size ?
+  teamNames.every((_,team)=>teamCount(players,team)===size) : players.filter(player=>player.online).length>=2;
 const pickCost = 1;
 const pickWindow = 30_000;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
@@ -51,7 +58,8 @@ export function hostTournament(env) {
   const openingStop=route.indexOf(env.destination);
   if(openingStop>0)route.unshift(...route.splice(openingStop,1));
   let phase = 'lobby', round = 0, deadline = 0, timer, requestId = 0;
-  let matches = [];
+  let matches = [], teamSize=0;
+  const capacity = () => teamSize ? teamSize*2 : limit;
   const wallet = new Map();
   const powers = new Map();
   let tablePick, nextCaptain = 1, lead;
@@ -101,7 +109,7 @@ export function hostTournament(env) {
   function state(seat) {
     const exposeClues = ['final', 'pact'].includes(phase);
     return {
-      kind: 'table', phase, round, seat, recapPaused: phase === 'reveal' && !deadline, endsIn: Math.max(0, deadline - Date.now()),
+      kind: 'table', phase, round, seat, teamSize, recapPaused: phase === 'reveal' && !deadline, endsIn: Math.max(0, deadline - Date.now()),
       challenge: lineup[round], location: route[round % route.length],
       board: phase === 'match' ? matches.find(match => match.seats.includes(seat))?.snapshot(seat) : undefined,
       records: [...records],
@@ -112,8 +120,8 @@ export function hostTournament(env) {
       lead:phase==='match'?lead:undefined,
       powers:phase==='match'?[...powers.values()].filter(power=>power.seat===seat||power.target===seat):undefined,
       quickChat:[...quickChat],
-      players: players.map(({ mask, displayName, score, online, status, moves }) => ({
-        mask, displayName, score, online, status,
+      players: players.map(({ mask, displayName, score, online, status, moves, team }) => ({
+        mask, displayName, score, online, status, team,
         clue: exposeClues ? moves.clue?.option : undefined,
       })),
       own: players[seat].moves.draft?.option,
@@ -226,8 +234,9 @@ export function hostTournament(env) {
       enter('draft');
       return;
     }
-    const seats = players.flatMap((player, seat) => player.online ? [{seat, score:player.score}] : []);
-    matches = seasonMatches(lineup[round].key, seats, round, env.shuffle, lead);
+    const seats = players.flatMap((player, seat) => player.online || teamSize && player.team!==undefined ?
+      [{seat:player.online?seat:-1, score:player.score, team:player.team}] : []);
+    matches = seasonMatches(lineup[round].key, seats, round, env.shuffle, lead, teamSize);
     clearTimeout(timer);
     phase = 'match';
     deadline = 0;
@@ -324,7 +333,22 @@ export function hostTournament(env) {
       if (pending) pending.decide(intent.accept === true);
       return;
     }
-    if (seat === 0 && type === 'start' && phase === 'lobby' && players.filter(p => p.online).length >= 2) {
+    if (phase === 'lobby' && (type === 'team-size' || type === 'pick-team')) {
+      if (type === 'team-size') {
+        const size=intent.value;
+        if (seat!==0 || !teamSizes.includes(size) || size===teamSize || size && onlineSeats().length>size*2) return;
+        teamSize=size;
+        players.forEach(player=>{ player.team=undefined; });
+      } else {
+        const team=intent.value;
+        if (!teamSize || !teamNames[team] || !Number.isInteger(team) || player.team===team ||
+          teamCount(players,team)>=teamSize) return;
+        player.team=team;
+      }
+      publish();
+      return;
+    }
+    if (seat === 0 && type === 'start' && phase === 'lobby' && readyToStart(players,teamSize)) {
       // Invitations from the lobby cannot replace a player once play begins.
       for (const pending of requests.values()) pending.decide(false);
       beginEvent();
@@ -450,7 +474,7 @@ export function hostTournament(env) {
     let player, id;
     try {
       const hello = JSON.parse(await env.timeout(link.receive(), 8_000));
-      if (phase !== 'lobby' || players.filter(p => p.online).length >= limit || hello?.kind !== 'table-join') throw Error('Room unavailable');
+      if (phase !== 'lobby' || players.filter(p => p.online).length >= capacity() || hello?.kind !== 'table-join') throw Error('Room unavailable');
       if (hello.key !== env.key) {
         if (hello.key !== null || typeof hello.code !== 'string' || !/^\d{6}$/.test(hello.code) ||
             requests.size >= limit) throw Error('Invite invalid');
@@ -459,7 +483,7 @@ export function hostTournament(env) {
         publish();
         if (!await env.timeout(decision, 60_000)) throw Error('Request declined');
       }
-      if (phase !== 'lobby' || players.filter(p => p.online).length >= limit) throw Error('Room full');
+      if (phase !== 'lobby' || players.filter(p => p.online).length >= capacity()) throw Error('Room full');
       const vacant = players.findIndex(p => !p.online);
       const seat = vacant === -1 ? players.length : vacant;
       player = { mask: maskId(hello.mask), displayName:cleanDisplayName(hello.displayName), quickChat:hello.quickChat===true, moves: {}, score: 0, online: true, status: '', link, queue: Promise.resolve() };
@@ -522,6 +546,8 @@ function isTableState(state) {
     state.seat >= 0 && state.seat < state.players.length &&
     state.players.every(player => Number.isInteger(player.score) &&
       (player.displayName===undefined || typeof player.displayName==='string' && player.displayName===cleanDisplayName(player.displayName))) &&
+    (state.teamSize===undefined || teamSizes.includes(state.teamSize)) &&
+    state.players.every(player=>player.team===undefined || integer(player.team,0,teamNames.length-1)) &&
     (state.quickChat===undefined || validChat(state.quickChat)) &&
     Array.isArray(state.approvals) && state.approvals.length === 0 &&
     Array.isArray(state.records) && state.records.length <= seasonLength &&
@@ -622,6 +648,27 @@ function makeView(env, send) {
         button(line,'quick-chat',`type="button" data-label="${esc(line)}"`)).join('')}</div>`, 'Chat');
   }
 
+  function teamsMarkup(state, lobby=false, showMembers=lobby) {
+    if (!state.teamSize) return '';
+    const scores=teamScores(state.players);
+    return `<section class="season-teams" aria-label="${lobby?'Choose a side':'Team scores'}">${teamNames.map((title,team)=>{
+      const members=state.players.flatMap((player,seat)=>player.team===team && (!lobby || player.online)?[seat]:[]);
+      const own=state.players[state.seat].team===team;
+      return `<div class="season-team" data-team="${team}">
+        <div class="season-team-heading"><strong>${title}${own&&!lobby?'<small> · Your team</small>':''}</strong><span>${lobby?`${members.length}/${state.teamSize}`:`<b data-team-score="${team}">${scores[team]}</b> pts`}</span></div>
+        ${showMembers?`<div class="season-team-roster">${members.length?members.map(seat=>esc(name(state,seat))).join(' · '):'Open spots'}</div>`:''}
+        ${lobby?button(own?'Joined':members.length>=state.teamSize?'Full':`Join ${title}`,'pick-team',`type="button" data-team="${team}" aria-pressed="${own}" ${own || members.length>=state.teamSize?'disabled':''}`):''}
+      </div>`;
+    }).join('')}</section>`;
+  }
+  function lobbyMode(state, seated) {
+    const size=state.teamSize ?? 0;
+    const mode=size?`${size}v${size}`:'Solo';
+    if (state.seat!==0) return size?`<p class="team-mode-label">${mode} · Pick a side</p>`:'';
+    return `<div class="team-mode" role="group" aria-label="Season format">${teamSizes.map(value=>
+      button(value?`${value}v${value}`:'Solo','team-size',`type="button" data-size="${value}" aria-pressed="${value===size}" ${value && seated>value*2?'disabled':''}`)).join('')}</div>`;
+  }
+
   function roster(state) {
     return `<div class="table-roster">${state.players.map((p, i) => `<div class="table-person">
       ${avatar(state, i)}<div><strong>${esc(name(state, i))}${i === state.seat ? ' (you)' : ''}</strong>
@@ -706,13 +753,15 @@ function makeView(env, send) {
   }
 
   async function shareUpdate(state, statusOnly) {
-    const score = state.players[state.seat].score;
-    const best = Math.max(...state.players.map(player => player.score));
-    const tied = state.players.filter(player => player.score === best).length;
+    const team=state.players[state.seat].team;
+    const scores=state.teamSize&&!statusOnly?teamScores(state.players):state.players.map(player=>player.score);
+    const score=scores[state.teamSize&&!statusOnly?team:state.seat];
+    const best = Math.max(...scores);
+    const tied = scores.filter(total => total === best).length;
     const result = score === best ? tied > 1 ? 'Tied for first' : 'Won the table' : 'Finished the trial';
     const status = state.players[state.seat].status;
     const text = statusOnly ? `${status} · Don’t Cheat Tournament. My score: ${score}.` :
-      `${result} with ${score} points in Don’t Cheat · Tournament.`;
+      `${state.teamSize?`${teamNames[team]} · `:''}${result} with ${score} points in Don’t Cheat · Tournament.`;
     const url = new URL('./', location.href).href;
     try {
       if (navigator.share) {
@@ -739,7 +788,7 @@ function makeView(env, send) {
   function render(state) {
     ends = performance.now() + state.endsIn;
     const summary = state.phase === 'match' ? {
-      phase: state.phase, round:state.round, wallet:state.wallet, powers:state.powers, online:state.players.map(player=>player.online), board: state.board && {...state.board, time: undefined},
+      phase: state.phase, round:state.round, wallet:state.wallet, powers:state.powers, scores:state.players.map(player=>player.score), online:state.players.map(player=>player.online), board: state.board && {...state.board, time: undefined},
     } : {...state, endsIn:0};
     const signature = JSON.stringify(summary);
     if (signature === prior) return;
@@ -774,12 +823,14 @@ function makeView(env, send) {
 
     if (phase === 'lobby') {
       const seated = players.filter(player => player.online).length;
-      content = `${header}<h2>Seats are open.</h2><p>${seated} of ${limit} seats filled</p>
+      const size=state.teamSize ?? 0;
+      content = `${header}<h2>Seats are open.</h2><p>${seated} of ${size?size*2:limit} seats filled</p>
+        ${lobbyMode(state,seated)}${teamsMarkup(state,true)}
         ${host ? `<div class="row"><button id="share" class="primary icon-tool" aria-label="Share to WhatsApp" data-hint>${icon('share-2')} WhatsApp</button><button id="copy" class="icon-tool" aria-label="Copy invite" data-hint>${icon('copy')}</button></div>
           <div hidden><label for="invite">Invite link</label><input id="invite" class="invite" readonly value="${esc(env.invite)}"></div>
           ${state.approvals.map(request => `<div class="table-admission"><p>Match this code with your guest <strong>${esc(request.code)}</strong></p>
             <div class="row">${button('Let them in', 'admit', `data-id="${request.id}"`)}${button('Decline', 'decline', `data-id="${request.id}"`)}</div></div>`).join('')}
-          <p>${button('Start tournament', 'start', `class="primary" ${seated < 2 ? 'disabled' : ''}`)}</p>
+          <p>${button('Start tournament', 'start', `class="primary" ${readyToStart(players,size) ? '' : 'disabled'}`)}</p>
           <p class="muted">Keep this tab open. Start when everyone is in.</p>` :
           '<p class="waiting">Waiting for the host to start.</p>'}
         <div class="screen-links">${sideScreen('table-seats', 'See who’s here', roster(state))}${statusOptions(state)}</div>${back}`;
@@ -789,12 +840,14 @@ function makeView(env, send) {
         ${state.lead===undefined?'':`<p class="bait-winner">${icon('flag')} ${esc(name(state,state.lead))} leads</p>`}
         ${tableIdentity(challenge.key)}
         ${moment?`<p class="table-moment" role="status">${icon('flag')} ${esc(moment)}</p>`:''}
+        ${teamsMarkup(state)}
         ${matchMarkup(state.board, state.wallet, state.players)}
         ${powerPanel(state)}`;
     } else if (phase === 'reveal' || phase === 'verdict') {
-      const best = Math.max(...players.map(player => player.score));
-      const winners = players.flatMap((player, i) => player.score === best ? [name(state, i)] : []);
-      won = phase === 'verdict' && players[seat].score === best;
+      const scores=state.teamSize?teamScores(players):players.map(player=>player.score);
+      const best = Math.max(...scores);
+      const winners = scores.flatMap((score,i)=>score===best?[state.teamSize?teamNames[i]:name(state,i)]:[]);
+      won = phase === 'verdict' && scores[state.teamSize?players[seat].team:seat] === best;
       if(rewardedRound!==round){
         rewardedRound=round;
         profile=recordProgress(env.room,state.records.length,phase==='verdict',won);
@@ -807,7 +860,7 @@ function makeView(env, send) {
       const settled=state.records[round];
       const signed=points>0?`+${points}`:String(points);
       const headline = phase === 'reveal' ? points>0 ? 'Points earned' : 'Round complete' : won ?
-        winners.length === 1 ? 'You won the table.' : 'You tied for first.' : 'The table has spoken.';
+        winners.length === 1 ? state.teamSize?'Your team won.':'You won the table.' : 'You tied for first.' : 'The table has spoken.';
       content = `${won ? '<span class="eyebrow">VICTORY</span>' : header}
         <div class="recap-layout"><div class="recap-result">${phase==='verdict' ? `<div class="season-trophy" aria-hidden="true">${icon('trophy')}</div>` : ''}<h2>${headline}</h2>
         ${phase === 'verdict' ? `<p>${winners.length === 1 ? 'Winner' : 'Joint winners'} <strong>${winners.map(esc).join(' / ')}</strong> · ${best} pts</p>` : ''}
@@ -818,7 +871,8 @@ function makeView(env, send) {
           ${(round+1)%3===0?`<span class="loot-time">${icon('timer')} <b>+1</b><small>Time</small></span>`:''}
         </div>
         ${giftNotices.length?`<div class="pact-gift-notices">${giftNotices.join('')}</div>`:''}
-        <p class="recap-total">Total <strong>${players[seat].score} pts</strong></p>
+        <p class="recap-total">${state.teamSize?'Your total':'Total'} <strong>${players[seat].score} pts</strong></p>
+        ${teamsMarkup(state,false,true)}
         ${won ? env.victoryControls() : ''}</div>
         <div class="recap-next">
         ${phase === 'verdict' ? `<div class="row">${button('Share result', 'share-result', 'class="quiet"')}<a class="another-season" href="./?season=new#brain-games">New season ${icon('arrow-right')}</a></div>` :
@@ -827,7 +881,7 @@ function makeView(env, send) {
             '' : roundAdvance(round + 2, host, state.recapPaused))}
         ${phase==='verdict'?progressMarkup(profile):''}</div></div>
         <div class="screen-links recap-links">
-          ${sideScreen('table-scores', 'Scoreboard', roster(state) + (phase==='reveal'?progressMarkup(profile):''))}
+          ${sideScreen('table-scores', 'Scoreboard', teamsMarkup(state,false,true) + roster(state) + (phase==='reveal'?progressMarkup(profile):''))}
           ${sideScreen('table-results', 'Round history', receipt(state) +
             (state.records.some(record => record.verdict) ? '<p>Did someone’s clue change your mind?</p>' : ''))}
           ${statusOptions(state)}</div>`;
@@ -877,7 +931,7 @@ function makeView(env, send) {
               <strong>${card}</strong><small>${tip}</small></button>`).join('')}
           </div></div>${button('Pass free','card','data-card="Pass"')}</div>`;
       }
-      content = `${top}<h2>${esc(heading)}</h2>${timer}${details}${state.locked ?
+      content = `${top}<h2>${esc(heading)}</h2>${teamsMarkup(state)}${timer}${details}${state.locked ?
         '<p class="waiting">Locked in. Waiting for the other seats.</p>' : actions}`;
     }
 
@@ -965,6 +1019,7 @@ function makeView(env, send) {
           control.closest('dialog')?.close();
           send({type,round,key});
         }
+        else if (type === 'team-size' || type === 'pick-team') send({type,value:Number(control.dataset.size ?? control.dataset.team)});
         else if (type === 'call-bait' || type === 'pass-pick') send({type,round});
         else if (type === 'table-power') send({type,round,card,target:Number(app.querySelector('#power-target').value),signal:app.querySelector('#power-signal').value});
         else if (type === 'share-result' || type === 'share-status') void shareUpdate(state, type === 'share-status');
