@@ -32,7 +32,13 @@ Other card combinations yield zero pact points. Round two doubles pact points. T
 
 ## Tournament
 
-**Tournament** seats two to six players. Select it in the lobby, open the season room, share the same WhatsApp invite, and start when all your friends are in. The mixed season has two randomly selected games and one **Majority Verdict** round, in shuffled order. Or pick a playlist to play three variations of one challenge. Available challenges include Chess Jump, Draughts Capture, Poker Read, Mweso Seed Relay, Ludo Finish, Card Draft, Signal Code, and Dare or Draw. Several boards and number puzzles change on each draw. These are short, self-contained challenges inspired by their format. Dare or Draw uses game points only.
+**Tournament** seats two to six players. Share one room invite for the entire nine-event season. The draw includes chess, English draughts, Texas Hold’em, Omweso, Ludo, two additional games, one brain challenge, and Majority Verdict. Pick the opening event or let the game draw it. The remaining event order is randomized.
+
+The live tables also support five-card draw, Matatu, Card Draft, Go Fish, Blackjack, Pig, Liar’s Dice, Ship, Captain, Crew, Farkle, Five Dice, Cee-Lo, Cheat, and Craps. Hold’em is heads-up fixed-limit with 1/2 blinds. Blackjack is a hit-or-stand comparison against the same dealer. Matatu uses its 52-card Classic rules. Liar’s Dice uses wild ones and ascending bids. Craps uses pass-line outcomes. Chips, coins and time tokens exist inside the game.
+
+One player can buy the next table during a recap for five coins or a time token. The purchase moves an unplayed game earlier or replaces a bonus table. The five core matches remain in the schedule. Each player gains two coins per event and one time token every third event. During an active table turn, a time token adds 30 seconds, once per table.
+
+Matches use head-to-head tables. An odd seat faces an arena opponent. The host validates moves and clocks, and each result adds season points. Chess uses chess.js for move legality. Chess and draughts offer a playable Three.js board and a keyboard-accessible flat board. The optional 3D table animates cards, dice, Ludo tokens, and Omweso seeds from synchronized game state. Keep the host tab open throughout; leaving during a match forfeits that table. The host device runs the rules and can inspect hidden state, so use trusted hosts.
 
 Everyone gets a private first guess, then can share it, send a decoy, or keep it private. You see all shared clues and their masks before choosing a final answer. Tapping **Copy clue** credits the seat whose clue you followed. **Trust** awards 2 points if another player trusts. **Betray** awards 3 when someone copies your decoy. **Call bluff** awards 3 for correctly identifying a decoy and costs 1 for a wrong accusation. A regular correct answer earns 2 points. In Dare or Draw, a correct answer earns 4, a wrong answer costs 1, and passing costs zero.
 
@@ -80,8 +86,6 @@ Setup and in-game artifacts use a locally hosted Three.js r169 build. Motion 14.
 
 Victory music is [“The Curtain Rises” by Kevin MacLeod](https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1500011), licensed under [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/). The track is used unedited.
 
-## Brain games and round recaps
-
-Open **Play brain games** to try three solo puzzles from Chess Jump, Draughts Capture, Poker Read, Mweso Seed Relay, Ludo Finish, Card Draft, Signal Code, or Dare or Draw. Tournament also offers Majority Verdict, which needs a group. These are short challenges based on those games. Chess and draughts offer an optional rotatable 3D board.
+## Round recaps and sound
 
 After each round, the recap counts down to the next round. The host can start immediately or use **Keep reading** to pause. Tap **Sound off** to turn sound on and hear a short fanfare preview. The choice is remembered for that browser when storage is available.

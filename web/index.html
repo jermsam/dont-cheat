@@ -15,8 +15,8 @@
 <meta property="og:image:alt" content="Don't Cheat: The Midnight Trial">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="icon.png">
-<link rel="stylesheet" href="style.css?v=12">
-<script type="module" src="game.js?v=16"></script>
+<link rel="stylesheet" href="style.css?v=14">
+<script type="module" src="game.js?v=18"></script>
 </head>
 <body>
 <header class="mast"><a class="brand" href="./"><span class="sigil">✦</span> DON'T CHEAT</a><button id="sound" class="quiet" type="button" aria-pressed="false">Sound off</button></header>
@@ -25,7 +25,7 @@
 <div class="hero-content"><span class="eyebrow">THE MIDNIGHT TRIAL</span><h1>DON'T<br>CHEAT<span>.</span></h1>
 <p>Give the right answer.<br>Trust the right person.</p>
 <a class="hero-start" href="#game-modes">Set up your game →</a>
-<a class="hero-arcade" href="#brain-games">Play brain games →</a>
+<a class="hero-arcade" href="#brain-games">Enter the season →</a>
 </div></section>
 <section class="lobby-setup" id="game-modes" aria-label="Set up your game" hidden>
   <div class="setup-visual" aria-hidden="true"></div>
@@ -35,15 +35,13 @@
     <h2 id="players-heading" tabindex="-1"> Who’s playing?</h2>
     <div class="mode-choice" role="group" aria-label="Game mode">
       <button type="button" data-mode="tournament" id="tournament" aria-pressed="true" aria-label="Tournament">
-        <strong>Tournament</strong><small>2–6 players · compete in a season</small></button>
+        <strong>Tournament</strong><small>2–6 players · 9 game events</small></button>
       <button type="button" data-mode="duel" id="host" aria-pressed="false" aria-label="Duel a friend">
         <strong>Duel a friend</strong><small>2 players · bluff and outscore</small></button>
       <button type="button" data-mode="crew" id="crew" aria-pressed="false" aria-label="Team up">
         <strong>Team up</strong><small>2 players · beat the host together</small></button>
       <button type="button" data-mode="solo" id="solo" aria-pressed="false" aria-label="Play solo">
         <strong>Play solo</strong><small>1 player · face an arena rival</small></button>
-      <button type="button" data-mode="arcade" id="arcade" aria-pressed="false">
-        <strong>Brain games</strong><small>1 player · chess, poker, mweso and more</small></button>
     </div>
   </section>
   <section class="setup-section" aria-labelledby="mask-heading" hidden>
@@ -52,13 +50,20 @@
   </section>
   <section class="setup-section destination-picker" aria-labelledby="destination-heading" hidden>
     <h2 id="destination-heading" tabindex="-1"> Pick a destination <small>Optional</small></h2>
-    <p>Choose one stop. The other two are a surprise.</p>
+    <p>Choose one stop. The rest are a surprise.</p>
     <select id="destination" aria-label="Destination"><option value="">Surprise me</option></select>
     <figure id="destination-preview" hidden><img alt=""><figcaption></figcaption></figure>
   </section>
   <section class="setup-section" aria-labelledby="games-heading" hidden>
-    <h2 id="games-heading" tabindex="-1">Pick your games</h2>
+    <h2 id="games-heading" tabindex="-1">Choose the opening game</h2>
     <p id="games-description"></p>
+    <div class="row library-filters" role="group" aria-label="Game type">
+      <button type="button" class="quiet" data-library-filter="board">Boards</button>
+      <button type="button" class="quiet" data-library-filter="card">Cards</button>
+      <button type="button" class="quiet" data-library-filter="dice">Dice</button>
+      <button type="button" class="quiet" data-library-filter="social">Social</button>
+    </div>
+    <p id="opening-game" role="status">Opening game will be drawn at random.</p>
     <div class="game-library" id="game-library" role="group" aria-label="Games"></div>
   </section>
   <div class="setup-launch">

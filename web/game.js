@@ -2,9 +2,10 @@ import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { drawRelic, stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
-import { hostTournament, joinTournament } from './tournament.js?v=4';
+import { hostTournament, joinTournament } from './tournament.js?v=6';
 
-import { buildChallenges, getPuzzle, challenges } from './challenges.js';
+import { challenges } from './challenges.js';
+import { matchTitles } from './match-rules.js';
 import { mountPuzzleBoard } from './puzzle-board.js';
 
 const app = document.querySelector('#app');
@@ -264,10 +265,14 @@ function stage(content, summons = false, scene = '', placeArt = '', screen = nul
     id: open.id,
     page: Math.max(0, [...open.querySelectorAll('[data-record-page]')].findIndex(page => !page.hidden)),
   } : null;
+  const resignOpen = sameScreen && app.querySelector('[data-resign-confirm]:not([hidden])');
+  const liveBoard = sameScreen ? [...app.querySelectorAll('.live-3d, .table-objects')] : [];
   currentScreen = screen;
   stopRelic?.();
   stopRelic = undefined;
   app.innerHTML = `<section class="stage ${summons ? 'summons' : ''} ${scene}"${placeArt ? ` style="${placeArt}"` : ''}><div class="board">${content}</div></section>`;
+  if (resignOpen) app.querySelector('[data-resign-confirm]')?.removeAttribute('hidden');
+  liveBoard.forEach(board=>app.querySelector(`.${board.classList[0]}`)?.replaceWith(board));
   mountSideScreens(app, restore);
   if (fanfareControl === 'preview') stopFanfare();
   mountPuzzleBoard(app);
@@ -875,9 +880,17 @@ function mountLobby() {
   const updateMask = mountMaskPicker('tournament');
   const modes = [...document.querySelectorAll('[data-mode]')];
   const library = document.querySelector('#game-library');
-  library.innerHTML = [['mixed', 'Mixed games'], ...Object.entries(challenges).map(([id, item]) => [id, item.title])]
+  const filters = [...document.querySelectorAll('[data-library-filter]')];
+  const groups = {
+    board: ['chess','draughts','mweso','ludo'],
+    card: ['poker','holdem','matatu','carddraft','gofish','blackjack','cheat'],
+    dice: ['pig','perudo','ship','farkle','yahtzee','ceelo','craps'],
+    social: ['signal','dare','verdict'],
+  };
+  library.innerHTML = [['mixed', 'Surprise me'], ...Object.entries(matchTitles), ...['signal', 'dare', 'verdict'].map(id => [id, challenges[id].title])]
     .map(([id, title]) => `<button type="button" data-game="${id}" aria-pressed="${id === 'mixed'}">${title}</button>`).join('');
   const gamesDescription = document.querySelector('#games-description');
+  const opening = document.querySelector('#opening-game');
   const launch = document.querySelector('#setup-start');
   const next = document.querySelector('#setup-next');
   const descriptions = {
@@ -885,7 +898,6 @@ function mountLobby() {
     duel: ['Open duel room ↗', 'You’ll get an invite for one opponent.'],
     crew: ['Open team room ↗', 'Play together across three rounds. Use the time bank when you need longer to think.'],
     solo: ['Start solo game ↗', 'Your first round starts after a short briefing.'],
-    arcade: ['Play three rounds ↗', 'Take your time. Get at least two right to win.'],
   };
   const lobby = document.querySelector('#game-modes');
   const hero = document.querySelector('.hero');
@@ -898,11 +910,20 @@ function mountLobby() {
   let selected = 'tournament';
   let step = 0;
   let playlist = 'mixed';
-  const flow = () => selected === 'tournament' ? [0, 3, 1, 2] : selected === 'arcade' ? [0, 3] : [0, 1, 2];
+  const flow = () => selected === 'tournament' ? [0, 3, 1, 2] : [0, 1, 2];
   const gameButtons = [...library.querySelectorAll('[data-game]')];
+  filters.forEach(filter => {
+    filter.onclick = () => {
+      const group = groups[filter.dataset.libraryFilter];
+      filters.forEach(item => item.setAttribute('aria-pressed', String(item === filter)));
+      gameButtons.forEach(button => {button.hidden = button.dataset.game !== 'mixed' && !group.includes(button.dataset.game);});
+    };
+  });
+  filters[0].click();
   gameButtons.forEach(button => {
     button.onclick = () => {
       playlist = button.dataset.game;
+      opening.textContent = playlist === 'mixed' ? 'Opening game will be drawn at random.' : `Opening game · ${button.textContent}`;
       gameButtons.forEach(item => item.setAttribute('aria-pressed', item === button));
       showScene();
     };
@@ -915,7 +936,7 @@ function mountLobby() {
     const panel = flow()[step];
     visual.style.setProperty('--setup-art', panel === 2 && place?.art ? `url(places/${place.art}.jpg)` : '');
     visual.dataset.step = panel;
-    scene?.update(panel === 3 ? 0 : panel, selected === 'arcade' ? 'solo' : selected, chosenMask, place?.id);
+    scene?.update(panel === 3 ? 0 : panel, selected, chosenMask, place?.id);
   }
 
   function showStep(index) {
@@ -952,7 +973,7 @@ function mountLobby() {
   };
   hero.querySelector('.hero-arcade').onclick = event => {
     event.preventDefault();
-    document.querySelector('#arcade').click();
+    document.querySelector('#tournament').click();
     enter(1);
   };
   back.onclick = () => {
@@ -974,12 +995,7 @@ function mountLobby() {
     button.onclick = () => {
       selected = button.dataset.mode;
       modes.forEach(item => item.setAttribute('aria-pressed', item === button));
-      const casual = selected === 'arcade';
-      gamesDescription.textContent = casual ? 'Pick a game for three solo puzzles, or mix three different games.' :
-        'Choose three rounds from one game, or mix different games with a group vote.';
-      const verdict = library.querySelector('[data-game="verdict"]');
-      verdict.hidden = casual;
-      if (casual && playlist === 'verdict') gameButtons[0].click();
+      gamesDescription.textContent = 'Pick the opening event. The same season mixes board matches, card games, dice, and a group vote.';
       [launch.textContent, next.textContent] = descriptions[selected];
       updateMask(selected);
       showScene();
@@ -990,70 +1006,9 @@ function mountLobby() {
   if (location.hash === '#brain-games') hero.querySelector('.hero-arcade').click();
   launch.disabled = false;
   launch.onclick = () => {
-    if (selected === 'arcade') startArcade(playlist);
-    else if (selected === 'solo') start(true);
+    if (selected === 'solo') start(true);
     else host(selected === 'crew', selected === 'tournament' ? playlist : null);
   };
-}
-
-function startArcade(playlist) {
-  const mixed = playlist === 'mixed';
-  const lineup = mixed ? shuffled(Object.keys(challenges).filter(key => key !== 'verdict')).slice(0, 3)
-    .map(key => buildChallenges(key, shuffled)[0]) : buildChallenges(playlist, shuffled);
-  const results = [];
-  let round = 0;
-  let hits = 0;
-  let recapTimer;
-  let recapTicker;
-
-  function question() {
-    clearTimeout(recapTimer);
-    clearInterval(recapTicker);
-    const item = lineup[round];
-    const puzzle = getPuzzle(item.key, item.index, item.seed);
-    stage(`<span class="eyebrow">BRAIN GAMES · ROUND ${round + 1} OF ${lineup.length} · ${escape(item.title)}</span>
-      <h2>${escape(puzzle.prompt)}</h2>${puzzle.note ? `<p class="muted">${escape(puzzle.note)}</p>` : ''}${puzzle.board}
-      <div class="options">${item.options.map((option, i) => `<button type="button" data-answer="${i}">${escape(option)}</button>`).join('')}</div>
-      ${homeButton}`, false, 'scene focused-turn arcade', '', `arcade:${round}:pick`);
-    app.querySelectorAll('[data-answer]').forEach(button => {
-      button.onclick = () => {
-        const answer = item.options[Number(button.dataset.answer)];
-        const correct = answer === puzzle.right;
-        hits += Number(correct);
-        results.push(`<h4>${escape(item.title)}</h4><p>${escape(puzzle.prompt)}</p>
-          <p>You chose <strong>${escape(answer)}</strong>. Correct answer <strong>${escape(puzzle.right)}</strong>.</p>`);
-        revealArcade(correct, puzzle.right);
-      };
-    });
-  }
-
-  function revealArcade(correct, right, paused = false) {
-    const last = round === lineup.length - 1;
-    const won = last && hits >= 2;
-    const title = last ? won ? 'You won the brain games.' : 'Three rounds complete.' : correct ? 'You got it.' : 'That one got away.';
-    stage(`<span class="eyebrow">${won ? 'VICTORY' : `ROUND ${round + 1} · RESULT`}</span>
-      <div class="cinematic-title"><h2>${title}</h2>${relic}</div>
-      <p>${correct ? 'Correct' : 'Correct answer'} <strong>${escape(right)}</strong> · ${hits} of ${round + 1} right</p>
-      ${last ? `${won ? victoryControls() : ''}${sideScreen('arcade-results', 'Round history', roundPages(results))} ${homeButton}` :
-        roundAdvance(round + 2, true, paused)}`, false, `scene arcade${won ? ' victory' : ''}`, '', `arcade:${round}:result`);
-    if (last) return;
-    const nextRound = () => {
-      round++;
-      question();
-    };
-    app.querySelector('#next').onclick = nextRound;
-    if (paused) return;
-    const end = performance.now() + recapDelay;
-    recapTimer = setTimeout(nextRound, recapDelay);
-    recapTicker = setInterval(() => tickRecap(app, end), 200);
-    app.querySelector('#hold-round').onclick = () => {
-      clearTimeout(recapTimer);
-      clearInterval(recapTicker);
-      revealArcade(correct, right, true);
-    };
-  }
-
-  question();
 }
 
 function maskSeats(state) {

@@ -1,7 +1,12 @@
 import { sideScreen, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
-import { buildChallenges, getPuzzle, majorityVerdict } from './challenges.js';
+import { getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { masks, maskId } from './masks.js?v=2';
+
+import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js';
+import { bestHoldem } from './card-dice-rules.js';
+import { matchTitles, rankHand, pokerRanks } from './match-rules.js';
+import { matchMarkup, mountMatch, cardName } from './match-view.js';
 
 const limit = 6;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
@@ -11,18 +16,28 @@ const phases = ['draft', 'clue', 'final', 'pact'];
 export function hostTournament(env) {
   const players = [{ mask: maskId(env.mask), moves: {}, score: 0, online: true, status: '' }];
   const requests = new Map();
-  const lineup = buildChallenges(env.playlist, env.shuffle);
+  const lineup = seasonLineup(env.playlist, env.shuffle);
   const records = [];
   const route = routes.map(places =>
     (places.find(place => place.id === env.destination) ?? env.shuffle(places)[0]).id);
   let phase = 'lobby', round = 0, deadline = 0, timer, requestId = 0;
+  let matches = [];
+  const wallet = new Map();
+  let lastPurchase;
+  wallet.set(0, {coins:5,time:1});
   const view = makeView(env, intent => handle(0, intent));
 
   function state(seat) {
     const exposeClues = ['final', 'pact'].includes(phase);
     return {
       kind: 'table', phase, round, seat, recapPaused: phase === 'reveal' && !deadline, endsIn: Math.max(0, deadline - Date.now()),
-      challenge: lineup[round], location: route[round], records: [...records],
+      challenge: lineup[round], location: route[round % route.length],
+      board: phase === 'match' ? matches.find(match => match.seats.includes(seat))?.snapshot(seat) : undefined,
+      records: [...records],
+      wallet: wallet.get(seat),
+      nextSlot: phase === 'reveal' ? lineup[round+1] : undefined,
+      schedule: lineup.map(({key,title}) => ({key,title})),
+      lastPurchase,
       players: players.map(({ mask, score, online, status, moves }) => ({
         mask, score, online, status,
         clue: exposeClues ? moves.clue?.option : undefined,
@@ -43,6 +58,12 @@ export function hostTournament(env) {
   function disconnect(player) {
     if (!player.online) return;
     player.online = false;
+    if (phase === 'match') {
+      const seat = players.indexOf(player);
+      matches.find(match => match.seats.includes(seat))?.resign(seat, 'Opponent disconnected');
+      updateMatches();
+      return;
+    }
     publish();
     advanceIfReady();
   }
@@ -91,13 +112,82 @@ export function hostTournament(env) {
     records.push({ title: item.title, right, entries, verdict: verdict ? {
       choice: item.options[verdict.choice] ?? null, count: verdict.count, total: verdict.total,
     } : null });
+    awardWallet();
     enter(round === lineup.length - 1 ? 'verdict' : 'reveal');
   }
+  function awardWallet() {
+    for (const balance of wallet.values()) {
+      balance.coins += 2;
+      if ((round + 1) % 3 === 0) balance.time++;
+    }
+  }
+
+  function beginEvent() {
+    if (!lineup[round].match) {
+      enter('draft');
+      return;
+    }
+    const seats = players.flatMap((player, seat) => player.online ? [{seat, score:player.score}] : []);
+    matches = seasonMatches(lineup[round].key, seats, round, env.shuffle);
+    clearTimeout(timer);
+    phase = 'match';
+    deadline = 0;
+    updateMatches();
+  }
+
+  function finishMatches() {
+    if (phase !== 'match' || matches.some(match => !match.done)) return;
+    const entries = players.map(() => ({points:0, answer:'Did not play'}));
+    matches.forEach(match => match.seats.forEach((seat, side) => {
+      if (seat < 0) return;
+      const {winner, reason} = match.result;
+      const points = winner === null ? 2 : winner === side ? 4 : 0;
+      const snapshot = match.snapshot(seat);
+      const hand = snapshot.showdown?.[side] ?? snapshot.shown?.[side];
+      const ranking = hand && (snapshot.community ? bestHoldem([...hand,...snapshot.community]) : rankHand(hand));
+      const cards = ranking ? ` · ${pokerRanks[ranking[0]]} (${hand.map(cardName).join(' ')})` : '';
+      players[seat].score += points;
+      entries[seat] = {points, answer: `${winner === null ? 'Draw' : points ? 'Won' : 'Lost'} · ${reason}${cards}`};
+    }));
+    records.push({title:lineup[round].title, match:true, entries});
+    awardWallet();
+    enter(round === lineup.length - 1 ? 'verdict' : 'reveal');
+  }
+
+  function updateMatches() {
+    clearTimeout(timer);
+    matches.forEach(match => match.expire());
+    const pending = matches.filter(match => !match.done);
+    if (!pending.length) {
+      timer = setTimeout(finishMatches, 1_800);
+      publish();
+      return;
+    }
+    const botReady = pending.some(match => match.activeSeat() === -1);
+    const delay = Math.min(...pending.map(match => match.deadline() - Date.now()), botReady ? 750 : Infinity);
+    timer = setTimeout(() => {
+      if (phase !== 'match') return;
+      pending.forEach(match => {
+        match.expire();
+        if (match.done || match.activeSeat() !== -1) return;
+        const position = match.snapshot(-1);
+        const options = match.legal();
+        const action = options.find(item => item.mask === 0 || item.choice === 'Bank' && position.tally >= 15) ?? env.shuffle(options)[0];
+        if (action) {
+          const move = action.choice === 'Claim' ? {...action,cards:[position.hand[0]]} : action;
+          match.move(-1, {serial:position.serial, action:move});
+        }
+      });
+      updateMatches();
+    }, Math.max(0, delay));
+    publish();
+  }
+
   function nextRound() {
     if (phase !== 'reveal') return;
     round++;
     players.forEach(player => { player.moves = {}; });
-    enter('draft');
+    beginEvent();
   }
   function handle(seat, intent) {
     const player = players[seat];
@@ -116,7 +206,26 @@ export function hostTournament(env) {
     if (seat === 0 && type === 'start' && phase === 'lobby' && players.filter(p => p.online).length >= 2) {
       // Invitations from the lobby cannot replace a player once play begins.
       for (const pending of requests.values()) pending.decide(false);
-      enter('draft');
+      beginEvent();
+      return;
+    }
+    if (type === 'buy-event' && phase === 'reveal' && intent.round === round && lastPurchase?.after !== round) {
+      const next = lineup[round + 1];
+      const key = intent.key;
+      const balance = wallet.get(seat);
+      if (!next?.match || !Object.hasOwn(matchTitles,key) || key === next.key ||
+          lineup.slice(0,round+1).some(event=>event.key===key)) return;
+      const existing = lineup.findIndex((event,index)=>index>round+1 && event.key===key);
+      const optional = lineup.findIndex((event,index)=>index>=round+1 && event.match && !coreGames.includes(event.key));
+      const replacement = existing >= 0 ? existing : optional;
+      if (replacement < 0) return;
+      if (intent.currency === 'coins' && balance.coins >= buyCoins) balance.coins -= buyCoins;
+      else if (intent.currency === 'time' && balance.time) balance.time--;
+      else return;
+      if (replacement !== round+1) lineup[replacement] = next;
+      lineup[round+1] = {key,title:matchTitles[key],match:true};
+      lastPurchase = {after:round,seat,key};
+      publish();
       return;
     }
     if (seat === 0 && phase === 'reveal') {
@@ -130,6 +239,16 @@ export function hostTournament(env) {
         publish();
         return;
       }
+    }
+    if (phase === 'match' && intent.round === round && ['match-move', 'match-resign', 'match-time'].includes(type)) {
+      const match = matches.find(item => item.seats.includes(seat));
+      if (!match) return;
+      if (type === 'match-resign' && intent.serial === match.snapshot(seat).serial) match.resign(seat);
+      else if (type === 'match-move') match.move(seat, intent);
+      else if (type === 'match-time' && wallet.get(seat).time &&
+          match.addTime(seat,intent.serial)) wallet.get(seat).time--;
+      updateMatches();
+      return;
     }
     if (type !== 'move' || intent.phase !== phase || intent.round !== round ||
         !phases.includes(phase) || player.moves[phase] || Date.now() >= deadline) return;
@@ -173,6 +292,7 @@ export function hostTournament(env) {
       const seat = vacant === -1 ? players.length : vacant;
       player = { mask: maskId(hello.mask), moves: {}, score: 0, online: true, status: '', link, queue: Promise.resolve() };
       players[seat] = player;
+      wallet.set(seat, {coins:5,time:1});
       if (id) requests.delete(id);
       publish();
       while (player.online && players[seat] === player) {
@@ -195,22 +315,45 @@ export function hostTournament(env) {
   })();
 }
 
+const integer = (value,min,max) => Number.isInteger(value) && value >= min && value <= max;
+const coordinate = value => typeof value === 'string' && /^[a-h][1-8]$/.test(value);
+function validBoard(board, state) {
+  if (!board) return true;
+  return board.key === state.challenge.key && integer(board.side,0,1) && integer(board.active,0,1) &&
+    Array.isArray(board.seats) && board.seats.length === 2 &&
+    board.seats.every(seat=>integer(seat,-1,state.players.length-1)) && board.seats[board.side] === state.seat &&
+    Number.isSafeInteger(board.serial) &&
+    Array.isArray(board.legal) && board.legal.length <= 256 &&
+    Array.isArray(board.time) && board.time.length === 2 && board.time.every(Number.isFinite) &&
+    (!board.pieces || Array.isArray(board.pieces) && board.pieces.length <= 32 && board.pieces.every(piece=>
+      coordinate(piece.square) && /^[pnbrqkm]$/.test(piece.type) && integer(piece.side,0,1))) &&
+    (!board.pieces || !board.last || coordinate(board.last.from) && coordinate(board.last.to)) &&
+    (!board.result || board.result.winner === null || integer(board.result.winner,0,1));
+}
+
 function isTableState(state) {
   return state?.kind === 'table' && Number.isInteger(state.seat) &&
-    Number.isInteger(state.round) && state.round >= 0 && state.round < 3 &&
+    Number.isInteger(state.round) && state.round >= 0 && state.round < seasonLength &&
     Array.isArray(state.players) && state.players.length <= limit &&
     state.seat >= 0 && state.seat < state.players.length &&
     state.players.every(player => Number.isInteger(player.score)) &&
     Array.isArray(state.approvals) && state.approvals.length === 0 &&
-    Array.isArray(state.records) && state.records.length <= 3 &&
+    Array.isArray(state.records) && state.records.length <= seasonLength &&
     state.records.every(record => Array.isArray(record.entries) &&
       record.entries.length === state.players.length &&
       record.entries.every(entry => Number.isInteger(entry.points) &&
         (entry.from === undefined || Number.isInteger(entry.from)) &&
         (entry.target === undefined || Number.isInteger(entry.target)))) &&
-    ['lobby', ...phases, 'reveal', 'verdict'].includes(state.phase) &&
-    Boolean(getPuzzle(state.challenge?.key, state.challenge?.index, state.challenge?.seed)) &&
-    Array.isArray(state.challenge.options) && state.challenge.options.length === 4;
+    ['lobby', ...phases, 'match', 'reveal', 'verdict'].includes(state.phase) &&
+    (state.challenge?.match === true ? Object.hasOwn(matchTitles, state.challenge.key) :
+      Boolean(getPuzzle(state.challenge?.key, state.challenge?.index, state.challenge?.seed)) &&
+      Array.isArray(state.challenge.options) && state.challenge.options.length === 4) &&
+    (state.phase !== 'match' || validBoard(state.board,state)) &&
+    (!state.wallet || integer(state.wallet.coins,0,100) && integer(state.wallet.time,0,20)) &&
+    Array.isArray(state.schedule) && state.schedule.length === seasonLength &&
+    state.schedule.every(event=>typeof event.key==='string' && typeof event.title==='string') &&
+    (!state.lastPurchase || integer(state.lastPurchase.seat,0,state.players.length-1) &&
+      Object.hasOwn(matchTitles,state.lastPurchase.key));
 }
 
 export async function joinTournament(env, link, key) {
@@ -260,7 +403,7 @@ function makeView(env, send) {
   }
   function receipt(state) {
     return `<div class="table-record">${roundPages(state.records.map((round, i) => `<h4>${i + 1}. ${esc(round.title)}</h4>
-      ${round.verdict ? `<p>${round.verdict.choice ?
+      ${round.match ? '' : round.verdict ? `<p>${round.verdict.choice ?
         `The table chose <strong>${esc(round.verdict.choice)}</strong> · ${Number(round.verdict.count)} of ${Number(round.verdict.total)} votes` :
         'No majority this round. No answer points.'}</p>` : `<p>Correct answer <strong>${esc(round.right)}</strong></p>`}
       <ul>
@@ -270,6 +413,26 @@ function makeView(env, send) {
         ${entry.card ? ` · ${esc(entry.card)}` : ''}${entry.target === undefined ? '' : ` on Seat ${entry.target + 1}`}${entry.caught ? ' · caught the bluff' : entry.card === 'Call bluff' ? ' · accusation missed' : ''}
         ${entry.fooled ? ' · someone took the decoy' : ''} · ${entry.points >= 0 ? '+' : ''}${entry.points}</small></li>`).join('')}</ul>`))}</div>`;
   }
+  function shop(state) {
+    const {round, nextSlot, schedule, wallet, lastPurchase} = state;
+    if (!nextSlot || !wallet) return '';
+    const balance = `<p>${wallet.coins} coins · ${wallet.time} time tokens</p>`;
+    if (lastPurchase?.after === round) {
+      return `<p>Seat ${lastPurchase.seat + 1} chose ${esc(matchTitles[lastPurchase.key])} next.</p>`;
+    }
+    if (!nextSlot.match) return `<p>Up next <strong>${esc(nextSlot.title)}</strong></p>`;
+    const past = new Set(schedule.slice(0,round+2).map(event=>event.key));
+    const future = schedule.slice(round+1).map(event=>event.key);
+    const optional = future.some(key=>Object.hasOwn(matchTitles,key) && !coreGames.includes(key));
+    const games = Object.entries(matchTitles).filter(([key])=>!past.has(key) && (future.includes(key)||optional));
+    if (!games.length) return '';
+    return `<p>Up next <strong>${esc(nextSlot.title)}</strong></p>${sideScreen('event-shop', 'Choose the next table',
+      `${balance}<p>Spend ${buyCoins} coins or 1 time token. One purchase per recap. A later game moves forward if it is already on the schedule.</p>
+      <label for="shop-game">Available games</label><select id="shop-game">${games.map(([key,title])=>`<option value="${key}">${esc(title)}</option>`).join('')}</select>
+      <div class="row">${button('Spend coins','buy-event',`data-currency="coins" ${wallet.coins < buyCoins ? 'disabled' : ''}`)}
+      ${button('Spend time','buy-event',`data-currency="time" ${wallet.time ? '' : 'disabled'}`)}</div>`, 'Buy the next game')}`;
+  }
+
   async function shareUpdate(state, statusOnly) {
     const score = state.players[state.seat].score;
     const best = Math.max(...state.players.map(player => player.score));
@@ -297,7 +460,10 @@ function makeView(env, send) {
 
   function render(state) {
     ends = performance.now() + state.endsIn;
-    const signature = JSON.stringify({ ...state, endsIn: 0 });
+    const summary = state.phase === 'match' ? {
+      phase: state.phase, round:state.round, wallet:state.wallet, board: state.board && {...state.board, time: undefined},
+    } : {...state, endsIn:0};
+    const signature = JSON.stringify(summary);
     if (signature === prior) return;
     if (previousPhase !== state.phase || previousRound !== state.round) {
       env.cue(({ draft: 'trivia', clue: 'claim', final: 'choice', pact: 'choice', reveal: 'reveal', verdict: undefined })[state.phase]);
@@ -306,7 +472,7 @@ function makeView(env, send) {
     previousPhase = state.phase;
     previousRound = state.round;
     const { phase, round, seat, players, challenge } = state;
-    const place = scenarioFor(round, state.location);
+    const place = scenarioFor(round % routes.length, state.location);
     const host = seat === 0;
     const back = '<a class="quiet" href="./">Back to the lobby ↗</a>';
     const header = '<span class="eyebrow">THE MIDNIGHT TRIAL · SEASON</span>';
@@ -324,6 +490,9 @@ function makeView(env, send) {
           <p class="muted">Keep this tab open. Start when everyone is in.</p>` :
           '<p class="waiting">Waiting for the host to start.</p>'}
         <div class="screen-links">${sideScreen('table-seats', 'See who’s here', roster(state))}${statusOptions(state)}</div>${back}`;
+    } else if (phase === 'match') {
+      content = `<span class="eyebrow">SEASON EVENT ${round + 1} OF ${seasonLength} · ${esc(challenge.title)}</span>
+        ${matchMarkup(state.board, state.wallet)}`;
     } else if (phase === 'reveal' || phase === 'verdict') {
       const best = Math.max(...players.map(player => player.score));
       const winners = players.flatMap((player, i) => player.score === best ? [name(state, i)] : []);
@@ -334,7 +503,7 @@ function makeView(env, send) {
         ${phase === 'verdict' ? `<p>${winners.length === 1 ? 'Winner' : 'Joint winners'} <strong>${winners.map(esc).join(' / ')}</strong> · ${best} pts</p>` : ''}
         <p>Your score <strong>${players[seat].score} pts</strong></p>${won ? env.victoryControls() : ''}
         ${phase === 'verdict' ? `<div class="row">${button('Share result', 'share-result', 'class="primary"')}${back}</div>` :
-          roundAdvance(round + 2, host, state.recapPaused)}
+          roundAdvance(round + 2, host, state.recapPaused) + shop(state)}
         <div class="screen-links">
           ${sideScreen('table-scores', 'Scoreboard', roster(state))}
           ${sideScreen('table-results', 'Round history', receipt(state) +
@@ -343,7 +512,7 @@ function makeView(env, send) {
     } else {
       const puzzle = getPuzzle(challenge.key, challenge.index, challenge.seed);
       const options = challenge.options;
-      const top = `<span class="eyebrow">SEASON ROUND ${round + 1} OF 3 · ${esc(challenge.title)}</span>${place ? `<small class="table-location">${esc(place.name)}</small>` : ''}`;
+      const top = `<span class="eyebrow">SEASON EVENT ${round + 1} OF ${seasonLength} · ${esc(challenge.title)}</span>${place ? `<small class="table-location">${esc(place.name)}</small>` : ''}`;
       const timer = '<p class="clock" id="table-clock" aria-label="Time remaining"></p>';
       let heading, details, actions;
       const picks = options.map((option, i) => button(option, 'pick', `data-option="${i}"`)).join('');
@@ -382,11 +551,16 @@ function makeView(env, send) {
     }
 
     clearInterval(ticker);
-    const art = phases.includes(phase) && place ? `--place-art:url(places/${place.art}.jpg)` : '';
+    const art = (phases.includes(phase) || phase === 'match') && place?.art ? `--place-art:url(places/${place.art}.jpg)` : '';
     env.stage(content, false, `scene focused-turn tournament${won ? ' victory' : ''}${art ? ' with-place' : ''}`, art, `table:${round}:${phase}`);
     const app = document.querySelector('#app');
     app.querySelector('#next')?.addEventListener('click', () => send({type: 'next'}));
     app.querySelector('#hold-round')?.addEventListener('click', () => send({type: 'hold'}));
+    if (phase === 'match') {
+      const tick = mountMatch(app, state.board, intent => send({...intent, round}));
+      tick();
+      ticker = setInterval(tick, 200);
+    }
     if (phase === 'reveal') {
       tickRecap(app, ends);
       ticker = setInterval(() => tickRecap(app, ends), 200);
@@ -406,7 +580,8 @@ function makeView(env, send) {
     app.querySelectorAll('[data-table]').forEach(control => {
       control.onclick = () => {
         const { table: type, option, from, card, id, label } = control.dataset;
-        if (type === 'share-result' || type === 'share-status') void shareUpdate(state, type === 'share-status');
+        if (type === 'buy-event') send({type, round, key:app.querySelector('#shop-game').value, currency:control.dataset.currency});
+        else if (type === 'share-result' || type === 'share-status') void shareUpdate(state, type === 'share-status');
         else if (type === 'status') send({ type, value: label });
         else if (type === 'admit' || type === 'decline') send({ type: 'admit', id: Number(id), accept: type === 'admit' });
         else if (type === 'start' || type === 'next') send({ type });
