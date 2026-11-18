@@ -1,9 +1,9 @@
-import { icon } from './icons.js?v=2';
+import { icon } from './icons.js?v=3';
 import { masks, maskId } from './masks.js?v=2';
 import { jumps, squarePosition } from './snakes.js';
 import { diceCategories } from './card-dice-rules.js?v=6';
-import { pokerRanks, rankHand } from './match-rules.js?v=10';
-import { mountTableObjects } from './table-objects.js?v=13';
+import { pokerRanks, rankHand } from './match-rules.js?v=11';
+import { mountTableObjects } from './table-objects.js?v=14';
 import { mountLiveBoard } from './live-board.js?v=2';
 
 const glyph = {p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', m:'●'};
@@ -73,23 +73,27 @@ const rolledDie = value => `<div class="ludo-die" data-die="${Number(value)}" ar
         <b class="die-face">${dieFace(value)}</b></div>`;
 
 function ludo(board) {
-  const where = pos => pos === -1 ? 'Yard' : pos === 56 ? 'Home' : pos > 50 ? `Home lane ${pos - 50}` : `Track ${pos + 1}`;
+  const finish = board.finish ?? 56;
+  const crown = board.last?.to === finish ? board.last : null;
+  const where = pos => pos === -1 ? 'Yard' : pos > 50 ? `Home lane ${pos - 50}` : `Track ${pos + 1}`;
   const walls = [];
   const tokens = board.tokens.flatMap((positions, side) => positions.map((pos,i) => {
     const height=pos>=0 && pos<=50 ? positions.filter(value=>value===pos).length : 1;
     const level=height>1 ? positions.slice(0,i).filter(value=>value===pos).length : 0;
     const moved = board.last?.token === i && board.last?.side === side;
-    const position = ludoPosition(side,i,pos);
+    if (pos === finish && !moved) return '';
+    const position = pos === finish ? [7,7] : ludoPosition(side,i,pos);
     const origin = moved ? ludoPosition(side,i,board.last.from) : position;
     if(height>1 && level===height-1)walls.push({position,height,side});
-    return `<span class="ludo-pawn lane-${side}" style="${cell(position)}" data-level="${level}" data-height="${height}"  data-from="${origin.join(',')}" data-to="${position.join(',')}" data-ludo-token="${side},${i}">${i + 1}</span>`;
+    return `<span class="ludo-pawn lane-${side}" style="${cell(position)}" data-crowning="${pos===finish}" data-level="${level}" data-height="${height}"  data-from="${origin.join(',')}" data-to="${position.join(',')}" data-ludo-token="${side},${i}">${i + 1}</span>`;
   })).join('');
   const blocked=board.last?.blocked;
-  return `<details class="ludo-rules"><summary>Ludo rules</summary><p>Roll a six to leave the yard or roll again. Get all four pieces home with exact rolls. Two or more pieces form a wall. Roll one consecutive six per piece to cross it. You can only move past a wall, and a failed run resets when your turn ends.</p></details>
+  return `<details class="ludo-rules"><summary>Ludo rules</summary><p>Roll a six to leave the yard or roll again. Crown all four pieces by landing exactly on the center diamond. Two or more pieces form a wall. Roll one consecutive six per piece to cross it. You can only move past a wall, and a failed run resets when your turn ends.</p></details>
     <div class="ludo-roll">
       ${board.legal.some(action => action.roll) ? `<button type="button" ${actionSkin('roll')} data-roll>${tableIcon('roll')}Roll die</button>` : ''}
       ${board.lastRoll ? `${rolledDie(board.lastRoll)}<p role="status">Last roll <strong>${Number(board.lastRoll)}</strong></p>` : ''}
       ${blocked ? `<span class="ludo-wall-progress" role="status">${icon('layers')} Wall ×${Number(blocked.size)} <b>${Number(blocked.sixes)}/${Number(blocked.size)} sixes</b></span>` : ''}
+      ${crown ? `<span class="ludo-crowned" role="status">${icon('crown')} ${sideName(board,crown.side)} · Token ${crown.token+1} crowned</span>` : ''}
       ${board.last?.crossed ? '<span class="ludo-wall-progress" role="status">Wall crossed</span>' : ''}
       ${board.die && board.legal.some(move=>move.token!==undefined) ? '<p>Choose a token.</p>' : ''}
     </div>
@@ -98,11 +102,17 @@ function ludo(board) {
       ${track.map((position,i) => `<span class="ludo-cell ${i === 0 ? 'lane-0' : i === 26 ? 'lane-1' : ''}" style="${cell(position)}"></span>`).join('')}
       ${Array.from({length:6},(_,i) => `<span class="ludo-cell lane-0" style="${cell([7,i+1])}"></span>
         <span class="ludo-cell lane-1" style="${cell([7,13-i])}"></span>`).join('')}
+      <span class="ludo-goal" style="${cell([7,7])}">${icon('crown')}</span>
       ${tokens}
       ${walls.map(({position,height,side})=>`<span class="ludo-wall-count lane-${side}" style="${cell(position)}" data-ludo-wall="${position.join(',')}" data-height="${height}">×${height}</span>`).join('')}
     </div>
-    <div class="ludo-match">${board.tokens.map((positions, side) => `<section><h3>${sideName(board, side)}</h3><div class="race-tokens">
-      ${positions.map((pos, i) => `<button type="button" class="ludo-token-button lane-${side}" data-token="${i}" data-token-side="${side}" ${side === board.side && board.legal.some(action => action.token === i) ? '' : 'disabled'}>
+    <div class="ludo-match">${board.tokens.map((positions, side) => `<section>
+      <div class="ludo-tray-heading"><h3>${sideName(board, side)}</h3>
+        <div class="ludo-tray lane-${side}" role="img" aria-label="${positions.filter(pos=>pos===finish).length} of 4 pieces crowned">
+          <small>${positions.filter(pos=>pos===finish).length}/4</small>
+          ${positions.map((pos,i)=>`<span data-crowned="${pos===finish}" title="Token ${i+1}${pos===finish?' crowned':''}">${icon('crown')}</span>`).join('')}
+        </div></div><div class="race-tokens">
+      ${positions.map((pos, i) => pos === finish ? '' : `<button type="button" class="ludo-token-button lane-${side}" data-token="${i}" data-token-side="${side}" ${side === board.side && board.legal.some(action => action.token === i) ? '' : 'disabled'}>
         <strong>Token ${i + 1}</strong><small>${where(pos)}</small></button>`).join('')}</div></section>`).join('')}</div>
     `;
 }
@@ -420,6 +430,12 @@ export function mountMatch(app, board, send, changedMove) {
     if (track) {
       const size = track.clientWidth / 15;
       track.querySelectorAll('.ludo-pawn').forEach(token => {
+        if (token.dataset.crowning==='true' && changedMove) {
+          const [fromY,fromX]=token.dataset.from.split(',').map(Number);
+          globalThis.Motion.animate(token,{x:[(fromX-7)*size,0,0],y:[(fromY-7)*size,0,-12],scale:[1,1,0],opacity:[1,1,0]},
+            {duration:.68,times:[0,.55,1]});
+          return;
+        }
         if (token.dataset.from === token.dataset.to) return;
         const [fromY,fromX] = token.dataset.from.split(',').map(Number);
         const [toY,toX] = token.dataset.to.split(',').map(Number);
@@ -504,7 +520,7 @@ export function mountMatch(app, board, send, changedMove) {
       if (move) action(move);
     };
   });
-  mountTableObjects(app, board);
+  mountTableObjects(app, board, changedMove);
   app.querySelector('[data-match-time]')?.addEventListener('click',()=>send({type:'match-time',serial:board.serial}));
   const confirm = app.querySelector('[data-resign-confirm]');
   app.querySelector('[data-resign]')?.addEventListener('click', () => {

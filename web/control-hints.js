@@ -1,4 +1,4 @@
-import { icon } from './icons.js?v=2';
+import { icon } from './icons.js?v=3';
 
 const toggle=document.querySelector('#hints');
 const tip=document.createElement('span');

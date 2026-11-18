@@ -1,14 +1,14 @@
 import { readProgress, progressMarkup, achievementMarkup, weeklyPick } from './progress.js';
-import { icon } from './icons.js?v=2';
+import { icon } from './icons.js?v=3';
 import './control-hints.js';
 import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=3';
-import { hostTournament, joinTournament } from './tournament.js?v=34';
+import { hostTournament, joinTournament } from './tournament.js?v=35';
 
 import { challenges } from './challenges.js';
-import { matchTitles } from './match-rules.js?v=10';
+import { matchTitles } from './match-rules.js?v=11';
 import { mountPuzzleBoard } from './puzzle-board.js';
 
 const app = document.querySelector('#app');
@@ -87,6 +87,7 @@ const soundCues = {
   reveal: { notes: [82, 123, 185], wave: 'triangle', volume: .1, length: .52 },
   verdict: { notes: [98, 147, 196, 294, 392], wave: 'triangle', length: .63 },
   gift: { notes: [82, 123, 207, 370, 554], wave: 'sine', length: .71 },
+  crown: { notes: [262,392,523,784], wave: 'sine', volume: .085, length: .4 },
   draw: { notes: [147, 220], wave: 'sine', volume: .07, length: .28 },
   pass: { notes: [146, 98], wave: 'triangle', volume: .065, length: .32 },
   penalty: { notes: [92, 69], wave: 'triangle', volume: .09, length: .4 },

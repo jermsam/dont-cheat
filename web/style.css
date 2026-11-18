@@ -603,3 +603,18 @@ select, .destination-picker select, .table-menu select, .table-accuse select {
   .live-table-stage{padding:12px clamp(8px,2.75vw,16px)}
   .recap-links{gap:.35rem}
 }
+
+.ludo-goal{display:grid;place-items:center;z-index:1;background:#6a3d16;color:#fff0b3;border:1px solid #e8bb5b;border-radius:4px;box-shadow:0 0 8px #d89b508c}
+.ludo-goal .ui-icon{width:80%;height:80%}
+.ludo-pawn[data-crowning="true"]{opacity:0;z-index:3}
+.ludo-crowned,.ludo-tray-heading,.ludo-tray{display:flex;align-items:center;gap:.4rem}
+.ludo-crowned{padding:.3rem .5rem;border:1px solid #bd8e4e;border-radius:5px;color:#ffe5a3;background:#442a17}
+.ludo-tray-heading{justify-content:space-between}
+.ludo-tray span{display:grid;place-items:center;color:#b99eae;width:1.4rem;height:1.4rem;border:1px solid #634d61;border-radius:4px}
+.ludo-tray span[data-crowned="true"]{color:#ffe7a2;background:#58391e;border-color:#d7a85c}
+.ludo-tray .ui-icon{width:.9rem;height:.9rem}
+.ludo-crown-burst{position:absolute;left:50%;top:50%;z-index:4;pointer-events:none;color:#ffe6a1;transform:translate(-50%,-60%);opacity:0;animation:ludo-crown .85s ease-out both}
+.ludo-crown-burst .ui-icon{width:2.35rem;height:2.35rem;filter:drop-shadow(0 0 8px #f6b845)}
+@keyframes ludo-crown{0%,34%{opacity:0;scale:.65}55%{opacity:1;scale:1.2}80%{opacity:1}100%{opacity:0;scale:1.65;translate:0 -20px}}
+.ludo-crown-burst::before{content:"";position:absolute;inset:-.65rem;border-radius:50%;background:repeating-conic-gradient(from 12deg,#ffd27c 0deg 5deg,transparent 5deg 45deg);mask-image:radial-gradient(circle,transparent 42%,#000 52%,transparent 72%);filter:drop-shadow(0 0 5px #f6b845)}
+.ludo-tray small{font-variant-numeric:tabular-nums;color:#ffe7a2}

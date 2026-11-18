@@ -42,6 +42,8 @@ export function createTableObjects(holder) {
     ctx.fillStyle=g;ctx.fillRect(0,0,48,48);return canvas;
   })());
   const shadow=new THREE.MeshBasicMaterial({map:shadowMap,transparent:true,depthWrite:false,opacity:.8});
+  const diamondGeo=new THREE.OctahedronGeometry(.32);
+  const diamondPaint=new THREE.MeshStandardMaterial({color:0xffcc62,emissive:0xe88b28,emissiveIntensity:.6,metalness:.35,roughness:.29});
   const tokenGeo=new THREE.CylinderGeometry(.135,.175,.26,20);
   const cellGeo=new THREE.BoxGeometry(.35,.055,.35);
   const pitGeo=new THREE.CylinderGeometry(.29,.33,.09,22);
@@ -295,13 +297,20 @@ export function createTableObjects(holder) {
       label.textContent = `×${height}`;
       return label;
     }));
-    const tokens=ludoTokens.map(({side,level,from,to,button})=>{
+    if(ludoBoard){
+      const diamond=new THREE.Mesh(diamondGeo,diamondPaint);
+      diamond.scale.y=.47;
+      diamond.position.y=.09;
+      objects.add(diamond);
+    }
+    const tokens=ludoTokens.map(({side,level,from,to,button,crowning})=>{
       const model=new THREE.Mesh(tokenGeo,tokenPaint[side]);
       const height=.16+level*.20;
       model.position.set((to[1]-7)*.37,height,(to[0]-7)*.37);
+      model.visible=!crowning;
       model.userData.button=button;
       objects.add(model);
-      return {model,from,to,height};
+      return {model,from,to,height,crowning};
     });
     const seeds=[];
     pits.forEach(({count,button},index)=>{
@@ -356,7 +365,15 @@ export function createTableObjects(holder) {
           model.rotation.z=previous?0:(1-t)*Math.PI;
           keepCardAboveFelt(model,model.position.y);
         });
-        tokens.forEach(({model,from,to,height})=>{
+        tokens.forEach(({model,from,to,height,crowning})=>{
+          if(crowning){
+            const travel=Math.min(1,value/.56);
+            const lift=Math.max(0,(value-.56)/.44);
+            model.visible=value<1;
+            model.position.set((THREE.MathUtils.lerp(from[1],7,travel)-7)*.37,height+lift*.9,(THREE.MathUtils.lerp(from[0],7,travel)-7)*.37);
+            model.scale.setScalar(1-lift);
+            return;
+          }
           if (from.join()===to.join()) return;
           model.position.x=(THREE.MathUtils.lerp(from[1],to[1],value)-7)*.37;
           model.position.z=(THREE.MathUtils.lerp(from[0],to[0],value)-7)*.37;
@@ -392,8 +409,8 @@ export function createTableObjects(holder) {
     animation?.stop();
     resize.disconnect();
     removal.disconnect();
-    [slab,faceGeo,actionBadge,contactGeo,cube,tableGeo,trimGeo,tokenGeo,cellGeo,pitGeo,seedGeo].forEach(item=>item.dispose());
-    [tableInk,wood,inlay,shadow,edges,actionEdge,selectionEdge,pitPaint,seedPaint,...tokenPaint,...lanePaint,...mats.values(),...cardMaterials.values()].forEach(material=>{if(material!==wood)material.map?.dispose();material.bumpMap?.dispose();material.dispose();});
+    [slab,faceGeo,actionBadge,contactGeo,cube,tableGeo,trimGeo,diamondGeo,tokenGeo,cellGeo,pitGeo,seedGeo].forEach(item=>item.dispose());
+    [tableInk,wood,inlay,shadow,edges,actionEdge,selectionEdge,pitPaint,seedPaint,diamondPaint,...tokenPaint,...lanePaint,...mats.values(),...cardMaterials.values()].forEach(material=>{if(material!==wood)material.map?.dispose();material.bumpMap?.dispose();material.dispose();});
     raceBoard?.dispose();
     renderer.dispose();
   });
