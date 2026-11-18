@@ -116,11 +116,30 @@ function poker() {
 }
 
 const finish = 56;
-function ludo() {
-  const tokens = [range(4).map(() => -1), range(4).map(() => -1)];
+export function ludo(roll = () => 1 + random(6), tokens = [range(4).map(() => -1), range(4).map(() => -1)]) {
   let active = 0, die = 0, streak = 0, lastRoll = 0, rollCount = 0;
-  const legal = () => !die ? [{roll: true}] :
-    tokens[active].flatMap((pos, i) => (pos === -1 ? die === 6 : pos < finish && pos + die <= finish) ? [{token: i}] : []);
+  const trackSquare = (pos, side) => (pos + side * 26) % 52;
+  const wallAt = pos => {
+    const square=trackSquare(pos,active);
+    const size=tokens[1-active].filter(other=>other>=0 && other<=50 && trackSquare(other,1-active)===square).length;
+    return size >= 2 ? size : 0;
+  };
+  const destination = (pos, value) => pos < 0 ? value === 6 ? 0 : null :
+    pos < finish && pos + value <= finish ? pos + value : null;
+  function barrier(pos, to) {
+    if (to === null) return 0;
+    let size = 0;
+    for(let square=pos+1;square<=Math.min(50,to);square++)size=Math.max(size,wallAt(square));
+    return size;
+  }
+  function legal() {
+    if (!die) return [{roll:true}];
+    return tokens[active].flatMap((pos,i) => {
+      const to=destination(pos,die);
+      if (to===null || to<=50 && wallAt(to)) return [];
+      return barrier(pos,to)<=streak ? [{token:i}] : [];
+    });
+  }
   function pass(extra = false) {
     die = 0;
     if (extra) return;
@@ -133,27 +152,33 @@ function ludo() {
     legal,
     move(action) {
       if (action.roll) {
-        die = 1 + random(6);
-        streak = die === 6 ? streak + 1 : 0;
+        die = roll();
         const rolled = die;
         lastRoll = rolled;
         rollCount++;
-        if (streak === 3) pass();
-        else if (!legal().length) pass(rolled === 6);
-        return {last: {rolled}};
+        if(rolled===6)streak++;
+        const walls=tokens[active].map(pos=>barrier(pos,destination(pos,rolled))).filter(Boolean);
+        const needsSixes=walls.filter(size=>size>streak);
+        const blocked=needsSixes.length ? {size:Math.min(...needsSixes),sixes:rolled===6?streak:0} : undefined;
+        // The ordinary three-sixes limit must not cancel a wall attempt.
+        if (rolled===6 && streak>=3 && !walls.length) pass();
+        else if (!legal().length) pass(rolled===6);
+        return {last: {rolled,blocked}};
       }
       const before = tokens[active][action.token];
-      const to = before < 0 ? 0 : before + die;
+      const to = destination(before,die);
+      const crossed = barrier(before,to);
       tokens[active][action.token] = to;
-      const track = (to + active * 26) % 52;
+      const track = trackSquare(to,active);
       const rival = 1 - active;
       if (to <= 50 && track !== 0 && track !== 26) {
         tokens[rival].forEach((pos, i) => {
-          if (pos >= 0 && pos <= 50 && (pos + rival * 26) % 52 === track) tokens[rival][i] = -1;
+          if (pos >= 0 && pos <= 50 && trackSquare(pos,rival) === track) tokens[rival][i] = -1;
         });
       }
-      const last = {token: action.token, side: active, from: before, to};
+      const last = {token: action.token, side: active, from: before, to, crossed};
       if (tokens[active].every(pos => pos === finish)) return {last, winner: active, reason: 'All four tokens reached home'};
+      if(crossed)streak=0;
       pass(die === 6);
       return {last};
     },

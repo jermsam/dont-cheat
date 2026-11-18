@@ -2,8 +2,8 @@ import { icon } from './icons.js';
 import { masks, maskId } from './masks.js?v=2';
 import { jumps, squarePosition } from './snakes.js';
 import { diceCategories } from './card-dice-rules.js?v=6';
-import { pokerRanks, rankHand } from './match-rules.js?v=9';
-import { mountTableObjects } from './table-objects.js?v=11';
+import { pokerRanks, rankHand } from './match-rules.js?v=10';
+import { mountTableObjects } from './table-objects.js?v=12';
 import { mountLiveBoard } from './live-board.js';
 
 const glyph = {p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', m:'●'};
@@ -74,16 +74,23 @@ const rolledDie = value => `<div class="ludo-die" data-die="${Number(value)}" ar
 
 function ludo(board) {
   const where = pos => pos === -1 ? 'Yard' : pos === 56 ? 'Home' : pos > 50 ? `Home lane ${pos - 50}` : `Track ${pos + 1}`;
+  const walls = [];
   const tokens = board.tokens.flatMap((positions, side) => positions.map((pos,i) => {
+    const height=pos>=0 && pos<=50 ? positions.filter(value=>value===pos).length : 1;
+    const level=height>1 ? positions.slice(0,i).filter(value=>value===pos).length : 0;
     const moved = board.last?.token === i && board.last?.side === side;
     const position = ludoPosition(side,i,pos);
     const origin = moved ? ludoPosition(side,i,board.last.from) : position;
-    return `<span class="ludo-pawn lane-${side}" style="${cell(position)}" data-from="${origin.join(',')}" data-to="${position.join(',')}" data-ludo-token="${side},${i}">${i + 1}</span>`;
+    if(height>1 && level===height-1)walls.push({position,height,side});
+    return `<span class="ludo-pawn lane-${side}" style="${cell(position)}" data-level="${level}" data-height="${height}"  data-from="${origin.join(',')}" data-to="${position.join(',')}" data-ludo-token="${side},${i}">${i + 1}</span>`;
   })).join('');
-  return `<p>A six lets you leave the yard and roll again. Bring all four tokens home with exact rolls.</p>
+  const blocked=board.last?.blocked;
+  return `<details class="ludo-rules"><summary>Ludo rules</summary><p>Roll a six to leave the yard or roll again. Get all four pieces home with exact rolls. Two or more pieces form a wall. Roll one consecutive six per piece to cross it. You can only move past a wall, and a failed run resets when your turn ends.</p></details>
     <div class="ludo-roll">
       ${board.legal.some(action => action.roll) ? `<button type="button" ${actionSkin('roll')} data-roll>${tableIcon('roll')}Roll die</button>` : ''}
       ${board.lastRoll ? `${rolledDie(board.lastRoll)}<p role="status">Last roll <strong>${Number(board.lastRoll)}</strong></p>` : ''}
+      ${blocked ? `<span class="ludo-wall-progress" role="status">${icon('layers')} Wall ×${Number(blocked.size)} <b>${Number(blocked.sixes)}/${Number(blocked.size)} sixes</b></span>` : ''}
+      ${board.last?.crossed ? '<span class="ludo-wall-progress" role="status">Wall crossed</span>' : ''}
       ${board.die && board.legal.some(move=>move.token!==undefined) ? '<p>Choose a token.</p>' : ''}
     </div>
     <div class="ludo-layout" aria-hidden="true">
@@ -92,9 +99,10 @@ function ludo(board) {
       ${Array.from({length:6},(_,i) => `<span class="ludo-cell lane-0" style="${cell([7,i+1])}"></span>
         <span class="ludo-cell lane-1" style="${cell([7,13-i])}"></span>`).join('')}
       ${tokens}
+      ${walls.map(({position,height,side})=>`<span class="ludo-wall-count lane-${side}" style="${cell(position)}" data-ludo-wall="${position.join(',')}" data-height="${height}">×${height}</span>`).join('')}
     </div>
     <div class="ludo-match">${board.tokens.map((positions, side) => `<section><h3>${sideName(board, side)}</h3><div class="race-tokens">
-      ${positions.map((pos, i) => `<button type="button" data-token="${i}" data-token-side="${side}" ${side === board.side && board.legal.some(action => action.token === i) ? '' : 'disabled'}>
+      ${positions.map((pos, i) => `<button type="button" class="ludo-token-button lane-${side}" data-token="${i}" data-token-side="${side}" ${side === board.side && board.legal.some(action => action.token === i) ? '' : 'disabled'}>
         <strong>Token ${i + 1}</strong><small>${where(pos)}</small></button>`).join('')}</div></section>`).join('')}</div>
     `;
 }
