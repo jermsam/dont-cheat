@@ -1,8 +1,9 @@
+import { icon } from './icons.js';
 import { masks, maskId } from './masks.js?v=2';
 import { jumps, squarePosition } from './snakes.js';
 import { diceCategories } from './card-dice-rules.js?v=6';
 import { pokerRanks, rankHand } from './match-rules.js?v=9';
-import { mountTableObjects } from './table-objects.js?v=10';
+import { mountTableObjects } from './table-objects.js?v=11';
 import { mountLiveBoard } from './live-board.js';
 
 const glyph = {p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', m:'●'};
@@ -138,7 +139,7 @@ const handCards = cards => cards.map(card => `<span class="table-card" data-tabl
 function pickCard(card) {
   return `<button type="button" class="table-card" data-table-card="${Number(card)}" data-play-card="${Number(card)}" aria-label="Play ${cardName(card)}">${cardName(card)}</button>`;
 }
-const tableIcon = kind => `<span class="table-action-icon icon-${kind}" aria-hidden="true">${kind === 'roll' ? '⚄' : kind === 'pass' ? '↪' : ''}</span>`;
+const tableIcon = kind => `<span class="table-action-icon">${icon({roll:'dice-5',pass:'corner-up-right',draw:'layers'}[kind])}</span>`;
 const actionSkin = kind => `class="table-action table-action-${kind}"`;
 
 function matatuBeat(board) {
@@ -287,7 +288,7 @@ function cardDiceMarkup(board) {
         ${legal.filter(move=>move.quantity).map(move=>`<option value="${Number(move.quantity)},${Number(move.face)}">${Number(move.quantity)} × ${Number(move.face)}</option>`).join('')}</select>
         <button type="button" data-bid>Bid</button>`:''}`;
   }
-  return content + '<div class="table-objects" hidden></div><button type="button" class="quiet" data-table-objects>Show 3D table</button>';
+  return content;
 }
 
 export function matchMarkup(board, wallet, players = []) {
@@ -299,8 +300,7 @@ export function matchMarkup(board, wallet, players = []) {
     board.realtime ? 'Play at the same time' : active ? 'Your move' : `${sideName(board, board.active)} to move`;
   const classic = ['poker','ludo','mweso','snakes'].includes(board.key);
   const play = (board.key === 'poker' ? poker(board) : board.key === 'ludo' ? ludo(board) :
-    board.key === 'snakes' ? snakes(board) : board.key === 'mweso' ? mweso(board) : board.pieces ? grid(board) : cardDiceMarkup(board)) +
-    (classic ? '<div class="table-objects" hidden></div><button type="button" class="quiet" data-table-objects>Show 3D table</button>' : '');
+    board.key === 'snakes' ? snakes(board) : board.key === 'mweso' ? mweso(board) : board.pieces ? grid(board) : cardDiceMarkup(board));
   return `<h2>${headline}</h2>${result ? `<p>${escape(result.reason)}. Scores update when all tables finish.</p>` : ''}
     <div class="match-clocks">${[board.side, ...board.seats.map((_,i)=>i).filter(i=>i!==board.side)].map(side => {
       const seat=board.seats[side];
@@ -314,8 +314,11 @@ export function matchMarkup(board, wallet, players = []) {
     ${active && !result && board.pieces ? '<p class="turn-note">Tap a piece to see where it can move.</p>' : ''}
     ${board.chain ? '<p class="turn-note">Finish the capture with the same piece.</p>' : ''}
     ${play}
-    ${!result && active && !board.realtime && !board.boosted && wallet?.time ? '<button type="button" class="quiet" data-match-time>Buy 30s · 1 time token</button>' : ''}
-    ${!result ? '<div class="match-resign"><button type="button" class="quiet" data-resign>Resign this table</button><button type="button" class="quiet" data-resign-confirm hidden>Confirm resignation</button></div>' : ''}`;
+    ${classic || !board.pieces ? '<div class="table-objects" hidden></div>' : ''}
+    <div class="table-tools">
+    ${classic || !board.pieces ? `<button type="button" class="quiet icon-tool" data-table-objects aria-label="Show 3D table" title="Show 3D table">${icon('box')}<span aria-hidden="true">3D</span></button>` : ''}
+    ${!result && active && !board.realtime && !board.boosted && wallet?.time ? `<button type="button" class="quiet icon-tool" data-match-time aria-label="Buy 30s · 1 time token" title="Buy 30s · 1 time token">${icon('timer')}<span aria-hidden="true">+30s</span></button>` : ''}
+    ${!result ? `<div class="match-resign"><button type="button" class="quiet icon-tool" data-resign aria-label="Resign this table" title="Resign this table">${icon('flag')}</button><button type="button" class="quiet" data-resign-confirm hidden>Confirm resignation</button></div>` : ''}</div>`;
 }
 
 export function mountMatch(app, board, send, changedMove) {

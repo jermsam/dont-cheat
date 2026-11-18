@@ -251,6 +251,10 @@ export function createTableObjects(holder) {
         if(stock) deck.userData.button=stock;
         deck.position.set(-2.28,.015+.010*i,-1.61);
         deck.rotation.y=-.12+i*.015;
+        if (i === 4 && stock) {
+          deck.userData.base.material=selectionEdge;
+          deck.userData.badge.material=selectionEdge;
+        }
         objects.add(deck);
       }
     }

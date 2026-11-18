@@ -540,3 +540,11 @@ select, .destination-picker select, .table-menu select, .table-accuse select {
     background-image: none;
   }
 }
+
+.ui-icon{width:1.2rem;height:1.2rem;display:inline-block;vertical-align:middle;flex:none}
+.table-tools{display:flex;gap:.45rem;align-items:center;flex-wrap:wrap;margin:.6rem 0}
+.table-tools .match-resign{margin:0;margin-inline-start:auto}
+.icon-tool,.screen-open:has(.ui-icon){display:inline-flex;align-items:center;justify-content:center;gap:.45rem}
+.icon-tool{min-width:44px;min-height:44px;padding:.55rem .65rem}
+.icon-tool[aria-pressed="true"]{border-color:#b28b55;color:#ffe1ad}
+.table-action-icon .ui-icon{width:1.45rem;height:1.45rem}
