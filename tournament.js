@@ -5,10 +5,10 @@ import { getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { masks, maskId } from './masks.js?v=2';
 
-import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=11';
-import { bestHoldem } from './card-dice-rules.js?v=6';
-import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=11';
-import { matchMarkup, mountMatch } from './match-view.js?v=17';
+import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=12';
+import { bestHoldem } from './card-dice-rules.js?v=7';
+import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=12';
+import { matchMarkup, mountMatch } from './match-view.js?v=18';
 
 const limit = 6;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
@@ -496,6 +496,8 @@ function makeView(env, send) {
     const changedMove = phaseIsNewMove(state, previousMatch);
     if (state.phase === 'match' && board) {
       if (changedMove && board.key==='ludo' && board.last?.to===(board.finish ?? 56)) env.cue('crown');
+      else if (changedMove && board.result) env.cue(board.result.winner===null ? 'reveal' :
+        (board.result.winners?.includes(board.side) ?? board.result.winner===board.side) ? 'crown' : 'pass');
       if (changedMove && board.toss?.serial === board.serial) env.cue('dice');
       if (changedMove && board.key === 'matatu') {
         if (board.last?.drawCount > 0) env.cue(board.last.forced ? 'penalty' : 'draw');
@@ -543,12 +545,12 @@ function makeView(env, send) {
       const headline = phase === 'reveal' ? points>0 ? 'Points earned' : 'Round complete' : won ?
         winners.length === 1 ? 'You won the table.' : 'You tied for first.' : 'The table has spoken.';
       content = `${won ? '<span class="eyebrow">VICTORY</span>' : header}
-        <div class="recap-layout"><div class="recap-result"><h2>${headline}</h2>
+        <div class="recap-layout"><div class="recap-result">${won ? `<div class="season-trophy" aria-hidden="true">${icon('trophy')}</div>` : ''}<h2>${headline}</h2>
         ${phase === 'verdict' ? `<p>${winners.length === 1 ? 'Winner' : 'Joint winners'} <strong>${winners.map(esc).join(' / ')}</strong> · ${best} pts</p>` : ''}
         ${state.records[round]?.match ? `<p>${esc(state.records[round].entries[seat]?.answer ?? '')}</p>` : ''}
-        <div class="round-loot" aria-label="Round reward">
-          <span>${icon('trophy')} <b>${signed}</b> pts</span><span>${icon('layers')} <b>+2</b> coins</span>
-          ${(round+1)%3===0?`<span>${icon('timer')} <b>+1</b> time</span>`:''}
+        <div class="round-loot${points>0?' loot-earned':''}" aria-label="Round reward">
+          <span class="loot-points">${icon('trophy')} <b>${signed}</b><small>Points</small></span><span class="loot-coins">${icon('layers')} <b>+2</b><small>Coins</small></span>
+          ${(round+1)%3===0?`<span class="loot-time">${icon('timer')} <b>+1</b><small>Time</small></span>`:''}
         </div>
         <p class="recap-total">Total <strong>${players[seat].score} pts</strong></p>
         ${won ? env.victoryControls() : ''}</div>
@@ -614,6 +616,8 @@ function makeView(env, send) {
       }
     });
     if(earned && !matchMedia('(prefers-reduced-motion: reduce)').matches){
+      const trophy=app.querySelector('.season-trophy');
+      if(trophy)globalThis.Motion.animate(trophy,{scale:[.25,1.16,1],rotate:[-16,8,0],opacity:[.2,1,1]}, {duration:.6});
       const loot=[...app.querySelectorAll('.round-loot span')];
       globalThis.Motion.animate(loot,{opacity:[.2,1],y:[9,0],scale:[.9,1]},
         {type:'spring',stiffness:240,damping:19,delay:globalThis.Motion.stagger(.07)});

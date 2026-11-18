@@ -36,7 +36,7 @@ function holdem() {
     const bet = unit();
     const rival = 1 - active;
     const options = gap ? [{choice:'Fold'}, {choice:'Call'}] : [{choice:'Check'}];
-    if (raises < 4 && stack[active] >= gap + bet && stack[rival] >= bet) {
+    if (raises < (street === 0 ? 3 : 4) && stack[active] >= gap + bet && stack[rival] >= bet) {
       options.push({choice:Math.max(...contributions) ? 'Raise' : 'Bet'});
     }
     return options;
@@ -339,14 +339,17 @@ function ship() {
   };
 }
 
-function farkleScore(kept) {
+export function farkleScore(kept) {
   const counts = Array.from({length:6},(_,i)=>kept.filter(value=>value===i+1).length);
   if (counts.every(count=>count===1) || counts.filter(count=>count===2).length===3) return 1500;
+  if (counts.includes(4) && counts.includes(2)) return 1500;
+  if (counts.filter(count=>count===3).length===2) return 2500;
   let points=0;
   for (let index=0;index<6;index++) {
     const face=index+1,count=counts[index];
     if (!count) continue;
-    if (count>=3) points+=(face===1?1000:face*100)*2**(count-3);
+    if (count>=4) points+=(count-3)*1000;
+    else if (count===3) points+=face===1?300:face*100;
     else if (face===1 || face===5) points+=count*(face===1?100:50);
     else return 0;
   }
@@ -374,7 +377,7 @@ function farkle() {
   }
   return {
     turn:()=>active,
-    legal:()=>rolled.length?choices():[{choice:'Roll'},...(unbanked?[{choice:'Bank'}]:[])],
+    legal:()=>rolled.length?choices():[{choice:'Roll'},...(unbanked >= (scores[active] ? 1 : 500) ? [{choice:'Bank'}] : [])],
     view:()=>({scores,tally:unbanked,dice:rolled,remaining:pool,finalTurn}),
     move(action) {
       if (action.choice==='Bank') {

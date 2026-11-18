@@ -2,9 +2,9 @@ import { range, random, shuffledDeck, rankHand, compare } from './deck.js';
 export { random, shuffledDeck, rankHand, compare, pokerRanks } from './deck.js';
 import { partyRules, partyTitles } from './party-rules.js';
 import { gin } from './gin.js?v=2';
-import { trickGame, trickTitles } from './tricks.js';
+import { trickGame, trickTitles } from './tricks.js?v=2';
 import { race } from './snakes.js';
-import { cardAndDiceRules, cardAndDiceTitles } from './card-dice-rules.js?v=6';
+import { cardAndDiceRules, cardAndDiceTitles } from './card-dice-rules.js?v=7';
 import { Chess } from './vendor/chess-1.4.0.js';
 
 const files = 'abcdefgh';
