@@ -14,7 +14,7 @@ The invite grants access to one open seat. A refresh, closed tab, or disrupted c
 
 ## Rules
 
-Each of three rounds begins with a location briefing. Trivia time and points vary by location. The briefing shows the clock and bonuses. The first two rounds give you 20 seconds to play a card, and the final round gives you 12. Duel claims get 8 seconds each round. Both players then make a secret choice before the clock runs out.
+Each of three rounds begins with a location briefing. Trivia time and points vary by location. The briefing shows the clock and bonuses. Each card turn gives you 30 seconds. In duels, you get 22 seconds to decide whether to share a clue. Both players then make a secret choice before the clock runs out.
 
 | Your card | Opponent's card | Your points |
 | --- | --- | --- |
@@ -23,10 +23,10 @@ Each of three rounds begins with a location briefing. Trivia time and points var
 | Trust | Betray | 0 |
 | Betray | Betray | 0 |
 | Betray | No card | 1 |
-| Call bluff | They lied or peeked | 3 |
+| Call bluff | They sent a decoy or peeked | 3 |
 | Call bluff | They did neither | −1 |
 
-After trivia, tell your opponent whether you got it right. You can bluff. Each player can peek at one answer per duel. If your opponent calls your peek, you lose any points earned from that question. During the second and third rounds, each player can visit a hidden room for a private advantage or curse that affects their trivia score. The round record reveals who bluffed, peeked, or took a detour.
+After choosing an answer, show it, send a different option as a decoy, or keep it private. Your opponent sees the clue without knowing whether it’s real. Before playing a card, they can copy it or keep their own answer. Each player can also peek at one answer per duel. If your opponent calls your peek, you lose any points earned from that question. During the second and third rounds, each player can visit a hidden room for a private advantage or curse that affects their trivia score. The round record reveals who shared, copied, sent a decoy, peeked, or took a detour.
 
 Other card combinations yield zero pact points. Round two doubles pact points. The final verdict opens all three records. All stakes are in-game points.
 
