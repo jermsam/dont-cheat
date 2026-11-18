@@ -6,7 +6,7 @@ A two-seat browser game about trivia, trust, and betrayal. Play privately with a
 
 ## Invite a friend
 
-1. Tap **Duel a friend** or **Team up** and wait for the link.
+1. Choose **Tournament**, **Duel a friend**, or **Team up**. Optionally pick a mask and destination, then open the room.
 2. Tap **Share to WhatsApp** and pick WhatsApp in your device's share sheet. You can also copy the link into a chat.
 3. Return to the open host tab. Your friend taps the WhatsApp card or link, then taps **Join game**. If WhatsApp opens the card without the private seal, your friend will see a six-digit code. Check that it matches the code on the host screen and tap **Let them in**. The trial then starts for both players.
 
@@ -32,7 +32,7 @@ Other card combinations yield zero pact points. Round two doubles pact points. T
 
 ## Tournament
 
-**Tournament** seats two to six players. Open a room, share the same WhatsApp invite, and start when all your friends are in. The mixed season has two randomly selected games and one **Majority Verdict** round, in shuffled order. Or pick a playlist to play three variations of one challenge. Available challenges include Chess Jump, Draughts Capture, Poker Read, Mweso Seed Relay, Ludo Finish, Card Draft, Signal Code, and Dare or Draw. Several boards and number puzzles change on each draw. These are short, self-contained challenges inspired by their format. Dare or Draw uses game points only.
+**Tournament** seats two to six players. Select it in the lobby, open the season room, share the same WhatsApp invite, and start when all your friends are in. The mixed season has two randomly selected games and one **Majority Verdict** round, in shuffled order. Or pick a playlist to play three variations of one challenge. Available challenges include Chess Jump, Draughts Capture, Poker Read, Mweso Seed Relay, Ludo Finish, Card Draft, Signal Code, and Dare or Draw. Several boards and number puzzles change on each draw. These are short, self-contained challenges inspired by their format. Dare or Draw uses game points only.
 
 Everyone gets a private first guess, then can share it, send a decoy, or keep it private. You see all shared clues and their masks before choosing a final answer. Tapping **Copy clue** credits the seat whose clue you followed. **Trust** awards 2 points if another player trusts. **Betray** awards 3 when someone copies your decoy. **Call bluff** awards 3 for correctly identifying a decoy and costs 1 for a wrong accusation. A regular correct answer earns 2 points. In Dare or Draw, a correct answer earns 4, a wrong answer costs 1, and passing costs zero.
 
@@ -46,7 +46,7 @@ The game draws one of thirteen locations for each round, giving 39 locations and
 
 ## Masks
 
-Choose a mask in the lobby or on the invite screen. Each mask can award +2 points once per match. Tap an in-game mask portrait to see the gift and whether it has been used. When a gift scores, both players see it in the round record. Masks are optional in every mode.
+Choose a mask in the lobby or on the invite screen. Tap **Befriend**, **Play the villain**, or **Read the room** for a quick pick, or open the full wardrobe. Each mask can award +2 points once per match. Tap an in-game mask portrait to see the gift and whether it has been used. When a gift scores, both players see it in the round record. Masks are optional in every mode.
 
 ## Team Heist
 

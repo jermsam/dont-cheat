@@ -225,17 +225,6 @@ function tableEnvironment(playlist) {
     notice: say, escape, shuffle: shuffled, cue: playCue, destination: chosenDestination };
 }
 
-function planTournament() {
-  stage(`<span class="eyebrow">THE MIDNIGHT TRIAL</span><h2>Tournament</h2>
-    <p>Bring up to five friends into one three-round season. The host reveals each game when its round starts.</p>
-    <div class="table-menu">${tournamentMenu()}</div>
-    <details class="round-tools"><summary>How a round works</summary><p>Make a private first guess. Share it, send a decoy, or keep it private. See the other seats’ clues, choose your final answer, then play a card.</p></details>
-    <div id="mask-picker"></div>
-    <div class="row"><button class="primary" id="open-table">Open season room</button>${homeButton}</div>`, true);
-  mountMaskPicker();
-  document.querySelector('#open-table').onclick = () => host(false, document.querySelector('#table-playlist').value);
-}
-
 async function host(crew = false, playlist = null) {
   connecting('Preparing your summons');
   try {
@@ -591,42 +580,95 @@ function mountRoutePicker() {
   };
 }
 
-function mountMaskPicker() {
+const starterMasks = [
+  { id: 'saint', label: 'Befriend', hint: 'Build trust or back up your partner.', crewHint: 'Distract the host to help your teammate.' },
+  { id: 'prince', label: 'Play the villain', hint: 'Send a decoy or deal a betrayal.', crewHint: 'Take the loot while your teammate distracts.' },
+  { id: 'tracker', label: 'Read the room', hint: 'Spot a bluff and call it out.', crewHint: 'Get the answer right and pull off a distraction.' },
+];
+
+function mountMaskPicker(mode) {
   const slot = document.querySelector('#mask-picker');
-  if (!slot) return;
-  slot.innerHTML = `<details class="wardrobe">
-    <summary>Choose a mask <span data-current-mask>Unmasked</span></summary>
-    <p>Each mask has a gift worth +2 points once per match.</p>
-    <div class="mask-description" role="status"></div>
-    ${slot.dataset.lobby === 'true' ? '<a class="mask-jump" href="#game-modes">Back to game modes ↑</a>' : ''}
+  slot.innerHTML = `<div class="starter-masks" role="group" aria-label="Choose a play style">
+    ${starterMasks.map(({id, label, hint}) => `<button type="button" data-starter="${id}" aria-pressed="false">
+      ${portrait(id)}<span><strong>${label}</strong><small data-style-hint>${hint}</small></span></button>`).join('')}
+  </div>
+  <div class="mask-choice-summary" role="status"></div>
+  <details class="wardrobe">
+    <summary>Browse all ${Object.keys(masks).length} masks</summary>
     <div class="mask-options" role="group" aria-label="Masks">
       ${Object.entries(masks).map(([id, mask]) => `<button class="mask-option" type="button" data-mask="${id}" aria-pressed="false">
         ${portrait(id)}<span class="mask-caption"><strong>${mask.title}</strong><small>${mask.name}${mask.origin ? ` · ${mask.origin}` : ''}</small></span>
       </button>`).join('')}
     </div>
-    <button class="quiet" type="button" id="remove-mask">Play unmasked</button>
   </details>`;
-  const buttons = [...slot.querySelectorAll('[data-mask]')];
+  const full = [...slot.querySelectorAll('[data-mask]')];
+  const starters = [...slot.querySelectorAll('[data-starter]')];
+  const summary = slot.querySelector('.mask-choice-summary');
+
   function showSelection() {
     const mask = chosenMask && masks[chosenMask];
-    buttons.forEach(button => button.setAttribute('aria-pressed', button.dataset.mask === chosenMask));
-    slot.querySelector('[data-current-mask]').textContent = mask ? mask.title : 'Unmasked';
-    slot.querySelector('.mask-description').innerHTML = mask ?
-      `<strong>${mask.gift} · +2</strong><p>${mask.rule}</p>` :
-      '<p>Choose a portrait to see its gift.</p>';
+    full.forEach(button => button.setAttribute('aria-pressed', button.dataset.mask === chosenMask));
+    starters.forEach((button, index) => {
+      button.setAttribute('aria-pressed', button.dataset.starter === chosenMask);
+      button.querySelector('[data-style-hint]').textContent = mode === 'crew' ?
+        starterMasks[index].crewHint :
+        starterMasks[index].hint;
+    });
+    const gift = mode === 'tournament' ? 'Other players see your mask before they answer.' :
+      `${mask?.gift} · +2 once per match. ${mask?.rule}`;
+    summary.innerHTML = mask ? `<div><strong>${mask.title}</strong><small>${gift}</small></div>
+      <button class="quiet" type="button" id="remove-mask">Remove</button>` :
+      `<p>Unmasked by default. ${mode === 'crew' ? 'You can still play together.' : 'You can still trust, bluff, or betray.'}</p>`;
+    const remove = summary.querySelector('#remove-mask');
+    if (remove) remove.onclick = () => {
+      chosenMask = null;
+      showSelection();
+      starters[0].focus({ preventScroll: true });
+    };
   }
-  buttons.forEach(button => {
+  [...full, ...starters].forEach(button => {
     button.onclick = () => {
-      chosenMask = button.dataset.mask;
+      chosenMask = button.dataset.mask ?? button.dataset.starter;
       showSelection();
       chime([146, 219, 293]);
     };
   });
-  slot.querySelector('#remove-mask').onclick = () => {
-    chosenMask = null;
+  showSelection();
+  return nextMode => {
+    mode = nextMode;
     showSelection();
   };
-  showSelection();
+}
+
+function mountLobby() {
+  mountRoutePicker();
+  const updateMask = mountMaskPicker('tournament');
+  const modes = [...document.querySelectorAll('[data-mode]')];
+  const playlist = document.querySelector('#setup-playlist');
+  playlist.querySelector('.table-menu').innerHTML = tournamentMenu();
+  const launch = document.querySelector('#setup-start');
+  const next = document.querySelector('#setup-next');
+  const descriptions = {
+    tournament: ['Open season room ↗', 'You’ll get one invite to share with everyone.'],
+    duel: ['Open duel room ↗', 'You’ll get an invite for one opponent.'],
+    crew: ['Open team room ↗', 'Send an invite to the friend you want on your side.'],
+    solo: ['Start solo game ↗', 'Your first round starts after a short briefing.'],
+  };
+  let selected = 'tournament';
+  modes.forEach(button => {
+    button.onclick = () => {
+      selected = button.dataset.mode;
+      modes.forEach(item => item.setAttribute('aria-pressed', item === button));
+      playlist.hidden = selected !== 'tournament';
+      [launch.textContent, next.textContent] = descriptions[selected];
+      updateMask(selected);
+    };
+  });
+  launch.disabled = false;
+  launch.onclick = () => {
+    if (selected === 'solo') start(true);
+    else host(selected === 'crew', selected === 'tournament' ? document.querySelector('#table-playlist').value : null);
+  };
 }
 
 function maskSeats(state) {
@@ -813,20 +855,19 @@ if (roomId !== null || roomSeal !== null) {
   if (!/^[a-f0-9]{64}$/i.test(roomId ?? '') || (roomSeal !== null && !/^[a-f0-9]{32}$/i.test(roomSeal))) {
     failure('This invite is incomplete. Ask your friend to share the full link again.');
   } else {
-    stage(`<span class="icon" aria-hidden="true">✦</span><p class="eyebrow">SEALED SUMMONS</p><h2>Your seat is waiting.</h2>
-      <p>${roomAddress.get('mode') === 'tournament' ? 'Take a seat in a group tournament. Share a clue or a decoy, see what the other seats share, then lock your final answer.' : roomAddress.get('mode') === 'crew' ? `Team up against the masked host. Answer questions, pick different jobs, and score ${crewTarget} points together to escape.` : 'Pick an answer. Show it, send a decoy, or keep it private. Then decide whether to trust your friend.'}</p>
-      <p class="muted">You’ll get a short briefing before the first question. Both choices are revealed after each round.</p>
-      <div id="mask-picker"></div>
+    const mode = roomAddress.get('mode');
+    const title = mode === 'tournament' ? 'Join a tournament' : mode === 'crew' ? 'Join your teammate' : 'Join your opponent';
+    const intro = mode === 'tournament' ? 'Take a seat. The host starts when everyone is in.' :
+      mode === 'crew' ? 'Work together to get past the masked host.' : 'Trade clues and decide which ones to trust.';
+    stage(`<span class="eyebrow">YOU’RE INVITED</span><h2>${title}</h2><p>${intro}</p>
+      <section class="invite-masks" aria-labelledby="invite-mask-title">
+        <h3 id="invite-mask-title">Choose a mask <small>Optional</small></h3>
+        <div id="mask-picker"></div>
+      </section>
       <div class="row"><button class="primary" id="enter">Join game ↗</button>${homeButton}</div>`, true);
-    mountMaskPicker();
+    mountMaskPicker(mode);
     document.querySelector('#enter').onclick = () => join(roomId, roomSeal);
   }
 } else {
-  mountRoutePicker();
-  mountMaskPicker();
-  document.querySelector('#choose-mask').onclick = () => { document.querySelector('.wardrobe').open = true; };
-  document.querySelector('#tournament').onclick = planTournament;
-  document.querySelector('#host').onclick = () => host();
-  document.querySelector('#crew').onclick = () => host(true);
-  document.querySelector('#solo').onclick = () => start(true);
+  mountLobby();
 }

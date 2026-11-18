@@ -236,3 +236,51 @@ button.mask-option{position:relative;display:grid;text-align:left;padding:0;over
 .tournament .table-final{grid-template-columns:repeat(2,minmax(0,1fr))}
 .table-final [data-table="pass"]{grid-column:1/-1}
 .table-person img{animation:portrait-arrival .45s ease-out both}
+
+/* One setup screen for modes, masks, and locations. */
+.hero{min-height:380px}
+.hero-content{padding:clamp(24px,4vw,54px)}
+.hero h1{font-size:clamp(3.7rem,9vw,7rem)}
+.hero-start{display:inline-block;color:var(--gold);font-weight:800;padding:10px 0;text-decoration:underline;text-underline-offset:4px}
+.lobby-setup{width:min(100%,880px);margin:18px auto 28px;scroll-margin-top:12px}
+.setup-section{margin:10px 0;padding:clamp(13px,3vw,22px);border:1px solid var(--stroke);border-radius:9px;background:var(--panel)}
+.setup-section h2{font-size:clamp(1.05rem,3vw,1.5rem);display:flex;align-items:center;gap:8px;margin:0 0 12px}
+.setup-section h2>span{display:grid;place-items:center;width:25px;height:25px;border-radius:50%;background:#432a3a;color:var(--gold);font-size:.8rem}
+.setup-section h2 small,.invite-masks h3 small{color:var(--dim);font-size:.73rem;font-weight:500}
+.mode-choice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.mode-choice button,.starter-masks button{text-align:left;padding:9px;min-width:0}
+.mode-choice button strong,.mode-choice button small,.starter-masks strong,.starter-masks small{display:block}
+.mode-choice button small,.starter-masks small{color:var(--dim);font-size:.76rem;margin-top:4px;line-height:1.25;font-weight:500}
+.mode-choice button[aria-pressed="true"],.starter-masks button[aria-pressed="true"]{border-color:var(--gold);background:#3c2935;color:var(--gold)}
+.setup-playlist{margin-top:10px;color:var(--dim);font-size:.85rem}
+.setup-playlist summary{cursor:pointer}
+.setup-playlist .table-menu{margin:8px 0 0}
+.starter-masks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.starter-masks button{display:flex;gap:8px;align-items:center}
+.starter-masks .mask-portrait{width:44px;flex:0 0 44px;border-radius:6px}
+.starter-masks strong{font-size:.85rem;line-height:1.15}
+.mask-choice-summary{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:8px 0;font-size:.83rem}
+.mask-choice-summary p,.board .mask-choice-summary p{margin:0;color:var(--dim)}
+.mask-choice-summary small{display:block;color:var(--dim);margin-top:3px;line-height:1.35}
+.mask-choice-summary strong{color:var(--gold)}
+.mask-choice-summary:has(button){background:#1c1421;padding:7px 9px;border-radius:6px}
+.setup-section .wardrobe,.invite-masks .wardrobe{margin:8px 0 0;padding:9px 11px}
+.setup-section .wardrobe summary,.invite-masks .wardrobe summary{font-size:.85rem}
+.setup-launch{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px}
+.setup-launch p{color:var(--dim);font-size:.83rem}
+.invite-masks{padding:12px 0;margin:10px 0}
+.invite-masks h3{font-size:1.02rem;margin:0 0 10px}
+.invite-masks h3 small{margin-left:4px}
+.destination-picker figure:not([hidden]){display:flex;align-items:center;gap:10px}
+.destination-picker figure img{width:90px;height:58px;flex:none}
+.destination-picker figure figcaption{margin:0}
+@media(max-width:680px){
+  .hero{min-height:325px;align-items:flex-end}
+  .hero-content{padding:22px}
+  .hero h1{font-size:clamp(3.2rem,14vw,5.4rem);margin:13px 0}
+  .hero p{margin:10px 0;line-height:1.2}
+  .starter-masks button{display:grid;justify-items:start;gap:6px;padding:7px}
+  .starter-masks .mask-portrait{width:38px}
+  .starter-masks small{font-size:.67rem}
+  .setup-launch{align-items:stretch;flex-direction:column}
+}
