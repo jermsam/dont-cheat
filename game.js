@@ -115,7 +115,7 @@ function chime(notes = [147, 220, 294], { wave = 'triangle', volume = .08, lengt
 
 function playCue(name, character) {
   if (name === 'check' || name === 'checkmate') {
-    if (enabled && audio) void playChessVoice(name, character);
+    if (enabled) void playChessVoice(name, character);
     return;
   }
   const cue = soundCues[name];
@@ -163,6 +163,7 @@ async function prepareAudio() {
 }
 
 const chessVoiceBuffers = new Map();
+let chessVoiceRequest = 0;
 
 function loadChessVoice(cue, character) {
   const id=maskId(character);
@@ -180,15 +181,20 @@ function loadChessVoice(cue, character) {
 }
 
 async function playChessVoice(cue, character) {
+  const request = ++chessVoiceRequest;
   try {
+    // Remote moves can arrive after a phone suspends its audio context.
+    // Wait for sound to resume instead of discarding the announcement.
+    await prepareAudio();
+    if (!enabled || request !== chessVoiceRequest) return;
     const buffer = await loadChessVoice(cue, character).catch(()=>loadChessVoice(cue));
-    if (!enabled || audio.state !== 'running') return;
+    if (!enabled || request !== chessVoiceRequest || audio.state !== 'running') return;
     const source = audio.createBufferSource();
     source.buffer = buffer;
     source.connect(audioOut);
     source.start();
   } catch {
-    if (enabled) chime(soundCues.crown.notes, soundCues.crown);
+    if (enabled && request === chessVoiceRequest) chime(soundCues.crown.notes, soundCues.crown);
   }
 }
 
@@ -229,7 +235,10 @@ function setSound(value) {
   try { localStorage.setItem(soundKey, value ? 'on' : 'off'); } catch {}
   if (audioOut) audioOut.gain.setTargetAtTime(enabled ? 1 : 0, audio.currentTime, .02);
   showSound();
-  if (!enabled) stopFanfare();
+  if (!enabled) {
+    chessVoiceRequest++;
+    stopFanfare();
+  }
 }
 
 async function playFanfare(preview = false) {
