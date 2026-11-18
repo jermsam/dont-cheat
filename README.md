@@ -30,6 +30,16 @@ After choosing an answer, show it, send a different option as a decoy, or keep i
 
 Other card combinations yield zero pact points. Round two doubles pact points. The final verdict opens all three records. All stakes are in-game points.
 
+## Tournament
+
+**Tournament** seats two to six players. Open a room, share the same WhatsApp invite, and start when all your friends are in. The mixed season has two randomly selected games and one **Majority Verdict** round, in shuffled order. Or pick a playlist to play three variations of one challenge. Available challenges include Chess Jump, Draughts Capture, Poker Read, Mweso Seed Relay, Ludo Finish, Card Draft, Signal Code, and Dare or Draw. Several boards and number puzzles change on each draw. These are short, self-contained challenges inspired by their format. Dare or Draw uses game points only.
+
+Everyone gets a private first guess, then can share it, send a decoy, or keep it private. You see all shared clues and their masks before choosing a final answer. Tapping **Copy clue** credits the seat whose clue you followed. **Trust** awards 2 points if another player trusts. **Betray** awards 3 when someone copies your decoy. **Call bluff** awards 3 for correctly identifying a decoy and costs 1 for a wrong accusation. A regular correct answer earns 2 points. In Dare or Draw, a correct answer earns 4, a wrong answer costs 1, and passing costs zero.
+
+In Majority Verdict, the table decides what earns points. A choice must get more than half of the submitted votes to earn 2 points for each voter who picked it. A tie or split with no majority awards zero answer points. Passing does not count as a vote. The reveal shows the vote count and offers an optional discussion prompt.
+
+Masks identify seats in Tournament. Mask gifts apply in duels and heists. You can send preset statuses to the room in the lobby and on result screens, or share your own status outside the room. **Share result** opens the system share sheet or copies your score and the public game URL.
+
 ## Destinations
 
 The game draws one of thirteen locations for each round, giving 39 locations and 2,197 possible routes. To guarantee one stop, open **Pick a destination** before starting. The other two remain a surprise. Briefings explain each location’s timer and scoring twists, and the verdict records the stops and bonuses that applied.

@@ -1,0 +1,398 @@
+import { buildChallenges, challenges, getPuzzle, majorityVerdict } from './challenges.js';
+import { routes, scenarioFor } from './scenarios.js?v=2';
+import { masks, maskId } from './masks.js?v=2';
+
+const limit = 6;
+const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };
+const statuses = ['Ready', 'Thinking', 'I trust you', 'Well played'];
+const phases = ['draft', 'clue', 'final', 'pact'];
+
+export function tournamentMenu() {
+  return `<label class="eyebrow" for="table-playlist">Challenge playlist</label>
+    <select id="table-playlist"><option value="mixed">Surprise me</option>
+    ${Object.entries(challenges).map(([id, game]) => `<option value="${id}">${game.title}</option>`).join('')}</select>`;
+}
+
+export function hostTournament(env) {
+  const players = [{ mask: maskId(env.mask), moves: {}, score: 0, online: true, status: '' }];
+  const requests = new Map();
+  const lineup = buildChallenges(env.playlist, env.shuffle);
+  const records = [];
+  const route = routes.map(places =>
+    (places.find(place => place.id === env.destination) ?? env.shuffle(places)[0]).id);
+  let phase = 'lobby', round = 0, deadline = 0, timer, requestId = 0;
+  const view = makeView(env, intent => handle(0, intent));
+
+  function state(seat) {
+    const exposeClues = ['final', 'pact'].includes(phase);
+    return {
+      kind: 'table', phase, round, seat, endsIn: Math.max(0, deadline - Date.now()),
+      challenge: lineup[round], location: route[round], records: [...records],
+      players: players.map(({ mask, score, online, status, moves }) => ({
+        mask, score, online, status,
+        clue: exposeClues ? moves.clue?.option : undefined,
+      })),
+      own: players[seat].moves.draft?.option,
+      locked: Boolean(players[seat].moves[phase]),
+      approvals: seat === 0 ? [...requests.entries()].map(([id, request]) => ({ id, code: request.code })) : [],
+    };
+  }
+  function publish() {
+    view.render(state(0));
+    players.forEach((player, seat) => {
+      if (!player.online || !player.link) return;
+      const message = JSON.stringify(state(seat));
+      player.queue = player.queue.then(() => player.link.send(message)).catch(() => disconnect(player));
+    });
+  }
+  function disconnect(player) {
+    if (!player.online) return;
+    player.online = false;
+    publish();
+    advanceIfReady();
+  }
+  function advanceIfReady() {
+    if (phases.includes(phase) && players.every(player => !player.online || player.moves[phase])) advance();
+  }
+  function enter(next) {
+    clearTimeout(timer);
+    phase = next;
+    deadline = times[phase] ? Date.now() + times[phase] : 0;
+    if (deadline) timer = setTimeout(advance, times[phase]);
+    publish();
+  }
+  function advance() {
+    const next = phases[phases.indexOf(phase) + 1];
+    if (next) {
+      enter(next);
+      advanceIfReady();
+      return;
+    }
+    const item = lineup[round];
+    const { right } = getPuzzle(item.key, item.index, item.seed);
+    const verdict = item.key === 'verdict' ? majorityVerdict(players.map(player => player.moves.final?.option)) : null;
+    const entries = players.map((player, seat) => {
+      const { final, pact, clue } = player.moves;
+      const answer = item.options[final?.option];
+      const rightAnswer = verdict ? verdict.choice !== null && final?.option === verdict.choice : answer === right;
+      const trivia = rightAnswer ? (item.key === 'dare' ? 4 : 2) : item.key === 'dare' && answer ? -1 : 0;
+      const fooled = players.some(rival => rival.moves.final?.from === seat) && clue?.decoy;
+      const trusted = players.some((rival, index) => index !== seat && rival.moves.pact?.card === 'Trust');
+      const caught = players[pact?.target]?.moves.clue?.decoy;
+      const bonus = pact?.card === 'Trust' && trusted ? 2 : pact?.card === 'Betray' && fooled ? 3 :
+        pact?.card === 'Call bluff' ? caught ? 3 : -1 : 0;
+      const points = trivia + bonus;
+      player.score += points;
+      return {
+        answer, clue: item.options[clue?.option], decoy: Boolean(clue?.decoy),
+        from: final?.from, card: pact?.card, target: pact?.target,
+        caught: pact?.card === 'Call bluff' && Boolean(caught), fooled: Boolean(fooled), points,
+      };
+    });
+    records.push({ title: item.title, right, entries, verdict: verdict ? {
+      choice: item.options[verdict.choice] ?? null, count: verdict.count, total: verdict.total,
+    } : null });
+    enter(round === lineup.length - 1 ? 'verdict' : 'reveal');
+  }
+  function handle(seat, intent) {
+    const player = players[seat];
+    if (!intent || !player.online) return;
+    const { type } = intent;
+    if (type === 'status' && statuses.includes(intent.value) && ['lobby', 'reveal', 'verdict'].includes(phase)) {
+      player.status = intent.value === player.status ? '' : intent.value;
+      publish();
+      return;
+    }
+    if (seat === 0 && type === 'admit' && phase === 'lobby') {
+      const pending = requests.get(intent.id);
+      if (pending) pending.decide(intent.accept === true);
+      return;
+    }
+    if (seat === 0 && type === 'start' && phase === 'lobby' && players.filter(p => p.online).length >= 2) {
+      // Invitations from the lobby cannot replace a player once play begins.
+      for (const pending of requests.values()) pending.decide(false);
+      enter('draft');
+      return;
+    }
+    if (seat === 0 && type === 'next' && phase === 'reveal') {
+      round++;
+      players.forEach(p => { p.moves = {}; });
+      enter('draft');
+      return;
+    }
+    if (type !== 'move' || intent.phase !== phase || intent.round !== round ||
+        !phases.includes(phase) || player.moves[phase] || Date.now() >= deadline) return;
+    const validOption = n => Number.isInteger(n) && n >= 0 && n < lineup[round].options.length;
+    const { option, from, card, target } = intent;
+    const rival = n => Number.isInteger(n) && n !== seat && Boolean(players[n]);
+    if (phase === 'draft' && (validOption(option) || option === null)) player.moves.draft = { option };
+    if (phase === 'clue') {
+      const draft = player.moves.draft?.option;
+      if (option === null || validOption(option) && validOption(draft)) {
+        player.moves.clue = { option, decoy: option !== null && option !== draft };
+      }
+    }
+    if (phase === 'final' && (validOption(option) || option === null)) {
+      if (from === undefined || rival(from) && validOption(option) && players[from].moves.clue?.option === option) {
+        player.moves.final = { option, from };
+      }
+    }
+    if (phase === 'pact' && (['Trust', 'Betray'].includes(card) || card === 'Call bluff' && rival(target))) {
+      player.moves.pact = { card, target: card === 'Call bluff' ? target : undefined };
+    }
+    publish();
+    advanceIfReady();
+  }
+
+  async function admit(link) {
+    let player, id;
+    try {
+      const hello = JSON.parse(await env.timeout(link.receive(), 8_000));
+      if (phase !== 'lobby' || players.filter(p => p.online).length >= limit || hello?.kind !== 'table-join') throw Error('Room unavailable');
+      if (hello.key !== env.key) {
+        if (hello.key !== null || typeof hello.code !== 'string' || !/^\d{6}$/.test(hello.code) ||
+            requests.size >= limit) throw Error('Invite invalid');
+        id = ++requestId;
+        const decision = new Promise(resolve => requests.set(id, { code: hello.code, decide: resolve }));
+        publish();
+        if (!await env.timeout(decision, 60_000)) throw Error('Request declined');
+      }
+      if (phase !== 'lobby' || players.filter(p => p.online).length >= limit) throw Error('Room full');
+      const vacant = players.findIndex(p => !p.online);
+      const seat = vacant === -1 ? players.length : vacant;
+      player = { mask: maskId(hello.mask), moves: {}, score: 0, online: true, status: '', link, queue: Promise.resolve() };
+      players[seat] = player;
+      if (id) requests.delete(id);
+      publish();
+      while (player.online && players[seat] === player) {
+        const intent = JSON.parse(await link.receive());
+        if (player.online && players[seat] === player) handle(seat, intent);
+      }
+    } catch {
+      if (id && requests.delete(id)) publish();
+      if (player) disconnect(player);
+      link.close();
+    }
+  }
+  publish();
+  void (async () => {
+    try {
+      for (;;) void admit(await env.arena.accept());
+    } catch {
+      // Closing the page also closes the listener.
+    }
+  })();
+}
+
+function isTableState(state) {
+  return state?.kind === 'table' && Number.isInteger(state.seat) &&
+    Number.isInteger(state.round) && state.round >= 0 && state.round < 3 &&
+    Array.isArray(state.players) && state.players.length <= limit &&
+    state.seat >= 0 && state.seat < state.players.length &&
+    state.players.every(player => Number.isInteger(player.score)) &&
+    Array.isArray(state.approvals) && state.approvals.length === 0 &&
+    Array.isArray(state.records) && state.records.length <= 3 &&
+    state.records.every(record => Array.isArray(record.entries) &&
+      record.entries.length === state.players.length &&
+      record.entries.every(entry => Number.isInteger(entry.points) &&
+        (entry.from === undefined || Number.isInteger(entry.from)) &&
+        (entry.target === undefined || Number.isInteger(entry.target)))) &&
+    ['lobby', ...phases, 'reveal', 'verdict'].includes(state.phase) &&
+    Boolean(getPuzzle(state.challenge?.key, state.challenge?.index, state.challenge?.seed)) &&
+    Array.isArray(state.challenge.options) && state.challenge.options.length === 4;
+}
+
+export async function joinTournament(env, link, key) {
+  const view = makeView(env, intent => {
+    void link.send(JSON.stringify(intent)).catch(() => env.notice('Your update could not reach the host.'));
+  });
+  const code = (crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).toString().padStart(6, '0');
+  if (key === null) env.stage(`<h2>Waiting for the host</h2><p>Ask the host to match this code.</p><p class="pair-code">${code}</p>`, true);
+  let state;
+  try {
+    await link.send(JSON.stringify({ kind: 'table-join', key, code, mask: env.mask }));
+    state = JSON.parse(await env.timeout(link.receive(), key === null ? 68_000 : 18_000));
+    for (;;) {
+      if (!isTableState(state)) throw Error('Unrecognized room');
+      view.render(state);
+      state = JSON.parse(await link.receive());
+    }
+  } catch {
+    if (state?.phase !== 'verdict') {
+      env.stage('<h2>Room unavailable</h2><p>Your host may have left or started the round. Ask for a fresh invite.</p><a href="./">Back to the lobby ↗</a>');
+    }
+  }
+}
+
+function makeView(env, send) {
+  let prior, previousPhase, previousRound, clock, ends, ticker;
+  const esc = env.escape;
+  const name = (state, i) => {
+    const id = maskId(state.players[i]?.mask);
+    return `Seat ${i + 1}${id ? ` · ${masks[id].title}` : ''}`;
+  };
+  const avatar = (state, i) => {
+    const id = maskId(state.players[i]?.mask);
+    return id ? `<img src="masks/${id}.jpg" alt="" width="36" height="36">` : '<span class="table-sigil" aria-hidden="true">✦</span>';
+  };
+  const button = (label, action, attrs = '') => `<button data-table="${action}" ${attrs}>${esc(label)}</button>`;
+
+  function roster(state) {
+    return `<div class="table-roster">${state.players.map((p, i) => `<div class="table-person">
+      ${avatar(state, i)}<div><strong>${esc(name(state, i))}${i === state.seat ? ' (you)' : ''}</strong>
+      <small>${p.online ? '' : 'Left · '}${p.score} pts${p.status ? ` · ${esc(p.status)}` : ''}</small></div></div>`).join('')}</div>`;
+  }
+  function statusOptions(state) {
+    return `<details class="table-status"><summary>Share a room status</summary><div class="row">
+      ${statuses.map(status => button(status, 'status', `data-label="${status}" aria-pressed="${state.players[state.seat].status === status}"`)).join('')}
+      ${state.players[state.seat].status ? button('Share my status', 'share-status') : ''}</div></details>`;
+  }
+  function receipt(state) {
+    return `<div class="table-record">${state.records.map((round, i) => `<section><h3>${i + 1}. ${esc(round.title)}</h3>
+      ${round.verdict ? `<p>${round.verdict.choice ?
+        `The table chose <strong>${esc(round.verdict.choice)}</strong> · ${Number(round.verdict.count)} of ${Number(round.verdict.total)} votes` :
+        'No majority this round. No answer points.'}</p>` : `<p>Correct answer <strong>${esc(round.right)}</strong></p>`}
+      <ul>
+      ${round.entries.map((entry, player) => `<li><b>${esc(name(state, player))}</b>
+        <small>${esc(entry.answer ?? 'Passed')}${entry.from === undefined ? '' : ` · copied Seat ${entry.from + 1}`}
+        ${entry.clue ? ` · ${entry.decoy ? 'Decoy' : 'Shared'} ${esc(entry.clue)}` : ''}
+        ${entry.card ? ` · ${esc(entry.card)}` : ''}${entry.target === undefined ? '' : ` on Seat ${entry.target + 1}`}${entry.caught ? ' · caught the bluff' : entry.card === 'Call bluff' ? ' · accusation missed' : ''}
+        ${entry.fooled ? ' · someone took the decoy' : ''} · ${entry.points >= 0 ? '+' : ''}${entry.points}</small></li>`).join('')}</ul></section>`).join('')}</div>`;
+  }
+  async function shareUpdate(state, statusOnly) {
+    const score = state.players[state.seat].score;
+    const best = Math.max(...state.players.map(player => player.score));
+    const tied = state.players.filter(player => player.score === best).length;
+    const result = score === best ? tied > 1 ? 'Tied for first' : 'Won the table' : 'Finished the trial';
+    const status = state.players[state.seat].status;
+    const text = statusOnly ? `${status} · Don’t Cheat Tournament. My score: ${score}.` :
+      `${result} with ${score} points in Don’t Cheat · Tournament.`;
+    const url = new URL('./', location.href).href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: statusOnly ? 'Don’t Cheat · Room status' : 'Don’t Cheat · Tournament verdict', text, url });
+        return;
+      }
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+    }
+    try {
+      await navigator.clipboard.writeText(`${text}\n${url}`);
+      env.notice('Copied. Paste it wherever you want to share it.');
+    } catch {
+      env.notice(`${text} ${url}`);
+    }
+  }
+
+  function render(state) {
+    ends = performance.now() + state.endsIn;
+    const signature = JSON.stringify({ ...state, endsIn: 0 });
+    if (signature === prior) return;
+    if (previousPhase !== state.phase || previousRound !== state.round) {
+      env.cue(({ draft: 'trivia', clue: 'claim', final: 'choice', pact: 'choice', reveal: 'reveal', verdict: 'verdict' })[state.phase]);
+    }
+    prior = signature;
+    previousPhase = state.phase;
+    previousRound = state.round;
+    const { phase, round, seat, players, challenge } = state;
+    const place = scenarioFor(round, state.location);
+    const host = seat === 0;
+    const back = '<a class="quiet" href="./">Back to the lobby ↗</a>';
+    const header = '<span class="eyebrow">THE MIDNIGHT TRIAL · SEASON</span>';
+    let content;
+
+    if (phase === 'lobby') {
+      const seated = players.filter(player => player.online).length;
+      content = `${header}<h2>Seats are open.</h2><p>${seated} of ${limit} seats filled</p>${roster(state)}
+        ${host ? `<div class="row"><button id="share" class="primary">Share to WhatsApp ↗</button><button id="copy">Copy invite</button></div>
+          <div hidden><label for="invite">Invite link</label><input id="invite" class="invite" readonly value="${esc(env.invite)}"></div>
+          ${state.approvals.map(request => `<div class="table-admission"><p>Match this code with your guest <strong>${esc(request.code)}</strong></p>
+            <div class="row">${button('Let them in', 'admit', `data-id="${request.id}"`)}${button('Decline', 'decline', `data-id="${request.id}"`)}</div></div>`).join('')}
+          <p>${button('Start tournament', 'start', `class="primary" ${seated < 2 ? 'disabled' : ''}`)}</p>
+          <p class="muted">Keep this tab open. Start when everyone is in.</p>` :
+          '<p class="waiting">Waiting for the host to start.</p>'}
+        ${statusOptions(state)}<p class="muted">Masks identify each seat in Tournament.</p>${back}`;
+    } else if (phase === 'reveal' || phase === 'verdict') {
+      const best = Math.max(...players.map(player => player.score));
+      const winners = players.filter(player => player.score === best).length;
+      const headline = phase === 'reveal' ? 'The round is unsealed.' : players[seat].score === best ?
+        winners === 1 ? 'You won the table.' : 'You tied for first.' : 'The table has spoken.';
+      content = `${header}<h2>${headline}</h2>${roster(state)}${receipt(state)}
+        ${phase === 'verdict' ? `<div class="row">${button('Share result', 'share-result', 'class="primary"')}${back}</div>` :
+          host ? button(`Start Round ${round + 2}`, 'next', 'class="primary"') : '<p class="waiting">Waiting for the next round.</p>'}
+        ${statusOptions(state)}
+        ${state.records.some(record => record.verdict) ? '<details class="debrief"><summary>Compare your reasoning</summary><p>What mattered most to you? Did someone’s clue change your mind?</p><small>A vote is one choice in this room.</small></details>' : ''}`;
+    } else {
+      const puzzle = getPuzzle(challenge.key, challenge.index, challenge.seed);
+      const options = challenge.options;
+      const top = `<span class="eyebrow">SEASON ROUND ${round + 1} OF 3 · ${esc(challenge.title)}</span>${place ? `<small class="table-location">${esc(place.name)}</small>` : ''}`;
+      const timer = '<p class="clock" id="table-clock" aria-label="Time remaining"></p>';
+      let heading, details, actions;
+      const picks = options.map((option, i) => button(option, 'pick', `data-option="${i}"`)).join('');
+      if (phase === 'draft') {
+        heading = puzzle.prompt;
+        details = `<p class="muted">Make a private first guess.${puzzle.note ? ` ${esc(puzzle.note)}` : ''}</p>
+          ${challenge.key === 'dare' ? '<p class="turn-note">Correct +4 · Wrong −1 · Pass 0</p>' : ''}${puzzle.board}`;
+        actions = `<div class="options">${picks}${button('Skip guess', 'pass')}</div>`;
+      } else if (phase === 'clue') {
+        heading = 'Share a clue?';
+        details = `<p class="muted">${options[state.own] ? `Your first guess was <strong>${esc(options[state.own])}</strong>. Others can copy what you send.` : 'You skipped the guess. You can still choose a final answer.'}</p>`;
+        actions = `<div class="options">${options[state.own] ? button('Share my guess', 'pick', `data-option="${state.own}"`) : ''}
+          ${button('Keep it private', 'pass')}${options[state.own] ? `<details class="decoy-options"><summary>Send a decoy</summary><div class="options">
+          ${options.map((option, i) => i === state.own ? '' : button(option, 'pick', `data-option="${i}"`)).join('')}</div></details>` : ''}</div>`;
+      } else if (phase === 'final') {
+        heading = challenge.key === 'verdict' ? 'Cast your final vote' : 'Lock your final answer';
+        details = `<p class="muted">${esc(puzzle.prompt)}</p>
+          ${options[state.own] ? `<p class="turn-note">Your first pick was ${esc(options[state.own])}.</p>` : ''}
+          ${puzzle.board ? `<details class="round-tools"><summary>See the puzzle again</summary>${puzzle.board}</details>` : ''}`;
+        actions = `<div class="table-clues">${players.map((player, i) => i === seat ? '' : `<div class="table-person">
+          ${avatar(state, i)}<div><strong>${esc(name(state, i))}</strong><small>${esc(options[player.clue] ?? 'No clue shared')}</small></div>
+          ${options[player.clue] ? button('Copy clue', 'copy-clue', `data-option="${player.clue}" data-from="${i}"`) : ''}</div>`).join('')}</div>
+          <div class="options table-final">${picks}${button('Pass', 'pass')}</div>`;
+      } else {
+        heading = 'Play a card';
+        details = '<p class="muted">Cards score alongside your final answer.</p>';
+        actions = `<div class="options table-cards">
+          ${button('Trust · +2 if another player trusts', 'card', 'data-card="Trust" class="trust"')}
+          ${button('Betray · +3 if someone copied your decoy', 'card', 'data-card="Betray" class="betray"')}
+          <div class="table-accuse"><label for="target-seat">Call bluff · +3 if right, −1 if wrong</label>
+          <select id="target-seat">${players.map((player, i) => i !== seat ? `<option value="${i}">${esc(name(state, i))}${options[player.clue] ? ` · ${esc(options[player.clue])}` : ''}</option>` : '').join('')}</select>
+          ${button('Call bluff', 'card', 'data-card="Call bluff"')}</div></div>`;
+      }
+      content = `${top}<h2>${esc(heading)}</h2>${timer}${details}${state.locked ?
+        '<p class="waiting">Locked in. Waiting for the other seats.</p>' : actions}`;
+    }
+
+    clearInterval(ticker);
+    const statusPanelOpen = document.querySelector('.table-status')?.open;
+    const art = phases.includes(phase) && place ? `--place-art:url(places/${place.art}.jpg)` : '';
+    env.stage(content, false, `scene focused-turn tournament${art ? ' with-place' : ''}`, art);
+    const app = document.querySelector('#app');
+    const statusPanel = app.querySelector('.table-status');
+    if (statusPanel && statusPanelOpen) statusPanel.open = true;
+    clock = app.querySelector('#table-clock');
+    if (clock) {
+      const tick = () => { clock.textContent = `${Math.ceil(Math.max(0, ends - performance.now()) / 1_000)}s`; };
+      tick();
+      ticker = setInterval(tick, 200);
+    }
+    app.querySelector('#share')?.addEventListener('click', env.share);
+    app.querySelector('#copy')?.addEventListener('click', env.copy);
+    app.querySelectorAll('[data-table]').forEach(control => {
+      control.onclick = () => {
+        const { table: type, option, from, card, id, label } = control.dataset;
+        if (type === 'share-result' || type === 'share-status') void shareUpdate(state, type === 'share-status');
+        else if (type === 'status') send({ type, value: label });
+        else if (type === 'admit' || type === 'decline') send({ type: 'admit', id: Number(id), accept: type === 'admit' });
+        else if (type === 'start' || type === 'next') send({ type });
+        else {
+          const target = card === 'Call bluff' ? Number(app.querySelector('#target-seat').value) : undefined;
+          send({ type: 'move', phase, round, option: type === 'pass' ? null : option === undefined ? undefined : Number(option),
+            from: from === undefined ? undefined : Number(from), card, target });
+        }
+      };
+    });
+  }
+
+  return { render };
+}
