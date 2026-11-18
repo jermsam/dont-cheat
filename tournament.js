@@ -1,3 +1,4 @@
+import { tableIdentity, tableMoment } from './table-moments.js';
 import { recordProgress, progressMarkup } from './progress.js';
 import { icon } from './icons.js?v=3';
 import { sideScreen, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=3';
@@ -646,6 +647,7 @@ function makeView(env, send) {
     } : {...state, endsIn:0};
     const signature = JSON.stringify(summary);
     if (signature === prior) return;
+    const arrived = previousRound !== state.round || previousPhase === 'lobby';
     if (previousPhase !== state.phase || previousRound !== state.round) {
       env.cue(({ draft: 'trivia', clue: 'claim', final: 'choice', pact: 'choice', reveal: 'reveal', verdict: undefined })[state.phase]);
     }
@@ -686,8 +688,11 @@ function makeView(env, send) {
           '<p class="waiting">Waiting for the host to start.</p>'}
         <div class="screen-links">${sideScreen('table-seats', 'See who’s here', roster(state))}${statusOptions(state)}</div>${back}`;
     } else if (phase === 'match') {
+      const moment=tableMoment(state.board);
       content = `<span class="eyebrow">SEASON EVENT ${round + 1} OF ${seasonLength} · ${esc(challenge.title)}</span>
         ${state.lead===undefined?'':`<p class="bait-winner">${icon('flag')} ${esc(name(state,state.lead))} leads</p>`}
+        ${tableIdentity(challenge.key)}
+        ${moment?`<p class="table-moment" role="status">${icon('flag')} ${esc(moment)}</p>`:''}
         ${matchMarkup(state.board, state.wallet, state.players)}
         ${powerPanel(state)}`;
     } else if (phase === 'reveal' || phase === 'verdict') {
@@ -703,12 +708,14 @@ function makeView(env, send) {
       const points=roundEntries[seat]?.points ?? 0;
       const giftNotices=roundEntries.flatMap((entry,i)=>entry.target===seat && Object.hasOwn(gifts,entry.card) ?
         [`<span>${icon(entry.card==='Gift time'?'timer':'layers')} ${esc(name(state,i))} gave you 1 ${entry.card==='Gift time'?'time token':'coin'}</span>`] : []);
+      const settled=state.records[round];
       const signed=points>0?`+${points}`:String(points);
       const headline = phase === 'reveal' ? points>0 ? 'Points earned' : 'Round complete' : won ?
         winners.length === 1 ? 'You won the table.' : 'You tied for first.' : 'The table has spoken.';
       content = `${won ? '<span class="eyebrow">VICTORY</span>' : header}
         <div class="recap-layout"><div class="recap-result">${won ? `<div class="season-trophy" aria-hidden="true">${icon('trophy')}</div>` : ''}<h2>${headline}</h2>
         ${phase === 'verdict' ? `<p>${winners.length === 1 ? 'Winner' : 'Joint winners'} <strong>${winners.map(esc).join(' / ')}</strong> · ${best} pts</p>` : ''}
+        ${settled ? `<p class="resolved-table">${icon(settled.match?'flag':'users')} <strong>${esc(settled.title)}</strong></p>` : ''}
         ${state.records[round]?.match ? `<p>${esc(state.records[round].entries[seat]?.answer ?? '')}</p>` : ''}
         <div class="round-loot${points>0?' loot-earned':''}" aria-label="Round reward">
           <span class="loot-points">${icon('trophy')} <b>${signed}</b><small>Points</small></span><span class="loot-coins">${icon('layers')} <b>+2</b><small>Coins</small></span>
@@ -729,7 +736,7 @@ function makeView(env, send) {
     } else {
       const puzzle = getPuzzle(challenge.key, challenge.index, challenge.seed);
       const options = challenge.options;
-      const top = `<span class="eyebrow">SEASON EVENT ${round + 1} OF ${seasonLength} · ${esc(challenge.title)}</span>${place ? `<small class="table-location">${esc(place.name)}</small>` : ''}`;
+      const top = `<span class="eyebrow">SEASON EVENT ${round + 1} OF ${seasonLength} · ${esc(challenge.title)}</span>${place ? `<small class="table-location">${esc(place.name)}</small>` : ''}${phase==='draft'?tableIdentity(challenge.key):''}`;
       const timer = '<p class="clock" id="table-clock" aria-label="Time remaining"></p>';
       let heading, details, actions;
       const picks = options.map((option, i) => button(option, 'pick', `data-option="${i}"`)).join('');
@@ -793,6 +800,12 @@ function makeView(env, send) {
       const loot=[...app.querySelectorAll('.round-loot span')];
       globalThis.Motion.animate(loot,{opacity:[.2,1],y:[9,0],scale:[.9,1]},
         {type:'spring',stiffness:240,damping:19,delay:globalThis.Motion.stagger(.07)});
+    }
+    const identity=app.querySelector('.table-identity');
+    const moment=changedMove && app.querySelector('.table-moment');
+    if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
+      if(arrived && identity)globalThis.Motion.animate(identity,{opacity:[.3,1],x:[-12,0]},{duration:.35});
+      if(moment)globalThis.Motion.animate(moment,{scale:[.94,1.045,1],opacity:[.4,1]},{duration:.27});
     }
     app.querySelector('#next')?.addEventListener('click', () => send({type: 'next'}));
     app.querySelector('#hold-round')?.addEventListener('click', () => send({type: 'hold'}));
