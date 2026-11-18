@@ -3,10 +3,10 @@ import { getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { masks, maskId } from './masks.js?v=2';
 
-import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js';
-import { bestHoldem } from './card-dice-rules.js';
-import { matchTitles, rankHand, pokerRanks } from './match-rules.js';
-import { matchMarkup, mountMatch, cardName } from './match-view.js';
+import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=2';
+import { bestHoldem } from './card-dice-rules.js?v=2';
+import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=2';
+import { matchMarkup, mountMatch, cardName } from './match-view.js?v=2';
 
 const limit = 6;
 const times = { draft: 40_000, clue: 30_000, final: 35_000, pact: 30_000 };

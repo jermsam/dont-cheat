@@ -1,4 +1,5 @@
-import { cardAndDiceRules, cardAndDiceTitles } from './card-dice-rules.js';
+import { race } from './snakes.js';
+import { cardAndDiceRules, cardAndDiceTitles } from './card-dice-rules.js?v=2';
 import { Chess } from './vendor/chess-1.4.0.js';
 
 const files = 'abcdefgh';
@@ -263,9 +264,9 @@ function mweso() {
 }
 
 export const matchTitles = {
-  ...cardAndDiceTitles, chess: 'Chess', draughts: 'English draughts', poker: 'Five-card draw', mweso: 'Omweso', ludo: 'Ludo',
+  ...cardAndDiceTitles, snakes:'Snakes and Ladders', chess: 'Chess', draughts: 'English draughts', poker: 'Five-card draw', mweso: 'Omweso', ludo: 'Ludo',
 };
-export const matchRules = {chess, draughts, poker, mweso, ludo, ...cardAndDiceRules};
+export const matchRules = {chess, draughts, poker, mweso, ludo, snakes:()=>race(()=>1+random(6)), ...cardAndDiceRules};
 
 export function createMatch(key, seats) {
   const rules = matchRules[key]();

@@ -1,4 +1,4 @@
-import { compare, random, rankHand, shuffledDeck } from './match-rules.js';
+import { compare, random, rankHand, shuffledDeck } from './match-rules.js?v=2';
 
 const rank = card => card % 13 + 2;
 const suit = card => Math.floor(card / 13);

@@ -34,7 +34,7 @@ Other card combinations yield zero pact points. Round two doubles pact points. T
 
 **Tournament** seats two to six players. Share one room invite for the entire nine-event season. The draw includes chess, English draughts, Texas Hold’em, Omweso, Ludo, two additional games, one brain challenge, and Majority Verdict. Pick the opening event or let the game draw it. The remaining event order is randomized.
 
-The live tables also support five-card draw, Matatu, Card Draft, Go Fish, Blackjack, Pig, Liar’s Dice, Ship, Captain, Crew, Farkle, Five Dice, Cee-Lo, Cheat, and Craps. Hold’em is heads-up fixed-limit with 1/2 blinds. Blackjack is a hit-or-stand comparison against the same dealer. Matatu uses its 52-card Classic rules. Liar’s Dice uses wild ones and ascending bids. Craps uses pass-line outcomes. Chips, coins and time tokens exist inside the game.
+The live tables also support five-card draw, Matatu, Card Draft, Go Fish, Blackjack, Pig, Liar’s Dice, Ship, Captain, Crew, Farkle, Five Dice, Cee-Lo, Cheat, Craps, and Snakes and Ladders. Hold’em is heads-up fixed-limit with 1/2 blinds. Blackjack is a hit-or-stand comparison against the same dealer. Matatu uses its 52-card Classic rules. Liar’s Dice uses wild ones and ascending bids. Craps uses pass-line outcomes. Chips, coins and time tokens exist inside the game.
 
 One player can buy the next table during a recap for five coins or a time token. The purchase moves an unplayed game earlier or replaces a bonus table. The five core matches remain in the schedule. Each player gains two coins per event and one time token every third event. During an active table turn, a time token adds 30 seconds, once per table.
 
@@ -89,3 +89,5 @@ Victory music is [“The Curtain Rises” by Kevin MacLeod](https://incompetech.
 ## Round recaps and sound
 
 After each round, the recap counts down to the next round. The host can start immediately or use **Keep reading** to pause. Tap **Sound off** to turn sound on and hear a short fanfare preview. The choice is remembered for that browser when storage is available.
+
+Snakes and Ladders is available under **Boards** and can be drawn into a bonus event. Roll a six-sided die, climb or slide only on landing, and reach square 100 by exact count. The original board is available in flat and animated 3D views.

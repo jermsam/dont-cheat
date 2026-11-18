@@ -2,10 +2,10 @@ import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { drawRelic, stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
-import { hostTournament, joinTournament } from './tournament.js?v=6';
+import { hostTournament, joinTournament } from './tournament.js?v=7';
 
 import { challenges } from './challenges.js';
-import { matchTitles } from './match-rules.js';
+import { matchTitles } from './match-rules.js?v=2';
 import { mountPuzzleBoard } from './puzzle-board.js';
 
 const app = document.querySelector('#app');
@@ -887,7 +887,7 @@ function mountLobby() {
   const library = document.querySelector('#game-library');
   const filters = [...document.querySelectorAll('[data-library-filter]')];
   const groups = {
-    board: ['chess','draughts','mweso','ludo'],
+    board: ['chess','draughts','mweso','ludo','snakes'],
     card: ['poker','holdem','matatu','carddraft','gofish','blackjack','cheat'],
     dice: ['pig','perudo','ship','farkle','yahtzee','ceelo','craps'],
     social: ['signal','dare','verdict'],
