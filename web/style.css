@@ -639,3 +639,11 @@ select, .destination-picker select, .table-menu select, .table-accuse select {
 .round-loot.loot-earned .loot-points{background:#3b294c;border-color:#b793d8;color:#efdaff}
 .season-trophy{display:grid;place-items:center;width:3.5rem;height:3.5rem;margin:.15rem 0 .6rem;border-radius:50%;border:1px solid #f5c875;background:radial-gradient(circle at 38% 28%,#7f5430,#301b20);color:#ffe2a0;box-shadow:0 0 22px #e0a04666}
 .season-trophy .ui-icon{width:2rem;height:2rem}
+
+.table-draft{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.65rem;border:1px solid #82624c;border-radius:7px;background:#291c28;margin:.65rem 0}
+.draft-heading{display:flex;gap:.42rem;align-items:center;flex-basis:100%;color:#ffe1a8}
+.table-draft .bait-call{min-height:40px;color:#27151c;background:#ffc77f;border-color:#ffc77f;padding:.4rem .75rem}
+.table-draft .bait-call:hover:not(:disabled){background:#ffe2b1}
+.bait-winner,.draft-encore{display:inline-flex;gap:.4rem;align-items:center;color:#ffe0a2;font-weight:700;font-size:.85rem}
+.table-draft .draft-encore{flex-basis:100%;margin:.2rem 0;color:#bdf9d9}
+#table-draft select{display:block;max-width:100%;min-height:44px;margin:.5rem 0;background-color:#221827;color:var(--ink)}

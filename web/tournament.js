@@ -5,7 +5,7 @@ import { getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { masks, maskId } from './masks.js?v=2';
 
-import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=12';
+import { seasonLength, seasonLineup, seasonMatches, buyCoins, coreGames } from './season.js?v=13';
 import { bestHoldem } from './card-dice-rules.js?v=7';
 import { matchTitles, rankHand, pokerRanks } from './match-rules.js?v=12';
 import { matchMarkup, mountMatch } from './match-view.js?v=18';
@@ -28,6 +28,16 @@ export function hostTournament(env) {
   let matches = [];
   const wallet = new Map();
   let lastPurchase;
+  let tablePick, nextCaptain = 1, lead;
+  const encores = new Set();
+  const onlineSeats = () => players.flatMap((player,seat)=>player.online?[seat]:[]);
+  function chooseCaptain() {
+    for(let i=0;i<players.length;i++){
+      const seat=(nextCaptain+i)%players.length;
+      if(players[seat].online)return seat;
+    }
+  }
+  const eventFor = key => ({key,title:matchTitles[key],match:true});
   wallet.set(0, {coins:5,time:1});
   const view = makeView(env, intent => handle(0, intent));
 
@@ -41,7 +51,8 @@ export function hostTournament(env) {
       wallet: wallet.get(seat),
       nextSlot: phase === 'reveal' ? lineup[round+1] : undefined,
       schedule: lineup.map(({key,title}) => ({key,title})),
-      lastPurchase,
+      lastPurchase, tablePick:phase==='reveal'?tablePick:undefined,
+      lead:phase==='match'?lead:undefined,
       players: players.map(({ mask, score, online, status, moves }) => ({
         mask, score, online, status,
         clue: exposeClues ? moves.clue?.option : undefined,
@@ -62,6 +73,9 @@ export function hostTournament(env) {
   function disconnect(player) {
     if (!player.online) return;
     player.online = false;
+    if (phase==='reveal' && tablePick?.captain===players.indexOf(player) && !tablePick.locked && !tablePick.picks[tablePick.captain]) {
+      tablePick.captain=chooseCaptain();
+    }
     if (phase === 'match') {
       const seat = players.indexOf(player);
       matches.find(match => match.seats.includes(seat))?.resign(seat, 'Opponent disconnected');
@@ -80,6 +94,9 @@ export function hostTournament(env) {
     deadline = times[phase] ? Date.now() + times[phase] : 0;
     if (deadline) timer = setTimeout(advance, times[phase]);
     else if (phase === 'reveal') {
+      const next = round+1;
+      tablePick = lineup[next]?.match ? {captain:chooseCaptain(), picks:Array(players.length).fill(null),
+        locked:encores.has(next), encore:null, bait:null} : undefined;
       deadline = Date.now() + recapDelay;
       timer = setTimeout(nextRound, recapDelay);
     }
@@ -132,7 +149,7 @@ export function hostTournament(env) {
       return;
     }
     const seats = players.flatMap((player, seat) => player.online ? [{seat, score:player.score}] : []);
-    matches = seasonMatches(lineup[round].key, seats, round, env.shuffle);
+    matches = seasonMatches(lineup[round].key, seats, round, env.shuffle, lead);
     clearTimeout(timer);
     phase = 'match';
     deadline = 0;
@@ -193,6 +210,8 @@ export function hostTournament(env) {
 
   function nextRound() {
     if (phase !== 'reveal') return;
+    if (tablePick && !tablePick.locked) nextCaptain=(tablePick.captain+1)%players.length;
+    lead=tablePick?.bait ?? undefined;
     round++;
     players.forEach(player => { player.moves = {}; });
     beginEvent();
@@ -217,14 +236,45 @@ export function hostTournament(env) {
       beginEvent();
       return;
     }
+    if (phase==='reveal' && tablePick && intent.round===round && ['pick-table','call-bait'].includes(type)) {
+      if(type==='call-bait'){
+        if(tablePick.bait!==null)return;
+        tablePick.bait=seat;
+        publish();
+        return;
+      }
+      const key=intent.key;
+      if(tablePick.locked || tablePick.encore!==null || !Object.hasOwn(matchTitles,key) || lastPurchase?.after===round)return;
+      if(tablePick.picks[seat]===key)return;
+      const next=round+1;
+      tablePick.picks[seat]=key;
+      if(seat===tablePick.captain){
+        const later=lineup.findIndex((event,index)=>index>next && !encores.has(index) && event.key===key);
+        if(later>=0)lineup[later]=lineup[next];
+        lineup[next]=eventFor(key);
+      }
+      const seats=onlineSeats();
+      const replay=lineup.findLastIndex((event,index)=>index>next && !encores.has(index) && event.match);
+      if(seats.length>=2 && replay>=0 && seats.every(id=>tablePick.picks[id]===key)){
+        if(lineup[replay].key!==key){
+          const earlier=lineup.findIndex((event,index)=>index>next && index<replay && !encores.has(index) && event.key===key);
+          if(earlier>=0)lineup[earlier]=lineup[replay];
+          lineup[replay]=eventFor(key);
+        }
+        encores.add(replay);
+        tablePick.encore=replay;
+      }
+      publish();
+      return;
+    }
     if (type === 'buy-event' && phase === 'reveal' && intent.round === round && lastPurchase?.after !== round) {
       const next = lineup[round + 1];
       const key = intent.key;
       const balance = wallet.get(seat);
-      if (!next?.match || !Object.hasOwn(matchTitles,key) || key === next.key ||
+      if (tablePick?.locked || tablePick?.picks.some(Boolean) || !next?.match || !Object.hasOwn(matchTitles,key) || key === next.key ||
           lineup.slice(0,round+1).some(event=>event.key===key)) return;
-      const existing = lineup.findIndex((event,index)=>index>round+1 && event.key===key);
-      const optional = lineup.findIndex((event,index)=>index>=round+1 && event.match && !coreGames.includes(event.key));
+      const existing = lineup.findIndex((event,index)=>index>round+1 && !encores.has(index) && event.key===key);
+      const optional = lineup.findIndex((event,index)=>index>=round+1 && !encores.has(index) && event.match && !coreGames.includes(event.key));
       const replacement = existing >= 0 ? existing : optional;
       if (replacement < 0) return;
       if (intent.currency === 'coins' && balance.coins >= buyCoins) balance.coins -= buyCoins;
@@ -371,6 +421,12 @@ function isTableState(state) {
     (!state.wallet || integer(state.wallet.coins,0,100) && integer(state.wallet.time,0,20)) &&
     Array.isArray(state.schedule) && state.schedule.length === seasonLength &&
     state.schedule.every(event=>typeof event.key==='string' && typeof event.title==='string') &&
+    (!state.tablePick || typeof state.tablePick.locked==='boolean' && integer(state.tablePick.captain,0,state.players.length-1) &&
+      Array.isArray(state.tablePick.picks) && state.tablePick.picks.length===state.players.length &&
+      state.tablePick.picks.every(key=>key===null || Object.hasOwn(matchTitles,key)) &&
+      (state.tablePick.bait===null || integer(state.tablePick.bait,0,state.players.length-1)) &&
+      (state.tablePick.encore===null || integer(state.tablePick.encore,state.round+2,seasonLength-1))) &&
+    (state.lead===undefined || integer(state.lead,0,state.players.length-1)) &&
     (!state.lastPurchase || integer(state.lastPurchase.seat,0,state.players.length-1) &&
       Object.hasOwn(matchTitles,state.lastPurchase.key));
 }
@@ -432,6 +488,29 @@ function makeView(env, send) {
         ${entry.card ? ` · ${esc(entry.card)}` : ''}${entry.target === undefined ? '' : ` on Seat ${entry.target + 1}`}${entry.caught ? ' · caught the bluff' : entry.card === 'Call bluff' ? ' · accusation missed' : ''}
         ${entry.fooled ? ' · someone took the decoy' : ''} · ${entry.points >= 0 ? '+' : ''}${entry.points}</small></li>`).join('')}</ul>`))}</div>`;
   }
+  function tableDraft(state) {
+    const {tablePick:pick,nextSlot,seat,schedule,round,lastPurchase}=state;
+    if(!pick || !nextSlot)return '';
+    const mine=pick.captain===seat;
+    const current=pick.picks[seat]??nextSlot.key;
+    const nameOf=id=>id===seat?'You':name(state,id);
+    const ballot=pick.locked||pick.encore!==null||lastPurchase?.after===round?'':`<label for="table-pick">Your pick</label>
+      <select id="table-pick">${Object.entries(matchTitles).map(([key,title])=>
+        `<option value="${key}" ${key===current?'selected':''}>${esc(title)}</option>`).join('')}</select>
+      ${button(pick.picks[seat]?'Change pick':mine?'Lock your game':'Back a game','pick-table','class="primary"')}`;
+    const call=pick.bait===null?button('Call the bait','call-bait','class="bait-call"'):
+      `<span class="bait-winner">${icon('flag')} ${esc(nameOf(pick.bait))} called the bait</span>`;
+    return `<section class="table-draft">
+      <div class="draft-heading">${icon(pick.locked?'rotate-cw':'flag')} <strong>${pick.locked?'Encore':mine?'Your turn to choose':`${esc(nameOf(pick.captain))} chooses next`}</strong></div>
+      ${ballot ? sideScreen('table-draft','Pick the next game',`${ballot}
+        <p>Everyone picks the same game? It returns in a later table round if there’s room.</p>
+        <ul>${pick.picks.map((key,index)=>`<li>${esc(nameOf(index))} · ${key?esc(matchTitles[key]):'Picking…'}</li>`).join('')}</ul>`,
+        mine?'Choose game':'Cast your pick') : ''}
+      ${pick.encore===null?'':`<p class="draft-encore" role="status">${icon('rotate-cw')} ${esc(schedule[pick.encore].title)} returns in Round ${pick.encore+1}</p>`}
+      ${call}
+    </section>`;
+  }
+
   function shop(state) {
     const {round, nextSlot, schedule, wallet, lastPurchase} = state;
     if (!nextSlot || !wallet) return '';
@@ -439,7 +518,7 @@ function makeView(env, send) {
     if (lastPurchase?.after === round) {
       return `<p>Seat ${lastPurchase.seat + 1} chose ${esc(matchTitles[lastPurchase.key])} next.</p>`;
     }
-    if (!nextSlot.match) return `<p>Up next <strong>${esc(nextSlot.title)}</strong></p>`;
+    if (state.tablePick?.locked || state.tablePick?.picks.some(Boolean) || !nextSlot.match) return `<p>Up next <strong>${esc(nextSlot.title)}</strong></p>`;
     const past = new Set(schedule.slice(0,round+2).map(event=>event.key));
     const future = schedule.slice(round+1).map(event=>event.key);
     const optional = future.some(key=>Object.hasOwn(matchTitles,key) && !coreGames.includes(key));
@@ -479,6 +558,7 @@ function makeView(env, send) {
 
   let previousMatch;
   let rewardedRound = -1;
+  let lastBait, lastEncore;
   let profile;
   const phaseIsNewMove = (state, previous) => state.phase === 'match' &&
     state.board && previous?.round === state.round && state.board.serial > previous.serial;
@@ -530,6 +610,7 @@ function makeView(env, send) {
         <div class="screen-links">${sideScreen('table-seats', 'See who’s here', roster(state))}${statusOptions(state)}</div>${back}`;
     } else if (phase === 'match') {
       content = `<span class="eyebrow">SEASON EVENT ${round + 1} OF ${seasonLength} · ${esc(challenge.title)}</span>
+        ${state.lead===undefined?'':`<p class="bait-winner">${icon('flag')} ${esc(name(state,state.lead))} leads</p>`}
         ${matchMarkup(state.board, state.wallet, state.players)}`;
     } else if (phase === 'reveal' || phase === 'verdict') {
       const best = Math.max(...players.map(player => player.score));
@@ -556,7 +637,7 @@ function makeView(env, send) {
         ${won ? env.victoryControls() : ''}</div>
         <div class="recap-next">${progressMarkup(profile)}
         ${phase === 'verdict' ? `<div class="row">${button('Share result', 'share-result', 'class="quiet"')}<a class="another-season" href="./?season=new#brain-games">New season ${icon('arrow-right')}</a></div>` :
-          roundAdvance(round + 2, host, state.recapPaused) + shop(state)}
+          tableDraft(state) + shop(state) + roundAdvance(round + 2, host, state.recapPaused)}
         </div></div>
         <div class="screen-links recap-links">
           ${sideScreen('table-scores', 'Scoreboard', roster(state))}
@@ -630,6 +711,19 @@ function makeView(env, send) {
       ticker = setInterval(tick, 200);
     }
     if (phase === 'reveal') {
+      const bait=state.tablePick?.bait;
+      const encore=state.tablePick?.encore;
+      const freshBait=bait!=null && lastBait!==round;
+      const freshEncore=encore!=null && lastEncore!==round;
+      if(freshBait || freshEncore){
+        if(freshBait)lastBait=round;
+        if(freshEncore)lastEncore=round;
+        env.cue(freshEncore?'crown':'claim');
+        if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
+          const badge=app.querySelector(freshEncore?'.draft-encore':'.table-draft .bait-winner');
+          if(badge)globalThis.Motion.animate(badge,{scale:[.84,1.1,1],opacity:[.35,1]}, {duration:.35});
+        }
+      }
       tickRecap(app, ends);
       ticker = setInterval(() => tickRecap(app, ends), 200);
     }
@@ -648,7 +742,8 @@ function makeView(env, send) {
     app.querySelectorAll('[data-table]').forEach(control => {
       control.onclick = () => {
         const { table: type, option, from, card, id, label } = control.dataset;
-        if (type === 'buy-event') send({type, round, key:app.querySelector('#shop-game').value, currency:control.dataset.currency});
+        if (type === 'pick-table' || type === 'call-bait') send({type,round,key:app.querySelector('#table-pick')?.value});
+        else if (type === 'buy-event') send({type, round, key:app.querySelector('#shop-game').value, currency:control.dataset.currency});
         else if (type === 'share-result' || type === 'share-status') void shareUpdate(state, type === 'share-status');
         else if (type === 'status') send({ type, value: label });
         else if (type === 'admit' || type === 'decline') send({ type: 'admit', id: Number(id), accept: type === 'admit' });
