@@ -567,3 +567,19 @@ select, .destination-picker select, .table-menu select, .table-accuse select {
 .control-hint{position:fixed;z-index:100;max-width:min(16rem,calc(100vw - 16px));padding:.4rem .55rem;border:1px solid #997451;border-radius:5px;background:#211827;color:#fff3e3;box-shadow:0 4px 18px #100917aa;font-size:.78rem;font-weight:650}
 .board-controls .icon-tool[hidden]{display:none}
 [data-table="start"] .ui-icon,[data-table="share-result"] .ui-icon{margin-inline-end:.4em}
+
+.round-loot{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin:.75rem 0 .35rem}
+.round-loot span,.career-track>span{display:inline-flex;align-items:center;gap:.38rem}
+.round-loot span{border:1px solid #91683e;border-radius:6px;background:#38251d;padding:.4rem .55rem;color:#ffe0ad}
+.round-loot b{font-size:1.1rem;color:#fff0d4}
+.career-track{background:#241927;border:1px solid #624756;border-radius:6px;padding:.55rem .65rem;display:grid;gap:.28rem;width:min(100%,320px);margin:.7rem 0}
+.career-track small,#career>small{color:#edcfdd}
+.career-track progress{width:100%;height:.5rem;accent-color:var(--gold)}
+#career{margin-top:1rem}
+#weekly-table{margin:.45rem 0}
+#weekly-table .icon-tool{border-color:#91683e;color:#ffe0ad}
+.another-season{display:inline-flex;align-items:center;gap:.4rem;background:var(--gold);color:#221320;padding:.65rem .85rem;border-radius:6px;font-weight:750}
+.career-badges{display:flex;align-items:stretch;flex-wrap:wrap;gap:.35rem;margin:.5rem 0 0;padding:0;list-style:none}
+.career-badges li{display:grid;grid-template-columns:auto 1fr;gap:.1rem .35rem;align-items:center;padding:.3rem .45rem;border:1px solid #6f5669;border-radius:5px;background:#221826;font-size:.72rem}
+.career-badges li[data-earned="true"]{border-color:#a7814c;color:#ffe2a8}
+.badge-state{grid-column:2;color:#e4cedb;font-size:.66rem}
