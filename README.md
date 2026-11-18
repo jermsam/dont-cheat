@@ -109,3 +109,24 @@ Season lobbies show the live seat roster and player portraits. The selected dest
 Card tables show opponents’ card backs when the rules expose their hand size. **Cover my hand** hides your cards on your screen. The table shows game-required reveals, and the season recap keeps private hands out of the record. The host browser runs the deck and rules.
 
 Ludo rolls animate in flat and 3D views, including consecutive identical results. The host resolves the die under the same rules.
+
+## Chess voice regression checks
+
+With sound enabled, checks and checkmates use the moving character’s recorded voice on both devices. A suspended audio context is resumed before playback. Muting cancels a pending announcement; newer calls supersede older calls that are still loading.
+
+To run the browser regression, use installed Google Chrome, Node.js, and a connection to the Iroh relay. Serve `web/` locally:
+
+```sh
+python3 -m http.server 18765 --bind 127.0.0.1 --directory web
+```
+
+In another terminal:
+
+```sh
+npm ci --prefix tests
+npm test --prefix tests
+CHESS_TEST_CHARACTERS=prince CHESS_TEST_MUTED=1 npm test --prefix tests
+CHESS_TEST_CHARACTERS=prince CHESS_TEST_PENDING_MUTE=1 npm test --prefix tests
+```
+
+The test plays legal moves through two independent browser clients and checks decoded voice playback, including suspension before remote moves. The full run covers all 13 characters. `CHESS_TEST_URL` can point to another deployment; include `#brain-games`. These tests create temporary game rooms, with no messages sent outside those rooms.

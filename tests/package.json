@@ -1,0 +1,1 @@
+{"name":"dont-cheat-browser-tests","private":true,"scripts":{"test":"node chess-audio.cjs"},"devDependencies":{"playwright-core":"1.65.1"}}
