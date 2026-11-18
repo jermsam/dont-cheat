@@ -1,6 +1,6 @@
 import * as THREE from './vendor/three.module.min.js';
 import { digits,posePinch,cardContact } from './card-pinch.js';
-import { addPortraitDetail } from './portrait-detail.js';
+import { addPortraitDetail } from './portrait-detail.js?v=2';
 import { fitPortraitGeometry } from './portrait-fit.js';
 import { GLTFLoader } from './vendor/GLTFLoader-r169.js';
 
@@ -16,9 +16,13 @@ const loader=new GLTFLoader();
 
 export async function loadTripoCast(mask,root,source) {
   const fit=dimensions[mask];
-  const [{scene},portrait]=await Promise.all([
+  const textureLoader=new THREE.TextureLoader();
+  const loadTexture=path=>textureLoader.loadAsync(new URL(path,import.meta.url).href).catch(()=>null);
+  const [{scene},portrait,left,right]=await Promise.all([
     loader.loadAsync(new URL(`characters/the-${mask}-tripo.glb`,import.meta.url).href),
-    new THREE.TextureLoader().loadAsync(new URL(`masks/${mask}.jpg`,import.meta.url).href).catch(()=>null),
+    loadTexture(`masks/${mask}.jpg`),
+    loadTexture(`characters/${mask}-profile-left.webp`),
+    loadTexture(`characters/${mask}-profile-right.webp`),
   ]);
   let original;
   scene.traverse(node=>{if(node.isMesh)original=node;});
@@ -61,7 +65,7 @@ export async function loadTripoCast(mask,root,source) {
   paint.metalness=.12;
   paint.roughness=.82;
   paint.normalScale.setScalar(.12);
-  if(portrait)addPortraitDetail(paint,portrait,mask,meters);
+  if(portrait)addPortraitDetail(paint,portrait,left&&right?[left,right]:[portrait,portrait],mask,meters);
   paint.envMapIntensity=.55;
   const skin=new THREE.SkinnedMesh(geometry,paint);
   skin.name=mask;
@@ -159,6 +163,8 @@ export async function loadTripoCast(mask,root,source) {
   function dispose(){
     skeleton.dispose();
     portrait?.dispose();
+    left?.dispose();
+    right?.dispose();
     geometry.dispose();
     for(const value of Object.values(original.material))if(value?.isTexture)value.dispose();
     original.material.dispose();

@@ -1,7 +1,8 @@
 import { surfaceMaps,studioLight } from './physical-materials.js';
 import * as THREE from './vendor/three.module.min.js';
-import { makeCast } from './room-cast.js?v=7';
-import { buildKitchen } from './midnight-kitchen.js?v=2';
+import { makeCast } from './room-cast.js?v=8';
+import { buildDestination } from './destination-sets.js?v=2';
+import { buildKitchen } from './midnight-kitchen.js?v=3';
 import { makeRoomCards } from './room-cards.js?v=4';
 import { feltTexture } from './table-art.js';
 
@@ -37,7 +38,7 @@ export function createArenaRoom(holder,kind='hall',place){
   const cast=makeCast(render,kitchen);
   const castStates=new Map();
   const motion=matchMedia('(prefers-reduced-motion: reduce)');
-  let angle=.06, cameraAnimation, ready=true, focusSeat=null, closeup=0;
+  let angle=.06, cameraAnimation, ready=true, focusSeat=null, closeup=0, portraitAngle=0;
   const material=(color,options={})=>{
     const use=new THREE.MeshStandardMaterial({color,roughness:.78,...options});
     materialSet.add(use);return use;
@@ -89,10 +90,12 @@ export function createArenaRoom(holder,kind='hall',place){
 
   const doors=[];
   let threshold;
-  if(kitchen){
-    holder.dataset.roomModel='midnight-kitchen';
+  const kit={scene,block,mesh,round,ball,material,wood,bronze,warm,geometries,render,alive:()=>ready};
+  const modeled=kitchen||buildDestination(place?.id,kit);
+  if(modeled){
+    holder.dataset.roomModel=place.id;
     holder.dataset.scenery=place.art;
-    buildKitchen({scene,block,mesh,round,ball,material,wood,bronze,warm,render,alive:()=>ready});
+    if(kitchen)buildKitchen(kit);
   }else{
     block(dark,0,-.22,-1.45,13,.35,14);
     const tiles=[[],[]];
@@ -174,26 +177,6 @@ export function createArenaRoom(holder,kind='hall',place){
     arch(0,2.64,2.67,.89,-6.05);
     block(deep,0,1.50,-6.08,2.34,3.07,.065);
     threshold=block(warm,0,.038,-5.73,2.16,.012,.06);
-    if(place?.art){
-      const scenicGeo=new THREE.PlaneGeometry(11.95,5.4);
-      geometries.add(scenicGeo);
-      const backdrop=new THREE.MeshBasicMaterial({color:0xc7b7b4,toneMapped:false});
-      materialSet.add(backdrop);
-      const scenic=mesh(scenicGeo,backdrop,0,2.7,-6.12);
-      scenic.visible=false;
-      new THREE.TextureLoader().load(`places/${place.art}.jpg`,texture=>{
-        if(!ready){texture.dispose();return;}
-        texture.colorSpace=THREE.SRGBColorSpace;
-        texture.repeat.y=Math.min(1,5.4/11.95*(texture.image.width/texture.image.height));
-        texture.offset.y=(1-texture.repeat.y)*.5;
-        textures.add(texture);
-        backdrop.map=texture;
-        backdrop.needsUpdate=true;
-        scenic.visible=true;
-        holder.dataset.scenery=place.art;
-        render();
-      },undefined,()=>{});
-    }
     doors.push(...[-1,1].map(side=>{
       const hinge=new THREE.Group();
       hinge.position.set(side*1.12,0,-5.86);
@@ -218,6 +201,27 @@ export function createArenaRoom(holder,kind='hall',place){
   const cards=kitchen?makeRoomCards(scene,geometries,materialSet,textures):null;
   let moveAnimation, dealAnimation, dealingActors=[], lastMove, tableActive=false;
   if(!kitchen)for(let i=0;i<7;i++)block(i%2?bronze:leather,0,.898+i*.012,-1.11,.20,.012,.31);
+  async function loadProp(path){
+    const {GLTFLoader}=await import('./vendor/GLTFLoader-r169.js');
+    const {scene:prop}=await new GLTFLoader().loadAsync(new URL(path,import.meta.url).href);
+    prop.traverse(part=>{
+      if(!part.isMesh)return;
+      part.castShadow=true;
+      part.receiveShadow=true;
+      const maps=Object.values(part.material).filter(value=>value?.isTexture);
+      if(ready){
+        geometries.add(part.geometry);
+        materialSet.add(part.material);
+        maps.forEach(map=>textures.add(map));
+      }else{
+        part.geometry.dispose();
+        part.material.dispose();
+        maps.forEach(map=>map.dispose());
+      }
+    });
+    return ready?prop:null;
+  }
+  const kitchenChairs=[];
   for(const [x,z,rotation] of seats){
     const chair=new THREE.Group();
     chair.position.set(x,0,z);
@@ -231,8 +235,21 @@ export function createArenaRoom(holder,kind='hall',place){
     block(bronze,0,1.137,-.229,.55,.045,.10,chair);
     for(const a of [-1,1])for(const b of [-1,1])block(wood,a*.22,.18,b*.22,.065,.37,.065,chair);
     chair.children.forEach(panel=>{panel.castShadow=true;panel.receiveShadow=true;});
+    if(kitchen)kitchenChairs.push(chair);
   }
-  if(!kitchen){
+  if(kitchen){
+    void loadProp('props/painted-chair/chair.gltf').then(chairModel=>{
+      if(!chairModel)return;
+      kitchenChairs.forEach(chair=>{
+        const furniture=chairModel.clone();
+        furniture.scale.set(1.26,1.06,1.16);
+        chair.clear();
+        chair.add(furniture);
+      });
+      holder.dataset.kitchenFurniture='painted-wood';
+      render();
+    }).catch(error=>console.warn('Kitchen chair model could not load',error));
+  }else if(!modeled){
     const chandelierGeo=new THREE.TorusGeometry(.79,.026,7,42);
     geometries.add(chandelierGeo);
     const chandelier=mesh(chandelierGeo,bronze,0,3.71,-1.35);
@@ -243,6 +260,24 @@ export function createArenaRoom(holder,kind='hall',place){
       mesh(round,bronze,x,3.75,z,.07,.09,.07);
       mesh(ball,warm,x,3.87,z,.044,.105,.044);
     }
+  }
+  const rocks=scene.getObjectsByProperty('name','Cliff placeholder');
+  if(rocks.length){
+    void loadProp('props/rock-face/rock.gltf').then(model=>{
+      if(!model)return;
+      rocks.forEach((rock,index)=>{
+        const cliff=model.clone();
+        const {x,y,z}=rock.scale;
+        cliff.scale.set(x*.48,y*.45,z*.65);
+        cliff.rotation.y=(index%3-1)*.38;
+        cliff.position.copy(rock.position);
+        cliff.position.y-=y*.69;
+        rock.visible=false;
+        scene.add(cliff);
+      });
+      holder.dataset.terrain='rock-face';
+      render();
+    }).catch(error=>console.warn('Destination rock model could not load',error));
   }
   const contactGeo=new THREE.PlaneGeometry(.99,.87);
   contactGeo.rotateX(-Math.PI/2);
@@ -257,7 +292,7 @@ export function createArenaRoom(holder,kind='hall',place){
   const dealer=cast.makeCharacter(0,null,true);
   dealer.root.position.set(0,0,-3.31);
   dealer.root.rotation.y=.032;
-  if(!kitchen)scene.add(dealer.root);
+  if(!modeled)scene.add(dealer.root);
   mesh(contactGeo,contact,0,.016,0,1,1,1,dealer.root);
 
   function render(){
@@ -268,7 +303,7 @@ export function createArenaRoom(holder,kind='hall',place){
     const target=new THREE.Vector3(0,kitchen?1.31:1.54,kitchen?-1.09:-1.48);
     if(focusSeat!==null){
       const [x,z,rotation]=seats[focusSeat];
-      position.lerp(new THREE.Vector3(x+Math.sin(rotation)*2.2,1.62,z+Math.cos(rotation)*2.2),closeup);
+      position.lerp(new THREE.Vector3(x+Math.sin(rotation+portraitAngle)*2.2,1.62,z+Math.cos(rotation+portraitAngle)*2.2),closeup);
       target.lerp(new THREE.Vector3(x,1.31,z),closeup);
     }
     camera.position.copy(position);
@@ -302,7 +337,7 @@ export function createArenaRoom(holder,kind='hall',place){
     if(cards&&!tableActive)cards.hold(actor,5);
     if(motion.matches||tableActive){actor.root.position.set(x,0,z);actor.root.rotation.y=rotation;actor.pose(0,1);return;}
     const side=Math.sign(x);
-    const track=new THREE.CatmullRomCurve3(kitchen?[
+    const track=new THREE.CatmullRomCurve3(modeled?[
       new THREE.Vector3(side*4.26,0,2.71),new THREE.Vector3(side*3.43,0,1.65),
       new THREE.Vector3(side*2.91,0,.38),new THREE.Vector3(x,0,z),
     ]:[
@@ -383,10 +418,18 @@ export function createArenaRoom(holder,kind='hall',place){
     if(!castStates.has(id))return;
     if(focusSeat!==id)closeup=0;
     focusSeat=id;
+    portraitAngle=0;
+    holder.dataset.portraitAngle='front';
     cameraAnimation?.stop();
     if(motion.matches){closeup=1;render();return;}
     cameraAnimation=globalThis.Motion.animate(closeup,1,{duration:.48,ease:'easeInOut',
       onUpdate:value=>{closeup=value;render();}});
+  }
+  function profile(view){
+    if(focusSeat===null)return;
+    portraitAngle=view==='left'?1.26:view==='right'?-1.26:0;
+    holder.dataset.portraitAngle=view;
+    render();
   }
   function orbit(){
     if(focusSeat!==null){
@@ -418,5 +461,5 @@ export function createArenaRoom(holder,kind='hall',place){
   });
   removal.observe(holder.closest('main'),{childList:true,subtree:true});
   adjust();
-  return {update,orbit,adjust,focus};
+  return {update,orbit,adjust,focus,profile};
 }
