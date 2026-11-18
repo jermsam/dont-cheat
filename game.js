@@ -1,8 +1,10 @@
+import { icon } from './icons.js?v=2';
+import './control-hints.js';
 import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=3';
-import { hostTournament, joinTournament } from './tournament.js?v=31';
+import { hostTournament, joinTournament } from './tournament.js?v=32';
 
 import { challenges } from './challenges.js';
 import { matchTitles } from './match-rules.js?v=10';
@@ -178,12 +180,18 @@ function stopFanfare() {
   updateFanfareButton();
 }
 
+function showSound() {
+  const label=enabled?'Sound on':'Sound off';
+  soundButton.innerHTML=icon(enabled?'volume-2':'volume-x');
+  soundButton.setAttribute('aria-label',label);
+  soundButton.setAttribute('aria-pressed',String(enabled));
+}
+
 function setSound(value) {
   enabled = value;
   try { localStorage.setItem(soundKey, value ? 'on' : 'off'); } catch {}
   if (audioOut) audioOut.gain.setTargetAtTime(enabled ? 1 : 0, audio.currentTime, .02);
-  soundButton.textContent = enabled ? 'Sound on' : 'Sound off';
-  soundButton.setAttribute('aria-pressed', enabled);
+  showSound();
   if (!enabled) stopFanfare();
 }
 
@@ -226,11 +234,8 @@ async function playFanfare(preview = false) {
 
 try {
   enabled = localStorage.getItem(soundKey) === 'on';
-  if (enabled) {
-    soundButton.textContent = 'Sound on';
-    soundButton.setAttribute('aria-pressed', 'true');
-  }
 } catch {}
+showSound();
 
 document.addEventListener('click', event => {
   if (!enabled || event.target.closest('#sound, #victory-music') || audio?.state === 'running') return;

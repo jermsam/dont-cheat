@@ -560,3 +560,10 @@ select, .destination-picker select, .table-menu select, .table-accuse select {
 .ludo-wall-progress{display:inline-flex;align-items:center;gap:.45rem;padding:.35rem .5rem;border:1px solid #efac65;border-radius:4px;background:#39271d;color:#ffebca}
 .ludo-token-button.lane-0{border-inline-start:3px solid #ff835d}
 .ludo-token-button.lane-1{border-inline-start:3px solid #63b3ff}
+
+.mast-tools{display:flex;align-items:center;gap:.4rem}
+.mast-tools .icon-tool{background:#201727}
+.mast-tools [aria-pressed="true"]{background:#332536}
+.control-hint{position:fixed;z-index:100;max-width:min(16rem,calc(100vw - 16px));padding:.4rem .55rem;border:1px solid #997451;border-radius:5px;background:#211827;color:#fff3e3;box-shadow:0 4px 18px #100917aa;font-size:.78rem;font-weight:650}
+.board-controls .icon-tool[hidden]{display:none}
+[data-table="start"] .ui-icon,[data-table="share-result"] .ui-icon{margin-inline-end:.4em}

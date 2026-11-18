@@ -1,10 +1,10 @@
-import { icon } from './icons.js';
+import { icon } from './icons.js?v=2';
 import { masks, maskId } from './masks.js?v=2';
 import { jumps, squarePosition } from './snakes.js';
 import { diceCategories } from './card-dice-rules.js?v=6';
 import { pokerRanks, rankHand } from './match-rules.js?v=10';
-import { mountTableObjects } from './table-objects.js?v=12';
-import { mountLiveBoard } from './live-board.js';
+import { mountTableObjects } from './table-objects.js?v=13';
+import { mountLiveBoard } from './live-board.js?v=2';
 
 const glyph = {p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', m:'●'};
 const labels = {p:'pawn', n:'knight', b:'bishop', r:'rook', q:'queen', k:'king', m:'checker'};
@@ -37,8 +37,8 @@ function grid(board) {
     </button>`;
   }).join('');
   return `<div class="live-grid" role="group" aria-label="${board.key === 'chess' ? 'Chess' : 'Draughts'} board">${squares}</div>
-    <div class="live-3d" hidden></div><div class="board-controls"><button class="quiet" type="button" data-view-toggle>3D board</button>
-      <button class="quiet" type="button" data-board-turn hidden>Rotate view</button></div>
+    <div class="live-3d" hidden></div><div class="board-controls"><button class="quiet icon-tool" type="button" data-view-toggle data-hint aria-label="3D board">${icon('box')}<span aria-hidden="true">3D</span></button>
+      <button class="quiet icon-tool" type="button" data-board-turn data-hint aria-label="Rotate view" hidden>${icon('rotate-cw')}</button></div>
     <div class="promotion-picks row" hidden></div>`;
 }
 
@@ -324,9 +324,9 @@ export function matchMarkup(board, wallet, players = []) {
     ${play}
     ${classic || !board.pieces ? '<div class="table-objects" hidden></div>' : ''}
     <div class="table-tools">
-    ${classic || !board.pieces ? `<button type="button" class="quiet icon-tool" data-table-objects aria-label="Show 3D table" title="Show 3D table">${icon('box')}<span aria-hidden="true">3D</span></button>` : ''}
-    ${!result && active && !board.realtime && !board.boosted && wallet?.time ? `<button type="button" class="quiet icon-tool" data-match-time aria-label="Buy 30s · 1 time token" title="Buy 30s · 1 time token">${icon('timer')}<span aria-hidden="true">+30s</span></button>` : ''}
-    ${!result ? `<div class="match-resign"><button type="button" class="quiet icon-tool" data-resign aria-label="Resign this table" title="Resign this table">${icon('flag')}</button><button type="button" class="quiet" data-resign-confirm hidden>Confirm resignation</button></div>` : ''}</div>`;
+    ${classic || !board.pieces ? `<button type="button" class="quiet icon-tool" data-table-objects aria-label="Show 3D table" data-hint>${icon('box')}<span aria-hidden="true">3D</span></button>` : ''}
+    ${!result && active && !board.realtime && !board.boosted && wallet?.time ? `<button type="button" class="quiet icon-tool" data-match-time aria-label="Buy 30s · 1 time token" data-hint>${icon('timer')}<span aria-hidden="true">+30s</span></button>` : ''}
+    ${!result ? `<div class="match-resign"><button type="button" class="quiet icon-tool" data-resign aria-label="Resign this table" data-hint>${icon('flag')}</button><button type="button" class="quiet" data-resign-confirm hidden>Confirm resignation</button></div>` : ''}</div>`;
 }
 
 export function mountMatch(app, board, send, changedMove) {
