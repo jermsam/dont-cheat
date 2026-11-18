@@ -1,6 +1,6 @@
 import { jumps, squarePosition } from './snakes.js';
-import { diceCategories } from './card-dice-rules.js?v=2';
-import { pokerRanks, rankHand } from './match-rules.js?v=2';
+import { diceCategories } from './card-dice-rules.js?v=3';
+import { pokerRanks, rankHand } from './match-rules.js?v=3';
 import { mountTableObjects } from './table-objects.js?v=2';
 import { mountLiveBoard } from './live-board.js';
 
@@ -10,7 +10,7 @@ const files = 'abcdefgh';
 const escape = value => String(value).replace(/[&<>"]/g, character =>
   ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;'})[character]);
 export const cardName = card => `${'23456789TJQKA'[card % 13]}${'♣♦♥♠'[Math.floor(card / 13)]}`;
-const sideName = (board, side) => board.seats[side] === -1 ? 'Arena rival' : `Seat ${board.seats[side] + 1}`;
+const sideName = (board, side) => board.seats[side] < 0 ? `Arena rival ${Math.abs(board.seats[side])}` : `Seat ${board.seats[side] + 1}`;
 const mins = time => `${Math.floor(time / 60)}:${String(time % 60).padStart(2, '0')}`;
 
 function squareName(board, piece, name) {
@@ -127,13 +127,73 @@ const handCards = cards => cards.map(card => `<span class="table-card" data-tabl
 function pickCard(card) {
   return `<button type="button" class="table-card" data-table-card="${Number(card)}" data-play-card="${Number(card)}" aria-label="Play ${cardName(card)}">${cardName(card)}</button>`;
 }
-const options = board => `<div class="row">${board.legal.filter(move=>typeof move.choice==='string').map(move =>
+const options = board => `<div class="row">${board.legal.filter(move=>typeof move.choice==='string'&&move.choice!=='Send three').map(move =>
   `<button type="button" data-choice-label="${escape(move.choice)}">${escape(move.choice)}${['Call','Raise','Bet'].includes(move.choice) ? ` ${board.gap * Number(move.choice!=='Bet') + Number(board.bet) * Number(move.choice!=='Call')}` : ''}</button>`).join('')}</div>`;
 
 function cardDiceMarkup(board) {
   const {key, hand, legal} = board;
   let content;
-  if (key === 'holdem') {
+  if (['president','speed','ratscrew','kings','tenzi','lcr','mexicali'].includes(key)) {
+    const dice = values => `<div class="dice-row">${values.map(face=>`<span data-die="${Number(face)}">${'⚀⚁⚂⚃⚄⚅'[face-1]}</span>`).join('')}</div>`;
+    if (key==='president' || key==='speed') {
+      content = `<p>${key==='president' ? 'Play a higher set of the same size or pass. Twos are high.' :
+        'Play one rank above or below either pile. Both players can play at any time.'}</p>
+        ${lineOfCards(board.cards ?? board.center)}
+        ${board.scores?`<p>Scores ${board.scores.map(Number).join(' / ')}</p>`:''}
+        ${board.exchanges?.length?'<p>High and low ranks exchanged cards before this deal.</p>':''}
+        <div class="shown-cards">${hand.map(card=>legal.some(move=>move.card===card)?pickCard(card):handCards([card])).join('')}</div>
+        <div class="row suit-picks" hidden></div>${options(board)}`;
+    } else if (key==='ratscrew') {
+      content=`<p>Flip in turn. Either player can slap a double or a sandwich. Face cards give the opponent one to four chances to answer.</p>
+        <p>Cards in stacks ${board.counts.map(Number).join(' / ')}${board.chances?` · Chances ${Number(board.chances)}`:''}</p>${lineOfCards(board.center)}${options(board)}`;
+    } else if (key==='kings') {
+      const prompts=['Choose someone to tell a joke.','Everyone names a fruit in turn.','Tell a two-sentence story.','Everyone points upward.',
+        'Make up a rule for the next draw.','Name a food that starts with your name’s first letter.','Everyone freezes.','Choose a partner to name cities.',
+        'Pick a word and take turns rhyming.','Name a category and go round the table.','Ask someone a riddle.',
+        'Add a rule to the ring. The fourth King ends the game.','Everyone follows your clap rhythm.'];
+      content=`<p>Draw from the ring and do the card’s prompt. ${Number(board.kings)} of 4 Kings drawn.</p>
+        ${board.card==null?'':lineOfCards([board.card])+`<p>${prompts[board.card%13]}</p>`}${options(board)}`;
+    } else if (key==='tenzi') {
+      content=`<p>Tap matching dice to hold them. Race to roll ten of the same number.</p>
+        <div class="row">${board.dice.map((face,i)=>`<button type="button" data-die="${Number(face)}" data-tenzi="${i}" aria-pressed="${board.held.includes(i)}" ${legal.length?'':'disabled'}>${Number(face)}</button>`).join('')}</div>${options(board)}`;
+    } else if (key==='lcr') {
+      content=`<p>Roll up to three dice. 1 passes left, 2 passes right, 3 goes to the center. Keep your chips on 4–6.</p>
+        <p>Chips by seat ${board.stacks.map(Number).join(' / ')} · Center ${Number(board.pot)}</p>${dice(board.dice)}${options(board)}`;
+    } else {
+      const mexico=value=>Number(value)===100?'21 (Mexico)':Number(value)>=81?String(Number(value)-80).repeat(2):Number(value);
+      const bids=legal.filter(move=>move.bid!==undefined);
+      content=`<p>Roll privately and announce a higher result, or call the previous player’s bluff. 21 beats doubles and other rolls.</p>
+        <p>Lives ${board.lives.map(Number).join(' / ')}${board.bid?` · Claim ${mexico(board.bid)}`:''}</p>${dice(board.dice)}
+        ${board.reveal?`<p>Challenge revealed ${mexico(board.reveal.found)}.</p>${dice(board.reveal.dice)}`:''}
+        ${bids.length?`<label for="trick-bid">Raise the claim</label> <select id="trick-bid">${bids.map(move=>`<option value="${Number(move.bid)}">${mexico(move.bid)}</option>`).join('')}</select>
+          <button type="button" data-trick-bid>Make claim</button>`:''}${options(board)}`;
+    }
+  } else if (['spades','hearts','euchre','gin'].includes(key)) {
+    const gin = key === 'gin';
+    const passing = legal.some(move=>move.choice==='Send three');
+    const bidding = legal.some(move=>move.bid!==undefined);
+    const trump = legal.filter(move=>move.trump!==undefined);
+    const played = board.trick?.length ? board.trick : board.previous;
+    content = `<p>${escape(board.phase ?? board.stage)} · Scores ${board.scores.map(Number).join(' / ')}</p>
+      ${key==='spades'||key==='euchre'? `<p>Your partner is ${sideName(board,(board.side+2)%4)}.</p>` : ''}
+      ${board.trump==null?'':`<p>Trump · ${suits[board.trump]}</p>`}
+      ${board.up==null || board.phase!=='Trump'?'':lineOfCards([board.up])}
+      ${board.bids?.length?`<p>Bids ${Array.from({length:4},(_,i)=>board.bids[i] == null?'—':Number(board.bids[i])).join(' / ')}</p>`:''}
+      ${board.taken?`<p>Tricks ${board.taken.map(Number).join(' / ')}</p>`:''}
+      ${played?.length ? `<p>${board.trick.length?'Current trick':'Last trick'}</p>
+        ${lineOfCards(played.map(entry=>entry.card))}<p class="turn-note">${played.map(entry=>sideName(board,entry.side)).map(escape).join(' · ')}</p>`:''}
+      ${gin?`<p>Discard pile · Stock ${Number(board.stock)} cards</p>${lineOfCards([board.top])}`:''}
+      ${gin&&board.shown?`<p>Knock resolved. Deadwood ${board.shown.dead.map(Number).join(' / ')}.</p>`:''}
+      ${bidding?`<label for="trick-bid">Tricks to bid</label> <select id="trick-bid">${legal.map(move=>`<option value="${Number(move.bid)}">${Number(move.bid)||'Nil'}</option>`).join('')}</select>
+        <button type="button" data-trick-bid>Bid</button>`:''}
+      ${trump.length?`<div class="row">${trump.map(move=>`<button type="button" data-trump="${Number(move.trump)}">Name ${suits[move.trump]}</button>`).join('')}</div>`:''}
+      <p>Your hand</p>
+      <div class="shown-cards">${hand.map(card=>passing?
+        `<button type="button" class="table-card" data-table-card="${Number(card)}" data-pass-card="${Number(card)}" aria-pressed="false">${cardName(card)}</button>`:
+        legal.some(move=>move.card===card)?pickCard(card):handCards([card])).join('')}</div>
+      ${passing?'<button type="button" data-send-three disabled>Pass three cards</button>':options(board)}
+      <div class="row suit-picks" hidden></div>`;
+  } else if (key === 'holdem') {
     content = `<p>Fixed-limit Hold’em · ${['Pre-flop','Flop','Turn','River'][board.street]} · Pot ${Number(board.pot)} chips</p>
       <p>Your stack ${Number(board.stack[board.side])} · Rival ${Number(board.stack[1-board.side])}</p>
       ${lineOfCards(board.community)}<p>Your cards</p>${lineOfCards(hand)}
@@ -146,7 +206,8 @@ function cardDiceMarkup(board) {
         ${(draft ? board.display : hand).map(card=>legal.some(move=>move.card===card) ? pickCard(card) : handCards([card])).join('')}</div>
       ${draft ? `<p>Your picks</p>${lineOfCards(hand)}` : ''}
       <div class="row suit-picks" hidden></div>
-      ${legal.some(move=>move.take)?'<button type="button" class="primary" data-take>Draw</button>':''}`;
+      ${board.drawn != null ? '<p>Play the card you drew or pass.</p>' : board.last?.passed ? '<p>Turn passed after the draw.</p>' : ''}
+      ${legal.some(move=>move.take)?'<button type="button" class="primary" data-take>Draw</button>':''}${options(board)}`;
   } else if (key === 'cheat') {
     const canClaim=legal.some(move=>move.choice==='Claim');
     content=`<p>Rival has ${Number(board.count)} cards · Pile ${Number(board.pile)}</p>
@@ -196,20 +257,21 @@ export function matchMarkup(board, wallet) {
   if (!board) return '<p>Waiting for the tables to finish.</p>';
   const active = board.active === board.side;
   const result = board.result;
-  const headline = result ? result.winner === null ? 'Table drawn' : result.winner === board.side ? 'You won this table' : 'You lost this table' :
-    active ? 'Your move' : `${sideName(board, board.active)} to move`;
+  const won = result?.winners?.includes(board.side) ?? result?.winner === board.side;
+  const headline = result ? result.winner === null ? 'Table drawn' : won ? 'You won this table' : 'You lost this table' :
+    board.realtime ? 'Play at the same time' : active ? 'Your move' : `${sideName(board, board.active)} to move`;
   const classic = ['poker','ludo','mweso','snakes'].includes(board.key);
   const play = (board.key === 'poker' ? poker(board) : board.key === 'ludo' ? ludo(board) :
     board.key === 'snakes' ? snakes(board) : board.key === 'mweso' ? mweso(board) : board.pieces ? grid(board) : cardDiceMarkup(board)) +
     (classic ? '<div class="table-objects" hidden></div><button type="button" class="quiet" data-table-objects>Show 3D table</button>' : '');
   return `<h2>${headline}</h2>${result ? `<p>${escape(result.reason)}. Scores update when all tables finish.</p>` : ''}
-    <div class="match-clocks">${[board.side, 1 - board.side].map(side => `<span>${sideName(board, side)}
+    <div class="match-clocks">${[board.side, ...board.seats.map((_,i)=>i).filter(i=>i!==board.side)].map(side => `<span>${sideName(board, side)}
       <strong data-match-clock="${side}">${mins(Math.ceil(board.time[side] / 1000))}</strong></span>`).join('')}</div>
     ${board.check && !result ? '<p class="turn-note">Check</p>' : ''}
     ${active && !result && board.pieces ? '<p class="turn-note">Tap a piece to see where it can move.</p>' : ''}
     ${board.chain ? '<p class="turn-note">Finish the capture with the same piece.</p>' : ''}
     ${play}
-    ${!result && active && !board.boosted && wallet?.time ? '<button type="button" class="quiet" data-match-time>Buy 30s · 1 time token</button>' : ''}
+    ${!result && active && !board.realtime && !board.boosted && wallet?.time ? '<button type="button" class="quiet" data-match-time>Buy 30s · 1 time token</button>' : ''}
     ${!result ? '<div class="match-resign"><button type="button" class="quiet" data-resign>Resign this table</button><button type="button" class="quiet" data-resign-confirm hidden>Confirm resignation</button></div>' : ''}`;
 }
 
@@ -218,7 +280,7 @@ export function mountMatch(app, board, send) {
   const begin = performance.now();
   const tick = () => app.querySelectorAll('[data-match-clock]').forEach(node => {
     const side = Number(node.dataset.matchClock);
-    const remaining = board.time[side] - (!board.result && side === board.active ? performance.now() - begin : 0);
+    const remaining = board.time[side] - (!board.result && (board.realtime || side === board.active) ? performance.now() - begin : 0);
     node.textContent = mins(Math.ceil(Math.max(0, remaining) / 1000));
   });
   const action = move => send({type:'match-move', serial:board.serial, action:move});
@@ -322,7 +384,9 @@ export function mountMatch(app, board, send) {
       else {
         picker.replaceChildren(...choices.map(move => {
           const suit = document.createElement('button');
-          suit.textContent = suits[move.call];
+          suit.textContent = board.key==='gin' ? (move.knock?'Discard and knock':'Discard') :
+            board.key==='speed' ? `Play on pile ${move.pile+1}` :
+            board.key==='president' ? `Play ${move.amount} card${move.amount===1?'':'s'}` : suits[move.call];
           suit.onclick = () => action(move);
           return suit;
         }));
@@ -330,6 +394,21 @@ export function mountMatch(app, board, send) {
       }
     };
   });
+  app.querySelector('[data-trick-bid]')?.addEventListener('click',()=>action({bid:Number(app.querySelector('#trick-bid').value)}));
+  app.querySelectorAll('[data-trump]').forEach(button=>{button.onclick=()=>action({trump:Number(button.dataset.trump)});});
+  app.querySelectorAll('[data-tenzi]').forEach(button=>{button.onclick=()=>action({die:Number(button.dataset.tenzi)});});
+  const passing=app.querySelector('[data-send-three]');
+  const passed=new Set();
+  app.querySelectorAll('[data-pass-card]').forEach(button=>{
+    button.onclick=()=>{
+      const card=Number(button.dataset.passCard);
+      if(passed.has(card)) passed.delete(card);
+      else if(passed.size<3) passed.add(card);
+      button.setAttribute('aria-pressed',String(passed.has(card)));
+      passing.disabled=passed.size!==3;
+    };
+  });
+  if(passing) passing.onclick=()=>action({choice:'Send three',cards:[...passed]});
   const claim=app.querySelector('[data-claim]');
   const claimed=new Set();
   app.querySelectorAll('[data-claim-card]').forEach(button=>{
