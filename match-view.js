@@ -1,8 +1,8 @@
 import { masks, maskId } from './masks.js?v=2';
 import { jumps, squarePosition } from './snakes.js';
 import { diceCategories } from './card-dice-rules.js?v=3';
-import { pokerRanks, rankHand } from './match-rules.js?v=4';
-import { mountTableObjects } from './table-objects.js?v=4';
+import { pokerRanks, rankHand } from './match-rules.js?v=5';
+import { mountTableObjects } from './table-objects.js?v=5';
 import { mountLiveBoard } from './live-board.js';
 
 const glyph = {p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', m:'●'};
@@ -73,6 +73,13 @@ function ludo(board) {
     return `<span class="ludo-pawn lane-${side}" style="${cell(position)}" data-from="${origin.join(',')}" data-to="${position.join(',')}" data-ludo-token="${side},${i}">${i + 1}</span>`;
   })).join('');
   return `<p>A six lets you leave the yard and roll again. Bring all four tokens home with exact rolls.</p>
+    <div class="ludo-roll">
+      ${board.legal.some(action => action.roll) ? '<button type="button" class="primary" data-roll>Roll die</button>' : ''}
+      ${board.lastRoll ? `<div class="ludo-die" data-die="${Number(board.lastRoll)}" aria-hidden="true"><div class="die-cube">
+        ${Array.from({length:6},(_,i)=>`<span>${'⚀⚁⚂⚃⚄⚅'[i]}</span>`).join('')}</div>
+        <b>${'⚀⚁⚂⚃⚄⚅'[board.lastRoll-1]}</b></div><p role="status">Last roll <strong>${Number(board.lastRoll)}</strong></p>` : ''}
+      ${board.die && board.legal.some(move=>move.token!==undefined) ? '<p>Choose a token.</p>' : ''}
+    </div>
     <div class="ludo-layout" aria-hidden="true">
       <div class="ludo-yard yard-0"></div><div class="ludo-yard yard-1"></div>
       ${track.map((position,i) => `<span class="ludo-cell ${i === 0 ? 'lane-0' : i === 26 ? 'lane-1' : ''}" style="${cell(position)}"></span>`).join('')}
@@ -83,9 +90,7 @@ function ludo(board) {
     <div class="ludo-match">${board.tokens.map((positions, side) => `<section><h3>${sideName(board, side)}</h3><div class="race-tokens">
       ${positions.map((pos, i) => `<button type="button" data-token="${i}" data-token-side="${side}" ${side === board.side && board.legal.some(action => action.token === i) ? '' : 'disabled'}>
         <strong>Token ${i + 1}</strong><small>${where(pos)}</small></button>`).join('')}</div></section>`).join('')}</div>
-    <p>${board.last?.rolled ? `Last roll <strong>${Number(board.last.rolled)}</strong>` : ''}</p>
-    ${board.legal.some(action => action.roll) ? '<button type="button" class="primary" data-roll>Roll die</button>' :
-      board.legal.length ? `<p>Rolled <strong>${Number(board.die)}</strong>. Choose a token.</p>` : ''}`;
+    `;
 }
 
 function snakes(board) {
@@ -287,8 +292,11 @@ export function matchMarkup(board, wallet, players = []) {
     ${!result ? '<div class="match-resign"><button type="button" class="quiet" data-resign>Resign this table</button><button type="button" class="quiet" data-resign-confirm hidden>Confirm resignation</button></div>' : ''}`;
 }
 
+let lastLudoRoll;
+
 export function mountMatch(app, board, send) {
   if (!board) return () => {};
+  if(board.key==='ludo' && board.rollCount===0)lastLudoRoll=0;
   const begin = performance.now();
   const tick = () => app.querySelectorAll('[data-match-clock]').forEach(node => {
     const side = Number(node.dataset.matchClock);
@@ -362,6 +370,10 @@ export function mountMatch(app, board, send) {
     };
   });
   if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (board.key==='ludo' && board.last?.rolled && board.rollCount!==lastLudoRoll) {
+      lastLudoRoll=board.rollCount;
+      app.querySelector('.ludo-die')?.classList.add('rolling');
+    }
     const hand = [...app.querySelectorAll('.draw-hand button')];
     hand.forEach((card,i) => globalThis.Motion.animate(card, {
       opacity:[0,1], transform:['translateY(16px) rotate(-8deg)','translateY(0) rotate(0)'],

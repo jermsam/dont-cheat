@@ -118,7 +118,7 @@ function poker() {
 const finish = 56;
 function ludo() {
   const tokens = [range(4).map(() => -1), range(4).map(() => -1)];
-  let active = 0, die = 0, streak = 0;
+  let active = 0, die = 0, streak = 0, lastRoll = 0, rollCount = 0;
   const legal = () => !die ? [{roll: true}] :
     tokens[active].flatMap((pos, i) => (pos === -1 ? die === 6 : pos < finish && pos + die <= finish) ? [{token: i}] : []);
   function pass(extra = false) {
@@ -129,13 +129,15 @@ function ludo() {
   }
   return {
     turn: () => active,
-    view: () => ({tokens, die}),
+    view: () => ({tokens, die, lastRoll, rollCount}),
     legal,
     move(action) {
       if (action.roll) {
         die = 1 + random(6);
         streak = die === 6 ? streak + 1 : 0;
         const rolled = die;
+        lastRoll = rolled;
+        rollCount++;
         if (streak === 3) pass();
         else if (!legal().length) pass(rolled === 6);
         return {last: {rolled}};

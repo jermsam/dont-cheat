@@ -22,6 +22,7 @@ export function mountTableObjects(app, board) {
   if (privateCards.length) button.after(cover);
   const describe = () => ({
     stock,
+    rollCount:board.rollCount,
     backs: board.key === 'holdem' || board.key === 'poker' ? (board.shown || board.showdown ? 0 : board.hand?.length ?? 0) :
       Number.isInteger(board.count) ? board.count : board.counts?.length === 4 ?
       board.counts.reduce((count,n,i)=>i===board.side?count:count+n,0) : board.key==='gin'?10:0,
@@ -68,6 +69,8 @@ export function mountTableObjects(app, board) {
     holder.classList.toggle('physical-table', physical);
     const race=app.querySelector('.race-board');
     if (race) race.hidden=open;
+    const ludo=app.querySelector('.ludo-layout');
+    if (ludo) ludo.hidden=open;
     button.textContent=open?'Flat view':'Show 3D table';
     button.setAttribute('aria-pressed',String(open));
     if (open) {
@@ -83,7 +86,7 @@ export function mountTableObjects(app, board) {
   async function start() {
     button.disabled=true;
     try {
-      const {createTableObjects}=await import('./table-objects-3d.js?v=4');
+      const {createTableObjects}=await import('./table-objects-3d.js?v=5');
       if (!holder.isConnected) return;
       view=createTableObjects(holder);
       views.set(holder,view);

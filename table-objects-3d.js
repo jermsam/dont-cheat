@@ -74,7 +74,7 @@ export function createTableObjects(holder) {
   scene.add(trim);
   const mats=new Map();
   const motion=matchMedia('(prefers-reduced-motion: reduce)');
-  let animation, lastSerial=-1, raceBoard, wideTable=false, previousCards=new Map(), previousDice=[];
+  let animation, lastSerial=-1, raceBoard, wideTable=false, previousCards=new Map(), previousDice=[], lastRollCount, ludoBoard=false;
   const render=()=>renderer.render(scene,camera);
   function paint(label,value=0) {
     const key=label || value;
@@ -140,7 +140,7 @@ export function createTableObjects(holder) {
     const {clientWidth:w,clientHeight:h}=holder;
     if (!w||!h) return;
     const aspect=w/h;
-    camera.left=-(raceBoard ? Math.max(3.35,3.1*aspect) : wideTable ? Math.max(3.08,2.02*aspect) : Math.max(2.9,1.84*aspect));
+    camera.left=-(raceBoard ? Math.max(3.35,3.1*aspect) : ludoBoard ? Math.max(3.64,2.9*aspect) : wideTable ? Math.max(3.08,2.02*aspect) : Math.max(2.9,1.84*aspect));
     camera.right=-camera.left;
     camera.top=camera.right/aspect;
     camera.bottom=-camera.top;
@@ -148,10 +148,13 @@ export function createTableObjects(holder) {
     renderer.setSize(w,h,false);
     render();
   }
-  function update({cards,dice,ludoTiles,ludoTokens,pits,race,stock,backs},serial) {
+  function update({cards,dice,ludoTiles,ludoTokens,pits,race,stock,backs,rollCount},serial) {
     animation?.stop();
     objects.clear();
     wideTable=cards.length>0||dice.length>0;
+    ludoBoard=ludoTiles.length>0;
+    const newRoll=rollCount!==undefined&&rollCount!==lastRollCount;
+    lastRollCount=rollCount;
     if (race) {
       if (!raceBoard) {
         raceBoard=makeRaceBoard();
@@ -179,13 +182,13 @@ export function createTableObjects(holder) {
       const sides=[east,7-east,shown,7-shown,south,7-south];
       const die=new THREE.Mesh(cube,sides.map(value=>paint('',value)));
       const columns=Math.min(6,dice.length), row=Math.floor(i/columns);
-      const x=(i%columns-(Math.min(columns,dice.length-row*columns)-1)/2)*.90;
-      const z=(row-(Math.ceil(dice.length/columns)-1)/2)*.92;
+      const x=ludoBoard?3.06:(i%columns-(Math.min(columns,dice.length-row*columns)-1)/2)*.90;
+      const z=ludoBoard?-.52:(row-(Math.ceil(dice.length/columns)-1)/2)*.92;
       die.position.set(x,.35,z);
       die.userData.button=button;
       groundShadow(x,z);
       objects.add(die);
-      return {die,x,z,changed:previousDice[i]!==shown};
+      return {die,x,z,changed:newRoll||previousDice[i]!==shown};
     }).filter(Boolean);
     previousDice=dice.map(item=>item.face);
     const currentCards=new Map();
