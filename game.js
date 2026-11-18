@@ -5,7 +5,7 @@ import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=3';
-import { hostTournament, joinTournament, cleanDisplayName } from './tournament.js?v=48';
+import { hostTournament, joinTournament, cleanDisplayName } from './tournament.js?v=49';
 
 import { challenges } from './challenges.js';
 import { matchTitles } from './match-rules.js?v=12';
@@ -114,8 +114,8 @@ function chime(notes = [147, 220, 294], { wave = 'triangle', volume = .08, lengt
 }
 
 function playCue(name, character) {
-  if (name === 'checkmate') {
-    if (enabled && audio) void playCheckmate(character);
+  if (name === 'check' || name === 'checkmate') {
+    if (enabled && audio) void playChessVoice(name, character);
     return;
   }
   const cue = soundCues[name];
@@ -162,26 +162,26 @@ async function prepareAudio() {
   return audio.resume();
 }
 
-const checkmateBuffers = new Map();
+const chessVoiceBuffers = new Map();
 
-function loadCheckmate(character) {
+function loadChessVoice(cue, character) {
   const id=maskId(character);
-  if (!checkmateBuffers.has(id)) {
-    const path=id?`music/checkmate/${id}.mp3`:'music/checkmate.mp3';
-    checkmateBuffers.set(id,fetch(path).then(response => {
-      if (!response.ok) throw new Error('Checkmate voice unavailable');
+  const path=id?`music/${cue}/${id}.mp3?v=2`:`music/${cue}.mp3`;
+  if (!chessVoiceBuffers.has(path)) {
+    chessVoiceBuffers.set(path,fetch(path).then(response => {
+      if (!response.ok) throw new Error('Chess voice unavailable');
       return response.arrayBuffer();
     }).then(buffer => audio.decodeAudioData(buffer)).catch(error => {
-      checkmateBuffers.delete(id);
+      chessVoiceBuffers.delete(path);
       throw error;
     }));
   }
-  return checkmateBuffers.get(id);
+  return chessVoiceBuffers.get(path);
 }
 
-async function playCheckmate(character) {
+async function playChessVoice(cue, character) {
   try {
-    const buffer = await loadCheckmate(character).catch(()=>loadCheckmate());
+    const buffer = await loadChessVoice(cue, character).catch(()=>loadChessVoice(cue));
     if (!enabled || audio.state !== 'running') return;
     const source = audio.createBufferSource();
     source.buffer = buffer;
@@ -276,7 +276,7 @@ showSound();
 
 document.addEventListener('click', event => {
   if (!enabled || event.target.closest('#sound, #victory-music') || audio?.state === 'running') return;
-  void prepareAudio().then(() => Promise.allSettled([loadFanfare(), loadCheckmate()])).catch(() => {});
+  void prepareAudio().then(() => Promise.allSettled([loadFanfare(), loadChessVoice('checkmate')])).catch(() => {});
 }, {capture: true});
 
 soundButton.onclick = () => {
@@ -286,7 +286,7 @@ soundButton.onclick = () => {
   }
   setSound(true);
   void playFanfare(!app.querySelector('#victory-music'));
-  if (audio) void loadCheckmate().catch(() => {});
+  if (audio) void loadChessVoice('checkmate').catch(() => {});
 };
 
 function victoryControls() {
