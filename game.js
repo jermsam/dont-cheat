@@ -166,7 +166,7 @@ const chessVoiceBuffers = new Map();
 
 function loadChessVoice(cue, character) {
   const id=maskId(character);
-  const path=id?`music/${cue}/${id}.mp3?v=2`:`music/${cue}.mp3`;
+  const path=id?`music/${cue}/${id}.mp3?v=3`:`music/${cue}.mp3`;
   if (!chessVoiceBuffers.has(path)) {
     chessVoiceBuffers.set(path,fetch(path).then(response => {
       if (!response.ok) throw new Error('Chess voice unavailable');
