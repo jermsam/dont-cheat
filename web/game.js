@@ -5,7 +5,7 @@ import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=3';
-import { hostTournament, joinTournament } from './tournament.js?v=42';
+import { hostTournament, joinTournament, cleanDisplayName } from './tournament.js?v=44';
 
 import { challenges } from './challenges.js';
 import { matchTitles } from './match-rules.js?v=12';
@@ -298,6 +298,7 @@ function stage(content, summons = false, scene = '', placeArt = '', screen = nul
     page: Math.max(0, [...open.querySelectorAll('[data-record-page]')].findIndex(page => !page.hidden)),
   } : null;
   const choices = sameScreen ? [...app.querySelectorAll('select[id]')].map(select=>[select.id,select.value]) : [];
+  const draftDetailsOpen = sameScreen && app.querySelector('.draft-details[open]');
   const guideOpen = sameScreen && app.querySelector('.table-guide[open], .ludo-rules[open]');
   const resignOpen = sameScreen && app.querySelector('[data-resign-confirm]:not([hidden])');
   const liveBoard = sameScreen ? [...app.querySelectorAll('.live-3d, .table-objects')] : [];
@@ -308,6 +309,7 @@ function stage(content, summons = false, scene = '', placeArt = '', screen = nul
     const select=document.getElementById(id);
     if (select && [...select.options].some(option=>option.value===value)) select.value=value;
   });
+  if (draftDetailsOpen) app.querySelector('.draft-details')?.setAttribute('open','');
   if (guideOpen) app.querySelector('.table-guide, .ludo-rules')?.setAttribute('open','');
   if (resignOpen) app.querySelector('[data-resign-confirm]')?.removeAttribute('hidden');
   liveBoard.forEach(board=>app.querySelector(`.${board.classList[0]}`)?.replaceWith(board));
@@ -409,8 +411,17 @@ async function approveGuest(code) {
   }
 }
 
+const displayNameKey = 'dont-cheat-display-name';
+let displayName = '';
+try { displayName = cleanDisplayName(localStorage.getItem(displayNameKey)); } catch {}
+
+function saveDisplayName(input) {
+  displayName = cleanDisplayName(input?.value);
+  try { localStorage.setItem(displayNameKey, displayName); } catch {}
+}
+
 function tableEnvironment(playlist) {
-  return { arena, key, room: roomId ?? (invitation && new URL(invitation).searchParams.get('room')), invite: invitation, mask: chosenMask, playlist, stage, timeout, share, copy,
+  return { arena, key, room: roomId ?? (invitation && new URL(invitation).searchParams.get('room')), invite: invitation, mask: chosenMask, displayName, playlist, stage, timeout, share, copy,
     notice: say, escape, victoryControls, shuffle: shuffled, cue: playCue, destination: chosenDestination };
 }
 
@@ -916,6 +927,8 @@ function mountLobby() {
   const gamesDescription = document.querySelector('#games-description');
   const opening = document.querySelector('#opening-game');
   const launch = document.querySelector('#setup-start');
+  const nameField = document.querySelector('#setup-name');
+  nameField.querySelector('input').value = displayName;
   const next = document.querySelector('#setup-next');
   const descriptions = {
     tournament: ['Open season room ↗', 'You’ll get one invite to share with everyone.'],
@@ -1021,6 +1034,7 @@ function mountLobby() {
   modes.forEach(button => {
     button.onclick = () => {
       selected = button.dataset.mode;
+      nameField.hidden = selected !== 'tournament';
       modes.forEach(item => item.setAttribute('aria-pressed', item === button));
       gamesDescription.textContent = 'Pick the opening event. The same season mixes board matches, card games, dice, and a group vote.';
       lobby.querySelector('#destination-help').textContent=selected==='tournament' ?
@@ -1036,7 +1050,10 @@ function mountLobby() {
   launch.disabled = false;
   launch.onclick = () => {
     if (selected === 'solo') start(true);
-    else host(selected === 'crew', selected === 'tournament' ? playlist : null);
+    else {
+      if (selected === 'tournament') saveDisplayName(nameField.querySelector('input'));
+      host(selected === 'crew', selected === 'tournament' ? playlist : null);
+    }
   };
 }
 
@@ -1273,8 +1290,9 @@ if (roomId !== null || roomSeal !== null) {
       mode === 'crew' ? 'Work together to get past the masked host.' : 'Trade clues and decide which ones to trust.';
     function inviteStep(maskStep) {
       stage(maskStep ?
-        `<span class="eyebrow">INVITE · STEP 2 OF 2</span><h2>Choose a mask</h2>
-          <p>Optional. You can join without one.</p><section class="invite-masks"><div id="mask-picker"></div></section>
+        `<span class="eyebrow">INVITE · STEP 2 OF 2</span><h2>${mode === 'tournament' ? 'Make it yours' : 'Choose a mask'}</h2>
+          ${mode === 'tournament' ? `<label class="room-name">Display name <small>Optional</small>
+          <input id="invite-name" maxlength="24" autocomplete="off" value="${escape(displayName)}"></label><p>Pick a mask or join without one.</p>` : '<p>Optional. You can join without one.</p>'}<section class="invite-masks"><div id="mask-picker"></div></section>
           <div class="row"><button class="quiet" id="invite-back">Back</button><button class="primary" id="enter">Join game ↗</button></div>` :
         `<span class="eyebrow">INVITE · STEP 1 OF 2</span><h2>${title}</h2><p>${intro}</p>
           <div class="row"><button class="primary" id="invite-continue">Continue →</button>${homeButton}</div>`,
@@ -1282,7 +1300,10 @@ if (roomId !== null || roomSeal !== null) {
       if (maskStep) {
         mountMaskPicker(mode);
         document.querySelector('#invite-back').onclick = () => inviteStep(false);
-        document.querySelector('#enter').onclick = () => join(roomId, roomSeal);
+        document.querySelector('#enter').onclick = () => {
+          if (mode === 'tournament') saveDisplayName(document.querySelector('#invite-name'));
+          join(roomId, roomSeal);
+        };
       } else document.querySelector('#invite-continue').onclick = () => inviteStep(true);
     }
     inviteStep(false);
