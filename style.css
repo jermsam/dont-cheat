@@ -548,3 +548,15 @@ select, .destination-picker select, .table-menu select, .table-accuse select {
 .icon-tool{min-width:44px;min-height:44px;padding:.55rem .65rem}
 .icon-tool[aria-pressed="true"]{border-color:#b28b55;color:#ffe1ad}
 .table-action-icon .ui-icon{width:1.45rem;height:1.45rem}
+
+.ludo-rules{color:var(--dim);font-size:.85rem;margin:.4rem 0}
+.ludo-rules summary{cursor:pointer;width:max-content}
+.ludo-pawn.lane-0,.ludo-wall-count.lane-0{background:#8c2519;color:#fff6e8}
+.ludo-pawn.lane-1,.ludo-wall-count.lane-1{background:#123e77;color:#fff}
+.ludo-pawn[data-height]:not([data-height="1"]){font-size:0}
+.ludo-wall-count{align-self:center;justify-self:center;z-index:2;min-width:1.4em;padding:1px 3px;border-radius:4px;border:1px solid #fff2d7;font:900 clamp(.68rem,2vw,.94rem)/1.1 system-ui;text-align:center;box-shadow:0 2px 3px #151018}
+.ludo-wall-labels{position:absolute;inset:0;z-index:2;pointer-events:none}
+.ludo-wall-labels .ludo-wall-count{position:absolute;transform:translate(-50%,-72%)}
+.ludo-wall-progress{display:inline-flex;align-items:center;gap:.45rem;padding:.35rem .5rem;border:1px solid #efac65;border-radius:4px;background:#39271d;color:#ffebca}
+.ludo-token-button.lane-0{border-inline-start:3px solid #ff835d}
+.ludo-token-button.lane-1{border-inline-start:3px solid #63b3ff}

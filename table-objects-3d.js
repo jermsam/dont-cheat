@@ -46,7 +46,8 @@ export function createTableObjects(holder) {
   const cellGeo=new THREE.BoxGeometry(.35,.055,.35);
   const pitGeo=new THREE.CylinderGeometry(.29,.33,.09,22);
   const seedGeo=new THREE.SphereGeometry(.057,8,6);
-  const tokenPaint=[0xeca16f,0x8edbc7,0xc4a08a].map(color=>new THREE.MeshStandardMaterial({color,roughness:.62}));
+  const tokenPaint=[0xc63c27,0x125cb8].map(color=>new THREE.MeshStandardMaterial({color,roughness:.62}));
+  const lanePaint=[0xe6a78f,0x9cc7ed,0xf0dbb6].map(color=>new THREE.MeshStandardMaterial({color,roughness:.76}));
   const pitPaint=new THREE.MeshStandardMaterial({color:0x704338,roughness:.7});
   const seedPaint=new THREE.MeshStandardMaterial({color:0xead09d,roughness:.45});
   const cube=new THREE.BoxGeometry(.68,.68,.68,6,6,6);
@@ -160,6 +161,10 @@ export function createTableObjects(holder) {
     const clearance=Math.abs(width)*cardWidth/2+Math.abs(thickness)*.014+Math.abs(depth)*cardDepth/2;
     card.position.y=Math.max(height,clearance+.016);
   }
+  const wallLabels = document.createElement('div');
+  wallLabels.className = 'ludo-wall-labels';
+  wallLabels.setAttribute('aria-hidden','true');
+  holder.append(wallLabels);
   function refresh() {
     const {clientWidth:w,clientHeight:h}=holder;
     if (!w||!h) return;
@@ -174,10 +179,17 @@ export function createTableObjects(holder) {
       holder.style.setProperty('--deck-x', `${(1+point.x)*50}%`);
       holder.style.setProperty('--deck-y', `${(1-point.y)*50}%`);
     }
+    camera.updateMatrixWorld();
+    for (const label of wallLabels.children) {
+      const [row,col,height] = label.dataset.position.split(',').map(Number);
+      const p = new THREE.Vector3((col-7)*.37,.21+(height-1)*.20,(row-7)*.37).project(camera);
+      label.style.left = `${(1+p.x)*50}%`;
+      label.style.top = `${(1-p.y)*50}%`;
+    }
     renderer.setSize(w,h,false);
     render();
   }
-  function update({cards,dice,ludoTiles,ludoTokens,pits,race,stock,stockEmpty,backs,toss,rivalDraw},serial) {
+  function update({cards,dice,ludoTiles,ludoTokens,ludoWalls,pits,race,stock,stockEmpty,backs,toss,rivalDraw},serial) {
     animation?.stop();
     objects.clear();
     wideTable=cards.length>0||dice.length>0;
@@ -272,16 +284,24 @@ export function createTableObjects(holder) {
       if(i>=rivalCount-rivalDraw) drawnBacks.push({back,end:back.position.clone()});
     }
     ludoTiles.forEach(({row,column,lane})=>{
-      const tile=new THREE.Mesh(cellGeo,tokenPaint[lane<0?2:lane]);
+      const tile=new THREE.Mesh(cellGeo,lanePaint[lane<0?2:lane]);
       tile.position.set((column-7)*.37,.02,(row-7)*.37);
       objects.add(tile);
     });
-    const tokens=ludoTokens.map(({side,from,to,button})=>{
+    wallLabels.replaceChildren(...ludoWalls.map(({square,height,color})=>{
+      const label = document.createElement('b');
+      label.className = `ludo-wall-count lane-${color}`;
+      label.dataset.position = [...square,height].join(',');
+      label.textContent = `×${height}`;
+      return label;
+    }));
+    const tokens=ludoTokens.map(({side,level,from,to,button})=>{
       const model=new THREE.Mesh(tokenGeo,tokenPaint[side]);
-      model.position.set((to[1]-7)*.37,.16,(to[0]-7)*.37);
+      const height=.16+level*.20;
+      model.position.set((to[1]-7)*.37,height,(to[0]-7)*.37);
       model.userData.button=button;
       objects.add(model);
-      return {model,from,to};
+      return {model,from,to,height};
     });
     const seeds=[];
     pits.forEach(({count,button},index)=>{
@@ -336,11 +356,11 @@ export function createTableObjects(holder) {
           model.rotation.z=previous?0:(1-t)*Math.PI;
           keepCardAboveFelt(model,model.position.y);
         });
-        tokens.forEach(({model,from,to})=>{
+        tokens.forEach(({model,from,to,height})=>{
           if (from.join()===to.join()) return;
           model.position.x=(THREE.MathUtils.lerp(from[1],to[1],value)-7)*.37;
           model.position.z=(THREE.MathUtils.lerp(from[0],to[0],value)-7)*.37;
-          model.position.y=.16+.38*Math.sin(value*Math.PI);
+          model.position.y=height+.38*Math.sin(value*Math.PI);
         });
         seeds.forEach(({seed,y},i)=>{seed.position.y=y+.10*Math.sin(value*Math.PI)*Math.sin(i+1);});
         render();
@@ -373,7 +393,7 @@ export function createTableObjects(holder) {
     resize.disconnect();
     removal.disconnect();
     [slab,faceGeo,actionBadge,contactGeo,cube,tableGeo,trimGeo,tokenGeo,cellGeo,pitGeo,seedGeo].forEach(item=>item.dispose());
-    [tableInk,wood,inlay,shadow,edges,actionEdge,selectionEdge,pitPaint,seedPaint,...tokenPaint,...mats.values(),...cardMaterials.values()].forEach(material=>{if(material!==wood)material.map?.dispose();material.bumpMap?.dispose();material.dispose();});
+    [tableInk,wood,inlay,shadow,edges,actionEdge,selectionEdge,pitPaint,seedPaint,...tokenPaint,...lanePaint,...mats.values(),...cardMaterials.values()].forEach(material=>{if(material!==wood)material.map?.dispose();material.bumpMap?.dispose();material.dispose();});
     raceBoard?.dispose();
     renderer.dispose();
   });
