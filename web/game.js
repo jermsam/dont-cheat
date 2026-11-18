@@ -1,12 +1,12 @@
-import { roomMarkup, mountRoomWindow } from './room-window.js?v=3';
+import { roomMarkup, mountRoomWindow } from './room-window.js?v=4';
 import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { drawRelic, stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
-import { hostTournament, joinTournament } from './tournament.js?v=13';
+import { hostTournament, joinTournament } from './tournament.js?v=14';
 
 import { challenges } from './challenges.js';
-import { matchTitles } from './match-rules.js?v=5';
+import { matchTitles } from './match-rules.js?v=6';
 import { mountPuzzleBoard } from './puzzle-board.js';
 
 const app = document.querySelector('#app');

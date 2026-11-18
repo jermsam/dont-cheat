@@ -1,9 +1,11 @@
 import { surfaceMaps,studioLight } from './physical-materials.js';
 import * as THREE from './vendor/three.module.min.js';
-import { makeCast } from './room-cast.js?v=3';
+import { makeCast } from './room-cast.js?v=4';
+import { buildKitchen } from './midnight-kitchen.js';
+import { makeRoomCards } from './room-cards.js';
 import { feltTexture } from './table-art.js';
 
-const seats = [
+const arenaSeats = [
   [-2.12,-1.78,.92], [2.12,-1.78,-.92], [-2.36,-.60,1.35],
   [2.36,-.60,-1.35], [-2.18,.63,1.77], [2.18,.63,-1.77],
 ];
@@ -16,6 +18,8 @@ const themes={
 };
 
 export function createArenaRoom(holder,kind='hall',place){
+  const kitchen=place?.id==='midnight-kitchen';
+  const seats=kitchen?[[-1.76,-.86,1.11],[1.76,-.86,-1.11],...arenaSeats.slice(2)]:arenaSeats;
   const theme=themes[kind]??themes.hall;
   const renderer=new THREE.WebGLRenderer({alpha:false,antialias:true});
   renderer.shadowMap.enabled=true;
@@ -65,8 +69,8 @@ export function createArenaRoom(holder,kind='hall',place){
   }
   const block=(mat,x,y,z,sx,sy,sz,parent)=>mesh(cube,mat,x,y,z,sx,sy,sz,parent);
 
-  scene.add(new THREE.HemisphereLight(0xffead7,0x6e6493,1.30));
-  const front=new THREE.DirectionalLight(0xffd7a7,2.3);
+  scene.add(new THREE.HemisphereLight(0xffead7,0x6e6493,kitchen?.76:1.30));
+  const front=new THREE.DirectionalLight(0xffd7a7,kitchen?1.59:2.3);
   front.position.set(-4,7,6);
   front.castShadow=true;
   front.shadow.mapSize.set(1024,1024);
@@ -75,118 +79,126 @@ export function createArenaRoom(holder,kind='hall',place){
   front.shadow.normalBias=.022;
   front.target.position.set(0,0,-1.3);
   scene.add(front,front.target);
-  const rim=new THREE.PointLight(theme.light,50,16,2);
+  const rim=new THREE.PointLight(theme.light,kitchen?22:50,16,2);
   rim.position.set(0,3.7,-3);scene.add(rim);
 
-  block(dark,0,-.22,-1.45,13,.35,14);
-  const tiles=[[],[]];
-  for(let z=-6;z<=5;z++)for(let x=-5;x<=5;x++)tiles[Math.abs(x+z)%2].push([x,z]);
-  tiles.forEach((coordinates,i)=>{
-    const batch=new THREE.InstancedMesh(cube,i?floor:alternate,coordinates.length);
-    const tile=new THREE.Object3D();
-    tile.scale.set(.986,.067,.986);
-    coordinates.forEach(([x,z],index)=>{
-      tile.position.set(x,-.037,z);
-      tile.updateMatrix();
-      batch.setMatrixAt(index,tile.matrix);
+  const doors=[];
+  let threshold;
+  if(kitchen){
+    holder.dataset.roomModel='midnight-kitchen';
+    holder.dataset.scenery=place.art;
+    buildKitchen({scene,block,mesh,round,ball,material,wood,bronze,warm,render,alive:()=>ready});
+  }else{
+    block(dark,0,-.22,-1.45,13,.35,14);
+    const tiles=[[],[]];
+    for(let z=-6;z<=5;z++)for(let x=-5;x<=5;x++)tiles[Math.abs(x+z)%2].push([x,z]);
+    tiles.forEach((coordinates,i)=>{
+      const batch=new THREE.InstancedMesh(cube,i?floor:alternate,coordinates.length);
+      const tile=new THREE.Object3D();
+      tile.scale.set(.986,.067,.986);
+      coordinates.forEach(([x,z],index)=>{
+        tile.position.set(x,-.037,z);
+        tile.updateMatrix();
+        batch.setMatrixAt(index,tile.matrix);
+      });
+      batch.receiveShadow=true;
+      scene.add(batch);
     });
-    batch.receiveShadow=true;
-    scene.add(batch);
-  });
-  block(path,0,.008,-3.58,1.44,.025,5.74);
-  for(const x of [-.69,.69])block(bronze,x,.023,-3.58,.023,.010,5.72);
-  block(wall,0,2.7,-6.33,12,5.4,.36);
-  for(const side of [-1,1]) {
-    if(kind!=='outdoor')block(wall,side*5.55,2.7,-1.4,.34,5.4,9.9);
-    block(stone,side*5.33,.33,-1.4,.29,.60,9.7);
-    block(bronze,side*5.28,4.70,-1.4,.08,.055,9.75);
-    for(const z of [-5.37,-3.25,-1.12,1.0]){
-      block(stone,side*5.19,.25,z,.52,.49,.62);
-      if(kind==='vault')block(column,side*5.16,2.54,z,.32,4.6,.32);
-      else mesh(round,column,side*5.16,2.54,z,.22,4.55,.22);
-      block(stone,side*5.14,4.8,z,.55,.29,.64);
-      block(bronze,side*5.02,2.54,z+.29,.22,.08,.24);
-      mesh(ball,warm,side*4.95,2.78,z+.28,.08,.18,.08);
+    block(path,0,.008,-3.58,1.44,.025,5.74);
+    for(const x of [-.69,.69])block(bronze,x,.023,-3.58,.023,.010,5.72);
+    block(wall,0,2.7,-6.33,12,5.4,.36);
+    for(const side of [-1,1]) {
+      if(kind!=='outdoor')block(wall,side*5.55,2.7,-1.4,.34,5.4,9.9);
+      block(stone,side*5.33,.33,-1.4,.29,.60,9.7);
+      block(bronze,side*5.28,4.70,-1.4,.08,.055,9.75);
+      for(const z of [-5.37,-3.25,-1.12,1.0]){
+        block(stone,side*5.19,.25,z,.52,.49,.62);
+        if(kind==='vault')block(column,side*5.16,2.54,z,.32,4.6,.32);
+        else mesh(round,column,side*5.16,2.54,z,.22,4.55,.22);
+        block(stone,side*5.14,4.8,z,.55,.29,.64);
+        block(bronze,side*5.02,2.54,z+.29,.22,.08,.24);
+        mesh(ball,warm,side*4.95,2.78,z+.28,.08,.18,.08);
+      }
     }
-  }
 
-  // Build each doorway as geometry so the cast can walk through its opening.
-  function arch(cx,width,base,height,z){
-    const radius=width/2;
-    for(const side of [-1,1])block(stone,cx+radius*side,base/2,z,.235,base,.34);
-    for(let i=0;i<=18;i++){
-      const angle=Math.PI*i/18;
-      const top=block(stone,cx+Math.cos(angle)*radius,base+Math.sin(angle)*height,z,width*.092,.25,.38);
-      top.rotation.z=angle+Math.PI/2;
-    }
-    for(const side of [-1,1])block(bronze,cx+radius*.86*side,base/2,z+.195,.027,base,.018);
-  }
-  for(const x of [-3.3,3.3]){
-    if(kind==='hearth'){
-      block(wood,x,.62,-5.69,2.0,1.22,.63);
-      block(stone,x,1.24,-5.66,2.05,.095,.70);
-      for(const dx of [-.52,.52]){
-        block(bronze,x+dx,.83,-5.34,.43,.05,.07);
-        mesh(round,dark,x+dx,1.44,-5.60,.21,.31,.21);
-        mesh(round,bronze,x+dx,1.61,-5.60,.22,.055,.22);
+    // Build each doorway as geometry so the cast can walk through its opening.
+    function arch(cx,width,base,height,z){
+      const radius=width/2;
+      for(const side of [-1,1])block(stone,cx+radius*side,base/2,z,.235,base,.34);
+      for(let i=0;i<=18;i++){
+        const angle=Math.PI*i/18;
+        const top=block(stone,cx+Math.cos(angle)*radius,base+Math.sin(angle)*height,z,width*.092,.25,.38);
+        top.rotation.z=angle+Math.PI/2;
       }
-    }else if(kind==='outdoor'){
-      block(wood,x,1.12,-5.34,1.6,.11,.74);
-      for(const dx of [-.69,.69]){
-        block(wood,x+dx,.53,-5.32,.10,1.03,.1);
-        block(wood,x+dx,1.84,-5.45,.066,1.43,.066);
-      }
-      block(path,x,2.62,-5.42,1.66,.075,.86).rotation.x=.23;
-    }else if(kind==='vault'){
-      block(deep,x,2.6,-6.09,2.13,3.1,.075);
-      for(let i=0;i<5;i++)block(bronze,x-.88+i*.44,2.61,-6.01,.036,3.01,.045);
-      block(warm,x,3.58,-5.95,1.93,.035,.055);
-    }else if(kind==='sky'){
-      mesh(round,deep,x,2.83,-6.03,.99,.12,.99).rotation.x=Math.PI/2;
-      const orbit=new THREE.TorusGeometry(1.01,.053,9,48);geometries.add(orbit);
-      mesh(orbit,bronze,x,2.83,-5.94);
-      mesh(ball,material(0x9d72bb),x-.24,2.96,-5.91,.42,.42,.12);
-      for(let i=0;i<8;i++)mesh(ball,warm,x+Math.sin(i*79)*.8,2.83+Math.cos(i*53)*.8,-5.92,.018,.018,.018);
-    }else{
-      arch(x,1.68,2.79,.59,-6.08);
-      block(deep,x,1.64,-6.08,1.30,2.90,.08);
-      for(const offset of [-.34,0,.34])block(bronze,x+offset,1.62,-5.98,.021,2.87,.028);
-      block(warm,x,2.76,-5.97,1.23,.021,.018);
+      for(const side of [-1,1])block(bronze,cx+radius*.86*side,base/2,z+.195,.027,base,.018);
     }
-    mesh(ball,warm,x,4.22,-5.95,.115,.115,.115);
+    for(const x of [-3.3,3.3]){
+      if(kind==='hearth'){
+        block(wood,x,.62,-5.69,2.0,1.22,.63);
+        block(stone,x,1.24,-5.66,2.05,.095,.70);
+        for(const dx of [-.52,.52]){
+          block(bronze,x+dx,.83,-5.34,.43,.05,.07);
+          mesh(round,dark,x+dx,1.44,-5.60,.21,.31,.21);
+          mesh(round,bronze,x+dx,1.61,-5.60,.22,.055,.22);
+        }
+      }else if(kind==='outdoor'){
+        block(wood,x,1.12,-5.34,1.6,.11,.74);
+        for(const dx of [-.69,.69]){
+          block(wood,x+dx,.53,-5.32,.10,1.03,.1);
+          block(wood,x+dx,1.84,-5.45,.066,1.43,.066);
+        }
+        block(path,x,2.62,-5.42,1.66,.075,.86).rotation.x=.23;
+      }else if(kind==='vault'){
+        block(deep,x,2.6,-6.09,2.13,3.1,.075);
+        for(let i=0;i<5;i++)block(bronze,x-.88+i*.44,2.61,-6.01,.036,3.01,.045);
+        block(warm,x,3.58,-5.95,1.93,.035,.055);
+      }else if(kind==='sky'){
+        mesh(round,deep,x,2.83,-6.03,.99,.12,.99).rotation.x=Math.PI/2;
+        const orbit=new THREE.TorusGeometry(1.01,.053,9,48);geometries.add(orbit);
+        mesh(orbit,bronze,x,2.83,-5.94);
+        mesh(ball,material(0x9d72bb),x-.24,2.96,-5.91,.42,.42,.12);
+        for(let i=0;i<8;i++)mesh(ball,warm,x+Math.sin(i*79)*.8,2.83+Math.cos(i*53)*.8,-5.92,.018,.018,.018);
+      }else{
+        arch(x,1.68,2.79,.59,-6.08);
+        block(deep,x,1.64,-6.08,1.30,2.90,.08);
+        for(const offset of [-.34,0,.34])block(bronze,x+offset,1.62,-5.98,.021,2.87,.028);
+        block(warm,x,2.76,-5.97,1.23,.021,.018);
+      }
+      mesh(ball,warm,x,4.22,-5.95,.115,.115,.115);
+    }
+    arch(0,2.64,2.67,.89,-6.05);
+    block(deep,0,1.50,-6.08,2.34,3.07,.065);
+    threshold=block(warm,0,.038,-5.73,2.16,.012,.06);
+    if(place?.art){
+      const scenicGeo=new THREE.PlaneGeometry(11.95,5.4);
+      geometries.add(scenicGeo);
+      const backdrop=new THREE.MeshBasicMaterial({color:0xc7b7b4,toneMapped:false});
+      materialSet.add(backdrop);
+      const scenic=mesh(scenicGeo,backdrop,0,2.7,-6.12);
+      scenic.visible=false;
+      new THREE.TextureLoader().load(`places/${place.art}.jpg`,texture=>{
+        if(!ready){texture.dispose();return;}
+        texture.colorSpace=THREE.SRGBColorSpace;
+        texture.repeat.y=Math.min(1,5.4/11.95*(texture.image.width/texture.image.height));
+        texture.offset.y=(1-texture.repeat.y)*.5;
+        textures.add(texture);
+        backdrop.map=texture;
+        backdrop.needsUpdate=true;
+        scenic.visible=true;
+        holder.dataset.scenery=place.art;
+        render();
+      },undefined,()=>{});
+    }
+    doors.push(...[-1,1].map(side=>{
+      const hinge=new THREE.Group();
+      hinge.position.set(side*1.12,0,-5.86);
+      scene.add(hinge);
+      block(wood,-side*.54,1.30,0,1.06,2.6,.14,hinge);
+      for(const y of [.48,2.04])block(bronze,-side*.54,y,.093,1.03,.044,.044,hinge);
+      block(bronze,-side*.89,1.18,.11,.09,.09,.08,hinge);
+      return hinge;
+    }));
   }
-  arch(0,2.64,2.67,.89,-6.05);
-  block(deep,0,1.50,-6.08,2.34,3.07,.065);
-  const threshold=block(warm,0,.038,-5.73,2.16,.012,.06);
-  if(place?.art){
-    const scenicGeo=new THREE.PlaneGeometry(11.95,5.4);
-    geometries.add(scenicGeo);
-    const backdrop=new THREE.MeshBasicMaterial({color:0xc7b7b4,toneMapped:false});
-    materialSet.add(backdrop);
-    const scenic=mesh(scenicGeo,backdrop,0,2.7,-6.12);
-    scenic.visible=false;
-    new THREE.TextureLoader().load(`places/${place.art}.jpg`,texture=>{
-      if(!ready){texture.dispose();return;}
-      texture.colorSpace=THREE.SRGBColorSpace;
-      texture.repeat.y=Math.min(1,5.4/11.95*(texture.image.width/texture.image.height));
-      texture.offset.y=(1-texture.repeat.y)*.5;
-      textures.add(texture);
-      backdrop.map=texture;
-      backdrop.needsUpdate=true;
-      scenic.visible=true;
-      holder.dataset.scenery=place.art;
-      render();
-    },undefined,()=>{});
-  }
-  const doors=[-1,1].map(side=>{
-    const hinge=new THREE.Group();
-    hinge.position.set(side*1.12,0,-5.86);
-    scene.add(hinge);
-    block(wood,-side*.54,1.30,0,1.06,2.6,.14,hinge);
-    for(const y of [.48,2.04])block(bronze,-side*.54,y,.093,1.03,.044,.044,hinge);
-    block(bronze,-side*.89,1.18,.11,.09,.09,.08,hinge);
-    return hinge;
-  });
 
   // Edge trim, chairs and real upholstered seats surround the felt table.
   const felt=feltTexture(); textures.add(felt);
@@ -198,7 +210,9 @@ export function createArenaRoom(holder,kind='hall',place){
   const tableTop=mesh(round,feltMat,0,.86,-.66,1.60,.038,1.84);
   tableTop.castShadow=true;
   tableTop.receiveShadow=true;
-  for(let i=0;i<7;i++)block(i%2?bronze:leather,0,.898+i*.012,-1.11,.20,.012,.31);
+  const cards=kitchen?makeRoomCards(scene,geometries,materialSet,textures):null;
+  let moveAnimation, dealAnimation, dealingActors=[], lastMove, tableActive=false;
+  if(!kitchen)for(let i=0;i<7;i++)block(i%2?bronze:leather,0,.898+i*.012,-1.11,.20,.012,.31);
   for(const [x,z,rotation] of seats){
     const chair=new THREE.Group();
     chair.position.set(x,0,z);
@@ -213,15 +227,17 @@ export function createArenaRoom(holder,kind='hall',place){
     for(const a of [-1,1])for(const b of [-1,1])block(wood,a*.22,.18,b*.22,.065,.37,.065,chair);
     chair.children.forEach(panel=>{panel.castShadow=true;panel.receiveShadow=true;});
   }
-  const chandelierGeo=new THREE.TorusGeometry(.79,.026,7,42);
-  geometries.add(chandelierGeo);
-  const chandelier=mesh(chandelierGeo,bronze,0,3.71,-1.35);
-  chandelier.rotation.x=Math.PI/2;
-  mesh(round,bronze,0,4.22,-1.35,.032,1.0,.032);
-  for(let i=0;i<9;i++){
-    const angle=i*Math.PI*2/9,x=Math.cos(angle)*.78,z=-1.35+Math.sin(angle)*.78;
-    mesh(round,bronze,x,3.75,z,.07,.09,.07);
-    mesh(ball,warm,x,3.87,z,.044,.105,.044);
+  if(!kitchen){
+    const chandelierGeo=new THREE.TorusGeometry(.79,.026,7,42);
+    geometries.add(chandelierGeo);
+    const chandelier=mesh(chandelierGeo,bronze,0,3.71,-1.35);
+    chandelier.rotation.x=Math.PI/2;
+    mesh(round,bronze,0,4.22,-1.35,.032,1.0,.032);
+    for(let i=0;i<9;i++){
+      const angle=i*Math.PI*2/9,x=Math.cos(angle)*.78,z=-1.35+Math.sin(angle)*.78;
+      mesh(round,bronze,x,3.75,z,.07,.09,.07);
+      mesh(ball,warm,x,3.87,z,.044,.105,.044);
+    }
   }
   const contactGeo=new THREE.PlaneGeometry(.99,.87);
   contactGeo.rotateX(-Math.PI/2);
@@ -236,15 +252,15 @@ export function createArenaRoom(holder,kind='hall',place){
   const dealer=cast.makeCharacter(0,null,true);
   dealer.root.position.set(0,0,-3.31);
   dealer.root.rotation.y=.032;
-  scene.add(dealer.root);
+  if(!kitchen)scene.add(dealer.root);
   mesh(contactGeo,contact,0,.016,0,1,1,1,dealer.root);
 
   function render(){
     if(!ready || !holder.clientWidth || !holder.clientHeight)return;
     const narrow=camera.aspect<1.4;
-    const distance=narrow?8.2:7.7;
-    const position=new THREE.Vector3(Math.sin(angle)*distance,narrow?3.25:3.08,Math.cos(angle)*distance-.7);
-    const target=new THREE.Vector3(0,1.54,-1.48);
+    const distance=kitchen?(narrow?6.1:5.1):(narrow?8.2:7.7);
+    const position=new THREE.Vector3(Math.sin(angle)*distance,kitchen?(narrow?2.62:2.36):(narrow?3.25:3.08),Math.cos(angle)*distance-.7);
+    const target=new THREE.Vector3(0,kitchen?1.31:1.54,kitchen?-1.09:-1.48);
     if(focusSeat!==null){
       const [x,z,rotation]=seats[focusSeat];
       position.lerp(new THREE.Vector3(x+Math.sin(rotation)*2.2,1.62,z+Math.cos(rotation)*2.2),closeup);
@@ -266,7 +282,7 @@ export function createArenaRoom(holder,kind='hall',place){
   }
   function setDoors(amount){
     doors.forEach((door,i)=>{door.rotation.y=(i===0?-1:1)*amount*1.21;});
-    threshold.material.emissiveIntensity=.7+amount*.8;
+    if(threshold)threshold.material.emissiveIntensity=.7+amount*.8;
   }
   function assign(id,user){
     const [x,z,rotation]=seats[id];
@@ -277,9 +293,13 @@ export function createArenaRoom(holder,kind='hall',place){
     mesh(contactGeo,contact,0,.016,0,1,1,1,actor.root);
     const entry={actor,mask:user.mask};
     castStates.set(id,entry);
-    if(motion.matches){actor.root.position.set(x,0,z);actor.root.rotation.y=rotation;actor.pose(0,1);return;}
+    if(cards&&!tableActive)cards.hold(actor,5);
+    if(motion.matches||tableActive){actor.root.position.set(x,0,z);actor.root.rotation.y=rotation;actor.pose(0,1);return;}
     const side=Math.sign(x);
-    const track=new THREE.CatmullRomCurve3([
+    const track=new THREE.CatmullRomCurve3(kitchen?[
+      new THREE.Vector3(side*4.26,0,2.71),new THREE.Vector3(side*3.43,0,1.65),
+      new THREE.Vector3(side*2.91,0,.38),new THREE.Vector3(x,0,z),
+    ]:[
       new THREE.Vector3(side*.36,0,-5.72), new THREE.Vector3(side*1.42,0,-4.27),
       new THREE.Vector3(side*2.97,0,-2.65), new THREE.Vector3(x,0,z),
     ]);
@@ -297,7 +317,9 @@ export function createArenaRoom(holder,kind='hall',place){
       render();
     }});
   }
-  function update(users){
+  function update(users,table){
+    const newTable=Boolean(table)&&!tableActive;
+    tableActive=Boolean(table);
     users.forEach((user,index)=>{
       if(index>=seats.length)return;
       const existing=castStates.get(index);
@@ -306,6 +328,48 @@ export function createArenaRoom(holder,kind='hall',place){
       }
       if(user?.online&&!castStates.has(index)) assign(index,user);
     });
+    if(cards && table){
+      castStates.forEach((entry,seat)=>{
+        const side=table.seats.indexOf(seat);
+        const count=side===-1?0:table.counts[side];
+        if(entry.handCount!==count){
+          entry.handCount=count;
+          cards.hold(entry.actor,count);
+        }
+      });
+      if(newTable&&table.serial===0&&!motion.matches){
+        dealingActors=table.seats.map(seat=>castStates.get(seat)?.actor).filter(Boolean);
+        dealAnimation=globalThis.Motion.animate(0,1,{duration:1.15,ease:'linear',
+          onUpdate:progress=>{cards.deal(dealingActors,progress);render();},
+          onComplete:()=>{dealAnimation=null;dealingActors=[];}
+        });
+      }
+      const action=table.action;
+      if(action && action.serial!==lastMove && castStates.has(action.seat)){
+        dealAnimation?.stop();
+        if(dealingActors.length)cards.deal(dealingActors,1);
+        dealAnimation=null;
+        dealingActors=[];
+        const previous=castStates.get(moveAnimation?.seat);
+        moveAnimation?.controls.stop();
+        previous?.actor.pose(0,1);
+        const {actor}=castStates.get(action.seat);
+        lastMove=action.serial;
+        holder.dataset.roomAction=action.kind;
+        holder.dataset.roomActionSeat=String(action.seat);
+        holder.dataset.roomActionSerial=String(action.serial);
+        if(motion.matches){cards.turn(actor,action.kind,action.card,1);cards.showTop(table.top);}
+        else{
+          holder.dataset.roomAnimating='true';
+          moveAnimation={seat:action.seat,controls:globalThis.Motion.animate(0,1,{duration:.76,ease:'linear',
+            onUpdate:value=>{cards.turn(actor,action.kind,action.card,value);render();},
+            onComplete:()=>{cards.showTop(table.top);holder.dataset.roomAnimating='false';render();}
+          })};
+        }
+      }else if(holder.dataset.roomAnimating!=='true'){
+        cards.showTop(table.top);
+      }
+    }
     holder.dataset.actors=String(castStates.size);
     render();
   }
@@ -340,6 +404,9 @@ export function createArenaRoom(holder,kind='hall',place){
     cameraAnimation?.stop();
     castStates.forEach(entry=>entry.animation?.stop());
     geometries.forEach(geo=>geo.dispose());materialSet.forEach(mat=>mat.dispose());textures.forEach(texture=>texture.dispose());
+    moveAnimation?.controls.stop();
+    dealAnimation?.stop();
+    dealer.release();
     cast.dispose();
     renderer.dispose();
   });

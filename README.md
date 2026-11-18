@@ -100,7 +100,7 @@ In Matatu, if you have no match, draw from the stock. Play the drawn card immedi
 
 ### Rooms and cast
 
-Season lobbies render a 3D room that reflects the live seat roster. Joining players appear in their chosen masks, enter through the rear door, and sit at the table. The original cast uses articulated meshes, and the scene adapts its architecture and lighting for hall, vault, and observatory themes. Use **Look around** to change the angle or **Look inside the room** during a match. Reduced-motion mode seats players immediately. The roster and room controls also work when WebGL is unavailable.
+Season lobbies render a 3D room that reflects the live seat roster. Joining players enter the room and sit at the table in their chosen masks. The original cast uses articulated meshes, and the scene adapts its architecture and lighting for hall, vault, and observatory themes. Use **Look around** to change the angle or **Look inside the room** during a match. Reduced-motion mode seats players immediately. The roster and room controls also work when WebGL is unavailable.
 
 Card tables show opponents’ card backs when the rules expose their hand size. **Cover my hand** hides your cards on your screen. Only game-required reveals are shown at the table, and the season recap leaves out card faces from private hands. The host browser still runs the deck and rules.
 
@@ -109,3 +109,5 @@ In Tournament, the selected destination opens the season and is shared by the lo
 ### Physical materials
 
 The room and props use [Wood Table 001](https://polyhaven.com/a/wood_table_001), [Marble 01](https://polyhaven.com/a/marble_01), [Fabric Pattern 07](https://polyhaven.com/a/fabric_pattern_07) and [Brown Photostudio 07](https://polyhaven.com/a/brown_photostudio_07) from Poly Haven under CC0. Color and normal textures are resized and served as WebP, and the lighting probe is the 1K HDR. The animated character rigs and printed deck faces are built in the browser.
+
+The Midnight Kitchen is modeled in Three.js, including the stove, cabinets, windows and furnishings. The Saint and The Prince use their selected portrait textures, sculpted facial contours and modeled clothing and accessories. Open **Look inside the room** during Matatu to play from the kitchen view. Motion animates the opening deal, draws and public discards from the shared match state. Each player can open their own legal card choices. The cards held by the seated characters show their backs to every viewer.

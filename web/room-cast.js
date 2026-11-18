@@ -25,12 +25,22 @@ const portraits={
   weaver:[.56,.36,.62,.69,0x6d426d,0x303039],
   relic:[.48,.38,.72,.72,0x715743,0xb6a78a],
 };
-function portraitGeometry(){
-  const geometry=new THREE.PlaneGeometry(.40,.49,14,16);
+function portraitGeometry(mask){
+  const modeled=Boolean(mask);
+  const geometry=new THREE.PlaneGeometry(.40,.49,modeled?64:14,modeled?72:16);
   const positions=geometry.attributes.position;
   for(let i=0;i<positions.count;i++){
     const x=positions.getX(i)/.20,y=positions.getY(i)/.245;
-    positions.setZ(i,.066+.132*Math.sqrt(Math.max(0,1-x*x*.72-y*y*.56)));
+    let depth=.066+.132*Math.sqrt(Math.max(0,1-x*x*.72-y*y*.56));
+    if(modeled){
+      const nose=mask==='saint'?.10:-.04;
+      const relief=(cx,cy,wx,wy)=>Math.exp(-(((x-cx)/wx)**2+((y-cy)/wy)**2));
+      depth+=.036*relief(nose,-.12,.14,.26)+.017*relief(nose,-.27,.28,.11);
+      depth+=.009*relief(nose,-.6,.34,.19);
+      depth-=.010*(relief(-.43,.14,.24,.15)+relief(.43,.14,.24,.15));
+      positions.setX(i,positions.getX(i)*(1-.10*THREE.MathUtils.smoothstep(-y,.38,1)));
+    }
+    positions.setZ(i,depth);
   }
   geometry.computeVertexNormals();
   return geometry;
@@ -59,7 +69,8 @@ function variant(mask,seat){
 export function makeCast(refresh){
   const materials=new Set(), geometries=new Set(), textures=new Map();
   const portraitGeo=portraitGeometry(),wardrobeGeo=wardrobeGeometry();
-  geometries.add(portraitGeo);geometries.add(wardrobeGeo);
+  const detailedHeads={saint:portraitGeometry('saint'),prince:portraitGeometry('prince')};
+  [portraitGeo,wardrobeGeo,...Object.values(detailedHeads)].forEach(geometry=>geometries.add(geometry));
   let disposed=false;
   const material=(color,metalness=0)=>{
     const mat=new THREE.MeshStandardMaterial({color,metalness,roughness:metalness?.42:.76});
@@ -91,8 +102,12 @@ export function makeCast(refresh){
   const tube=new THREE.CylinderGeometry(.83,1,1,10);
   const taper=new THREE.CylinderGeometry(1,.54,1,8);
   const eyeShape=new THREE.SphereGeometry(1,10,8);
+  const bead=new THREE.SphereGeometry(1,16,10);
+  const embroidery=new THREE.TorusGeometry(1,.076,7,28,Math.PI*.91);
+  geometries.add(bead);geometries.add(embroidery);
   const diamond=new THREE.OctahedronGeometry(1);
   for(const geo of [sphere,box,tube,taper,eyeShape,diamond,torso,sleeve,cuff,hand,lapel])geometries.add(geo);
+  const jade=material(0x7c9c73,.23), silk=material(0xd2ae7c,.18), antique=material(0x92714b,.28);
   const seam=material(0x1c1923), brass=material(0xcc9a52,.46), white=material(0xddd5c5), black=material(0x101116);
   function mesh(parent,geometry,mat,position,scale) {
     const body=new THREE.Mesh(geometry,mat);
@@ -112,7 +127,8 @@ export function makeCast(refresh){
   function makeCharacter(index,mask,dealer=false){
     const style=dealer?identities[3]:variant(mask,index);
     const portrait=portraits[mask];
-    const cloth=material(portrait?.[4] ?? style.cloth), hair=material(portrait?.[5] ?? 0x1c1923), skinTone=material(skin[index%skin.length]);
+    const detailed=detailedHeads[mask];
+    const cloth=material(portrait?.[4] ?? style.cloth), hair=material(portrait?.[5] ?? 0x1c1923), skinTone=material(mask==='saint'?0xaf7657:mask==='prince'?0x9d6246:skin[index%skin.length]);
     const face=material(style.mask,.36);
     const root=new THREE.Group();
     const hip=joint(root,0,.93,0);
@@ -126,6 +142,20 @@ export function makeCast(refresh){
       const fold=mesh(hip,lapel,lining,[0,.275,.177],[side,1,1]);
       if(side<0)fold.material.side=THREE.DoubleSide;
       mesh(hip,sphere,brass,[side*.078,.29,.18],[.020,.020,.008]);
+    }
+    if(detailed){
+      const saint=mask==='saint';
+      for(const side of [-1,1]){
+        const foldedCloth=mesh(hip,sphere,side===1?lining:cloth,[side*.125,.53,.092],[.11,.25,.075]);
+        foldedCloth.rotation.z=side*.66;
+        for(let i=0;i<6;i++){
+          const stitch=mesh(hip,embroidery,saint?silk:antique,[side*(.092+i*.022),.39+i*.025,.165+i*.007],[.026,.015,.020]);
+          stitch.rotation.z=side*(-.75+(i%2)*.5);
+        }
+      }
+      const center=saint?.077:-.013;
+      mesh(hip,bead,brass,[center,.455,.242],[.056,.044,.018]);
+      mesh(hip,bead,saint?jade:antique,[center,.455,.257],[.038,.028,.014]);
     }
     if(mask==='saint'||mask==='confessor'||mask==='weaver'){
       const wrap=mesh(hip,sphere,cloth,[0,.575,-.09],[.315,.13,.19]);
@@ -147,8 +177,36 @@ export function makeCast(refresh){
       palm.rotation.z=side*.16;
       const thumb=mesh(elbow,sphere,dealer?seam:skinTone,[-side*.042,-.306,.040],[.022,.041,.020]);
       thumb.rotation.z=-side*.56;
+      if(detailed)for(let finger=0;finger<4;finger++){
+        const digit=mesh(elbow,bead,skinTone,[(finger-1.5)*.023,-.422+(finger%3)*.007,.031],[.015,.033,.016]);
+        digit.rotation.x=.36;
+      }
       return {arm,elbow};
     });
+    const cardGrip=joint(shoulder[0].elbow,-.008,-.397,.027);
+    const fingertips=new THREE.Vector3(0,-.405,.018);
+    const down=new THREE.Vector3(0,-1,0);
+    // Position the right wrist toward the public card pile with a two-bone arm solve.
+    function reach(target,amount){
+      pose(0,1);
+      const {arm,elbow}=shoulder[1];
+      hip.updateWorldMatrix(true,true);
+      const desired=hip.worldToLocal(target.clone());
+      const base=hip.worldToLocal(elbow.localToWorld(fingertips.clone()));
+      const delta=base.lerp(desired,amount).sub(arm.position);
+      const distance=THREE.MathUtils.clamp(delta.length(),.12,.735);
+      const direction=delta.normalize();
+      const bend=down.clone().addScaledVector(direction,-down.dot(direction)).normalize();
+      const upper=.34, lower=.405;
+      const along=(upper*upper-lower*lower+distance*distance)/(2*distance);
+      const jointDirection=direction.clone().multiplyScalar(along)
+        .addScaledVector(bend,Math.sqrt(Math.max(0,upper*upper-along*along)));
+      arm.quaternion.setFromUnitVectors(down,jointDirection.clone().normalize());
+      const forearm=direction.clone().multiplyScalar(distance).sub(jointDirection).normalize();
+      elbow.quaternion.setFromUnitVectors(down,forearm.applyQuaternion(arm.quaternion.clone().invert()));
+      head.rotation.x=.09+amount*.12;
+      return elbow.localToWorld(fingertips.clone());
+    }
     const legs=[-1,1].map(side=>{
       const thigh=joint(hip,side*.142,-.025,0);
       mesh(thigh,tube,seam,[0,-.215,0],[.12,.44,.12]);
@@ -161,6 +219,23 @@ export function makeCast(refresh){
     mesh(head,sphere,skinTone,[0,0,0],[.177,.225,.161]);
     mesh(head,sphere,hair,[0,.10,-.063],[.182,.161,.142]);
     for(const side of [-1,1])mesh(head,sphere,skinTone,[side*.172,-.016,.009],[.036,.060,.040]);
+    if(detailed){
+      const saint=mask==='saint';
+      for(const side of [-1,1])for(let i=0;i<7;i++){
+        const faceSide=mesh(head,sphere,hair,[side*(.117+i*.011),.164-i*.032,-.093+i*.008],[.078-i*.004,.106,.10-i*.008]);
+        faceSide.rotation.z=-side*(.53+i*.11);
+      }
+      if(saint){
+        for(const side of [-1,1]){
+          mesh(head,bead,brass,[side*.170,-.095,.025],[.014,.038,.015]);
+          mesh(head,bead,jade,[side*.170,-.147,.027],[.018,.034,.014]);
+        }
+        for(let i=0;i<5;i++){
+          const petal=mesh(head,bead,silk,[-.172+Math.cos(i*1.26)*.024,.126+Math.sin(i*1.26)*.024,.10],[.022,.014,.015]);
+          petal.rotation.z=i*1.26;
+        }
+      }
+    }
     const features=joint(head,0,0,0);
     if(style.cut>=0){
       mesh(features,style.cut===1?diamond:sphere,face,[0,.012,.113],[.196,.208,.102]);
@@ -222,17 +297,17 @@ export function makeCast(refresh){
         if(!maps||released||disposed)return;
         portraitMaterial=new THREE.MeshBasicMaterial({map:maps.face,transparent:true,depthWrite:false,toneMapped:false});
         materials.add(portraitMaterial);
-        if(!dealer){
+        if(!dealer&&!detailed){
           garmentMaterial=new THREE.MeshBasicMaterial({map:maps.garment,transparent:true,depthWrite:false,toneMapped:false});
           materials.add(garmentMaterial);
           mesh(hip,wardrobeGeo,garmentMaterial,[0,.422,.026],[1,1,1]).castShadow=false;
         }
-        mesh(head,portraitGeo,portraitMaterial,[0,.02,.018],[1,1,1]).castShadow=false;
+        mesh(head,detailed??portraitGeo,portraitMaterial,[0,.02,.018],[1,1,1]).castShadow=false;
         features.visible=false;
         root.userData.portrait=mask;
         refresh();
       });
-      if(mask==='saint'||mask==='confessor'||mask==='tracker'||mask==='weaver'){
+      if(!detailed&&(mask==='confessor'||mask==='tracker'||mask==='weaver')){
         for(const side of [-1,1])mesh(head,sphere,mask==='saint'?hair:cloth,[side*.147,-.115,-.033],[.101,.212,.121]);
       }
       if(mask==='don'){
@@ -248,8 +323,8 @@ export function makeCast(refresh){
         knee.rotation.x=Math.max(0,-stride)*.58*walk+1.43*sit;
       });
       shoulder.forEach(({arm,elbow},side)=>{
-        arm.rotation.x=-Math.sin(phase+side*Math.PI)*.43*walk-.59*sit;
-        elbow.rotation.x=-.2-.45*sit;
+        arm.rotation.set(-Math.sin(phase+side*Math.PI)*.43*walk-.59*sit,0,(side===0?-1:1)*.095);
+        elbow.rotation.set(-.2-(side===0?1.13:.45)*sit,0,0);
       });
       head.rotation.z=Math.sin(phase*.48)*.035*walk;
       head.rotation.x=-.06*sit;
@@ -267,7 +342,7 @@ export function makeCast(refresh){
         materials.delete(paint);
       }
     }
-    return {root,pose,head,greet,release};
+    return {root,pose,head,greet,release,cardGrip,reach};
   }
   function dispose(){
     disposed=true;

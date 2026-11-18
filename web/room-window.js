@@ -12,10 +12,10 @@ function themeFor(place) {
   return 'hall';
 }
 
-export function mountRoomWindow(app, players, place, openButton) {
+export function mountRoomWindow(app, players, place, openButton, board) {
   const holder=app.querySelector('.room-window');
   if (!holder || !window.WebGL2RenderingContext) return;
-  const state={players:players.map(player=>({online:player?.online===true,mask:maskId(player?.mask)})),theme:themeFor(place),place};
+  const state={players:players.map(player=>({online:player?.online===true,mask:maskId(player?.mask)})),theme:themeFor(place),place,table:board?.key==='matatu'?{top:board.top,serial:board.serial,action:board.roomAction,seats:board.seats,counts:board.side===0?[board.hand.length,board.count]:[board.count,board.hand.length]}:null};
   let entry=windows.get(holder);
   if(!entry){entry={state};windows.set(holder,entry);}
   else entry.state=state;
@@ -51,16 +51,16 @@ export function mountRoomWindow(app, players, place, openButton) {
   }
 
   async function show() {
-    if(entry.scene){entry.scene.update(entry.state.players);entry.scene.adjust();castControls();return;}
+    if(entry.scene){entry.scene.update(entry.state.players,entry.state.table);entry.scene.adjust();castControls();return;}
     if(entry.loading)return;
     entry.loading=true;
     try{
-      const {createArenaRoom}=await import('./arena-room.js?v=3');
+      const {createArenaRoom}=await import('./arena-room.js?v=4');
       if(!holder.isConnected)return;
       entry.scene=createArenaRoom(holder,entry.state.theme,entry.state.place);
       holder.dataset.rendered='true';
       if(entry.state.place?.name)holder.dataset.destination=entry.state.place.name;
-      entry.scene.update(entry.state.players);
+      entry.scene.update(entry.state.players,entry.state.table);
       const control=document.createElement('button');
       control.type='button';
       control.className='room-orbit quiet';
