@@ -21,11 +21,23 @@ function asset(name,normal=false){
 }
 
 // The fetched source textures are shared. A scene owns its material settings.
-export function surfaceMaps(material,name,refresh,alive){
+export function surfaceMaps(material,name,refresh,alive,repeat){
   void Promise.all([asset(name),asset(name+'-normal',true)]).then(([map,normal])=>{
     if(!alive()||!map)return;
-    material.map=map;
-    material.normalMap=normal;
+    const tile=texture=>{
+      if(!texture||!repeat)return texture;
+      const tiled=texture.clone();
+      tiled.wrapS=tiled.wrapT=THREE.RepeatWrapping;
+      tiled.repeat.set(...repeat);
+      tiled.needsUpdate=true;
+      return tiled;
+    };
+    material.map=tile(map);
+    material.normalMap=tile(normal);
+    if(repeat)material.addEventListener('dispose',()=>{
+      material.map?.dispose();
+      material.normalMap?.dispose();
+    },{once:true});
     material.normalScale.set(.43,.43);
     material.needsUpdate=true;
     refresh();

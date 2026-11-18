@@ -1,9 +1,9 @@
-import { roomMarkup, mountRoomWindow } from './room-window.js?v=7';
+import { roomMarkup, mountRoomWindow } from './room-window.js?v=10';
 import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { drawRelic, stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
-import { hostTournament, joinTournament } from './tournament.js?v=17';
+import { hostTournament, joinTournament } from './tournament.js?v=20';
 
 import { challenges } from './challenges.js';
 import { matchTitles } from './match-rules.js?v=6';
@@ -812,10 +812,31 @@ function mountRoutePicker() {
     select.append(group);
   });
   const preview = document.querySelector('#destination-preview');
+  const image=preview.querySelector('img');
+  const model=preview.querySelector('[data-destination-model]');
+  const previewButton=preview.querySelector('#preview-destination-3d');
+  previewButton.hidden=!window.WebGL2RenderingContext;
+  previewButton.onclick=()=>{
+    const scenario=routes.flat().find(place=>place.id===chosenDestination);
+    if(!scenario)return;
+    if(model.firstElementChild){
+      model.replaceChildren();
+      image.hidden=false;
+      previewButton.textContent='Preview in 3D';
+      return;
+    }
+    model.innerHTML=roomMarkup;
+    image.hidden=true;
+    previewButton.textContent='Show destination art';
+    mountRoomWindow(model,[],scenario);
+  };
   select.onchange = () => {
     chosenDestination = select.value || null;
     const scenario = routes.flat().find(place => place.id === chosenDestination);
     preview.hidden = !scenario;
+    model.replaceChildren();
+    image.hidden=false;
+    previewButton.textContent='Preview in 3D';
     if (scenario) {
       preview.querySelector('img').src = scenario.art ? `places/${scenario.art}.jpg` : 'arena.jpg';
       preview.querySelector('figcaption').textContent = scenario.line;

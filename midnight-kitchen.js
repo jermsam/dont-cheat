@@ -1,8 +1,10 @@
 import * as THREE from './vendor/three.module.min.js';
-import { surfaceMaps } from './physical-materials.js';
+import { surfaceMaps } from './physical-materials.js?v=2';
 
 export function buildKitchen({scene, block, mesh, round, ball, material, wood, bronze, warm, render, alive}) {
-  const plaster=material(0x3b3027);
+  const plaster=material(0x837265,{roughness:.93});
+  const boards=material(0x8d6d53,{roughness:.65});
+  const glass=material(0x708eab,{transparent:true,opacity:.16,roughness:.13,depthWrite:false});
   const tile=material(0x938571,{roughness:.62});
   const cabinet=material(0x28403a,{roughness:.43});
   const panel=material(0x162b26);
@@ -16,11 +18,9 @@ export function buildKitchen({scene, block, mesh, round, ball, material, wood, b
   surfaceMaps(tile,'stone',render,alive);
   surfaceMaps(stone,'stone',render,alive);
 
-  block(wood,0,-.14,-2,12,.27,13).receiveShadow=true;
-  for(let row=0;row<14;row++)for(let plank=0;plank<4;plank++){
-    const x=(plank-1.5)*3+(row%2)*.52;
-    block(wood,x,-.019,4-row*.81,2.981,.038,.799).receiveShadow=true;
-  }
+  surfaceMaps(plaster,'kitchen-plaster',render,alive,[4,2]);
+  surfaceMaps(boards,'kitchen-floor',render,alive,[7,7]);
+  block(boards,0,-.14,-2,12,.27,13).receiveShadow=true;
   for(const side of [-1,1])block(plaster,side*5.75,2.72,-2,.25,5.44,13);
   block(plaster,0,4.68,-6.08,11.6,1.52,.35);
   block(plaster,0,1.03,-6.08,11.6,2.06,.35);
@@ -36,6 +36,8 @@ export function buildKitchen({scene, block, mesh, round, ball, material, wood, b
     for(const y of [2.05,2.96,3.93])block(wood,x,y,-5.85,1.47,.08,.19);
     for(const dx of [-.69,0,.69])block(wood,x+dx,2.99,-5.85,.055,1.94,.19);
     block(stone,x,2.04,-5.72,1.64,.10,.44);
+    const pane=block(glass,x,3.00,-5.91,1.36,1.77,.012);
+    pane.renderOrder=1;
   }
   const moon=new THREE.PointLight(0x8ebdff,75,13);
   moon.position.set(2.55,3.25,-5.85);
@@ -51,6 +53,10 @@ export function buildKitchen({scene, block, mesh, round, ball, material, wood, b
     block(cabinet,x,.53,-5.48,.83,1,.75);
     block(panel,x,.59,-5.095,.69,.72,.035);
     block(cabinet,x,.53,-5.068,.55,.47,.03);
+    for(const side of [-1,1]){
+      block(cabinet,x+side*.313,.59,-5.063,.052,.72,.045);
+      block(cabinet,x,.59+side*.32,-5.063,.66,.054,.045);
+    }
     block(bronze,x,.89,-5.021,.19,.026,.063);
   }
   block(stone,0,1.06,-5.43,10.3,.13,.94).receiveShadow=true;
@@ -117,7 +123,7 @@ export function buildKitchen({scene, block, mesh, round, ball, material, wood, b
     mesh(round,bronze,x,4.08,-.8,.018,1.7,.018);
     mesh(round,copper,x,3.16,-.8,.30,.18,.30);
     mesh(ball,warm,x,3.075,-.8,.214,.062,.213);
-    const lamp=new THREE.PointLight(0xffd3a3,12,7);
+    const lamp=new THREE.PointLight(0xffd3a3,16,7);
     lamp.position.set(x,2.96,-.8);
     scene.add(lamp);
   }

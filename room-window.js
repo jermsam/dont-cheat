@@ -43,6 +43,8 @@ export function mountRoomWindow(app, players, place, openButton, board) {
       button.onclick=()=>{
         entry.scene.focus(index);
         entry.orbit.textContent='Full room';
+        entry.profiles.hidden=entry.state.place?.id!=='midnight-kitchen';
+        for(const view of entry.profiles.children)view.setAttribute('aria-pressed',String(view.dataset.profile==='front'));
       };
       cast.append(button);
     });
@@ -55,7 +57,7 @@ export function mountRoomWindow(app, players, place, openButton, board) {
     if(entry.loading)return;
     entry.loading=true;
     try{
-      const {createArenaRoom}=await import('./arena-room.js?v=7');
+      const {createArenaRoom}=await import('./arena-room.js?v=10');
       if(!holder.isConnected)return;
       entry.scene=createArenaRoom(holder,entry.state.theme,entry.state.place);
       holder.dataset.rendered='true';
@@ -68,7 +70,27 @@ export function mountRoomWindow(app, players, place, openButton, board) {
       control.onclick=()=>{
         entry.scene.orbit();
         control.textContent='Look around';
+        profiles.hidden=true;
       };
+      const profiles=document.createElement('div');
+      profiles.className='room-profiles';
+      profiles.hidden=true;
+      profiles.setAttribute('role','group');
+      profiles.setAttribute('aria-label','Portrait angle');
+      for(const label of ['Left','Front','Right']){
+        const view=document.createElement('button');
+        view.type='button';
+        view.className='quiet';
+        view.dataset.profile=label.toLowerCase();
+        view.textContent=label;
+        view.onclick=()=>{
+          entry.scene.profile(view.dataset.profile);
+          for(const option of profiles.children)option.setAttribute('aria-pressed',String(option===view));
+        };
+        profiles.append(view);
+      }
+      entry.profiles=profiles;
+      holder.append(profiles);
       entry.orbit=control;
       holder.append(control);
       castControls();
