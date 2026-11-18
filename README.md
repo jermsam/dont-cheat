@@ -8,7 +8,7 @@ A two-seat browser game about trivia, trust, and betrayal. Play privately with a
 
 1. Tap **Set up your game**. Choose **Tournament**, **Duel a friend**, **Team up**, or **Play solo**. Continue to the optional mask and destination steps, then launch. Use **Back** to change either choice.
 2. Tap **Share to WhatsApp** and pick WhatsApp in your device's share sheet. You can also copy the link into a chat.
-3. Return to the open host tab. Your friend taps the WhatsApp card or link, then taps **Join game**. If WhatsApp opens the card without the private seal, your friend will see a six-digit code. Check that it matches the code on the host screen and tap **Let them in**. The trial then starts for both players.
+3. Return to the open host tab. Your friend taps the WhatsApp card or link, then taps **Continue**. They can pick a mask or go straight to **Join game**. If WhatsApp opens the card without the private seal, your friend will see a six-digit code. Check that it matches the code on the host screen and tap **Let them in**. The trial then starts for both players.
 
 The invite grants access to one open seat. A refresh, closed tab, or disrupted connection requires a fresh room. WhatsApp decides whether to render the rich link preview. The full invite link works independently of the preview.
 
@@ -74,4 +74,4 @@ If the macOS system Clang fails while linking ring, set `CC_wasm32_unknown_unkno
 
 [Iroh](https://docs.iroh.computer/languages/wasm-browser) connects the two browser endpoints over its shared relays. The invite carries the host endpoint ID and relay hostname in the query string and a random admission seal in the fragment. The endpoint ID and relay hostname can be read by link preview services. If the fragment is missing, the host must approve the guest after confirming a matching code. The host accepts one guest and runs the timers and scoring. The relay carries encrypted traffic. The host can inspect match data on their own device, so this model assumes both players trust each other to run the game as supplied. Match state is in browser memory. The game uses no account, camera, microphone, or device monitoring.
 
-The setup scene uses a locally hosted Three.js r169 build (MIT license in `web/vendor/three-LICENSE.txt`). The controls work with or without WebGL and the scene respects reduced-motion settings.
+Setup and in-game artifacts use a locally hosted Three.js r169 build. Motion 14.14.0 animates screen changes. Both licenses are in `web/vendor`. The controls work with or without WebGL and both libraries respect the game’s reduced-motion behavior.

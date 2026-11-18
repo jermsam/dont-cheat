@@ -292,16 +292,36 @@ button.mask-option{position:relative;display:grid;text-align:left;padding:0;over
 .setup-visual canvas{display:block;position:absolute;inset:0;width:100%;height:100%}
 .setup-controls{min-width:0;align-self:center;padding:12px 0}
 .setup-controls #setup-progress{margin:0 0 11px}
-.setup-controls .setup-section{margin:0;animation:setup-arrive .32s ease-out both}
+.setup-controls .setup-section{margin:0}
 .setup-controls .setup-section h2{font-size:clamp(1.3rem,3.5vw,2rem)}
 .setup-controls h2:focus{outline:none}
 .setup-controls .starter-masks button{display:grid;align-content:start;justify-items:start}
 .setup-controls .setup-launch{align-items:stretch;flex-direction:column}
 .setup-nav{display:flex;justify-content:space-between;gap:8px}
 .setup-nav .primary{margin-left:auto}
-@keyframes setup-arrive{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:680px){
   .lobby-setup{grid-template-columns:1fr;gap:0}
   .setup-visual{min-height:155px}
   .setup-controls{padding:11px 0 0}
+}
+
+.screen-links{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.screen-open{margin:5px 0}
+.side-screen{width:min(calc(100% - 24px),600px);max-height:calc(100dvh - 24px);overflow:auto;padding:0;color:var(--ink);background:var(--panel);border:1px solid #927063;border-radius:12px;box-shadow:0 14px 55px #09050ed9}
+.side-screen::backdrop{background:#0d0712dc}
+.side-screen-bar,.side-screen-back{position:sticky;padding:13px 16px;background:var(--panel);z-index:1}
+.side-screen-bar{top:0;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;gap:12px;align-items:center}
+.side-screen-bar h3{margin:0;font-size:1.3rem;outline:none}
+.side-screen-content{padding:8px 16px 14px}
+.side-screen-back{bottom:0;border-top:1px solid var(--stroke);text-align:right}
+.round-pages{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px}
+body:has(.side-screen[open]){overflow:hidden}
+.relic{position:relative;aspect-ratio:1}
+.relic canvas{position:absolute;inset:0;width:100%;height:100%}
+@media(max-width:680px){
+  .stage{padding:15px}
+  .focused-turn .options:not(.table-cards):not(.duel-actions){grid-template-columns:repeat(2,minmax(0,1fr))}
+  .focused-turn .options button{overflow-wrap:anywhere;padding:8px 10px}
+  .focused-turn .options>.decoy-options{grid-column:1/-1}
+  .scene-choice .crew-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
 }

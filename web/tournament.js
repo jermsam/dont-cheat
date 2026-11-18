@@ -1,3 +1,4 @@
+import { sideScreen, roundPages } from './screens.js';
 import { buildChallenges, challenges, getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { masks, maskId } from './masks.js?v=2';
@@ -243,12 +244,12 @@ function makeView(env, send) {
       <small>${p.online ? '' : 'Left · '}${p.score} pts${p.status ? ` · ${esc(p.status)}` : ''}</small></div></div>`).join('')}</div>`;
   }
   function statusOptions(state) {
-    return `<details class="table-status"><summary>Share a room status</summary><div class="row">
+    return sideScreen('room-status', 'Share a room status', `<div class="row">
       ${statuses.map(status => button(status, 'status', `data-label="${status}" aria-pressed="${state.players[state.seat].status === status}"`)).join('')}
-      ${state.players[state.seat].status ? button('Share my status', 'share-status') : ''}</div></details>`;
+      ${state.players[state.seat].status ? button('Share my status', 'share-status') : ''}</div>`);
   }
   function receipt(state) {
-    return `<div class="table-record">${state.records.map((round, i) => `<section><h3>${i + 1}. ${esc(round.title)}</h3>
+    return `<div class="table-record">${roundPages(state.records.map((round, i) => `<h4>${i + 1}. ${esc(round.title)}</h4>
       ${round.verdict ? `<p>${round.verdict.choice ?
         `The table chose <strong>${esc(round.verdict.choice)}</strong> · ${Number(round.verdict.count)} of ${Number(round.verdict.total)} votes` :
         'No majority this round. No answer points.'}</p>` : `<p>Correct answer <strong>${esc(round.right)}</strong></p>`}
@@ -257,7 +258,7 @@ function makeView(env, send) {
         <small>${esc(entry.answer ?? 'Passed')}${entry.from === undefined ? '' : ` · copied Seat ${entry.from + 1}`}
         ${entry.clue ? ` · ${entry.decoy ? 'Decoy' : 'Shared'} ${esc(entry.clue)}` : ''}
         ${entry.card ? ` · ${esc(entry.card)}` : ''}${entry.target === undefined ? '' : ` on Seat ${entry.target + 1}`}${entry.caught ? ' · caught the bluff' : entry.card === 'Call bluff' ? ' · accusation missed' : ''}
-        ${entry.fooled ? ' · someone took the decoy' : ''} · ${entry.points >= 0 ? '+' : ''}${entry.points}</small></li>`).join('')}</ul></section>`).join('')}</div>`;
+        ${entry.fooled ? ' · someone took the decoy' : ''} · ${entry.points >= 0 ? '+' : ''}${entry.points}</small></li>`).join('')}</ul>`))}</div>`;
   }
   async function shareUpdate(state, statusOnly) {
     const score = state.players[state.seat].score;
@@ -303,7 +304,7 @@ function makeView(env, send) {
 
     if (phase === 'lobby') {
       const seated = players.filter(player => player.online).length;
-      content = `${header}<h2>Seats are open.</h2><p>${seated} of ${limit} seats filled</p>${roster(state)}
+      content = `${header}<h2>Seats are open.</h2><p>${seated} of ${limit} seats filled</p>
         ${host ? `<div class="row"><button id="share" class="primary">Share to WhatsApp ↗</button><button id="copy">Copy invite</button></div>
           <div hidden><label for="invite">Invite link</label><input id="invite" class="invite" readonly value="${esc(env.invite)}"></div>
           ${state.approvals.map(request => `<div class="table-admission"><p>Match this code with your guest <strong>${esc(request.code)}</strong></p>
@@ -311,17 +312,20 @@ function makeView(env, send) {
           <p>${button('Start tournament', 'start', `class="primary" ${seated < 2 ? 'disabled' : ''}`)}</p>
           <p class="muted">Keep this tab open. Start when everyone is in.</p>` :
           '<p class="waiting">Waiting for the host to start.</p>'}
-        ${statusOptions(state)}<p class="muted">Masks identify each seat in Tournament.</p>${back}`;
+        <div class="screen-links">${sideScreen('table-seats', 'See who’s here', roster(state))}${statusOptions(state)}</div>${back}`;
     } else if (phase === 'reveal' || phase === 'verdict') {
       const best = Math.max(...players.map(player => player.score));
       const winners = players.filter(player => player.score === best).length;
       const headline = phase === 'reveal' ? 'The round is unsealed.' : players[seat].score === best ?
         winners === 1 ? 'You won the table.' : 'You tied for first.' : 'The table has spoken.';
-      content = `${header}<h2>${headline}</h2>${roster(state)}${receipt(state)}
+      content = `${header}<div class="cinematic-title"><h2>${headline}</h2>${env.relic}</div><p>Your score <strong>${players[seat].score} pts</strong></p>
         ${phase === 'verdict' ? `<div class="row">${button('Share result', 'share-result', 'class="primary"')}${back}</div>` :
           host ? button(`Start Round ${round + 2}`, 'next', 'class="primary"') : '<p class="waiting">Waiting for the next round.</p>'}
-        ${statusOptions(state)}
-        ${state.records.some(record => record.verdict) ? '<details class="debrief"><summary>Compare your reasoning</summary><p>What mattered most to you? Did someone’s clue change your mind?</p><small>A vote is one choice in this room.</small></details>' : ''}`;
+        <div class="screen-links">
+          ${sideScreen('table-scores', 'Scoreboard', roster(state))}
+          ${sideScreen('table-results', 'Round history', receipt(state) +
+            (state.records.some(record => record.verdict) ? '<p>Did someone’s clue change your mind?</p>' : ''))}
+        </div>${statusOptions(state)}`;
     } else {
       const puzzle = getPuzzle(challenge.key, challenge.index, challenge.seed);
       const options = challenge.options;
@@ -338,16 +342,16 @@ function makeView(env, send) {
         heading = 'Share a clue?';
         details = `<p class="muted">${options[state.own] ? `Your first guess was <strong>${esc(options[state.own])}</strong>. Others can copy what you send.` : 'You skipped the guess. You can still choose a final answer.'}</p>`;
         actions = `<div class="options">${options[state.own] ? button('Share my guess', 'pick', `data-option="${state.own}"`) : ''}
-          ${button('Keep it private', 'pass')}${options[state.own] ? `<details class="decoy-options"><summary>Send a decoy</summary><div class="options">
-          ${options.map((option, i) => i === state.own ? '' : button(option, 'pick', `data-option="${i}"`)).join('')}</div></details>` : ''}</div>`;
+          ${button('Keep it private', 'pass')}${options[state.own] ? sideScreen('table-decoy', 'Send a decoy', `<div class="options">
+          ${options.map((option, i) => i === state.own ? '' : button(option, 'pick', `data-option="${i}"`)).join('')}</div>`) : ''}</div>`;
       } else if (phase === 'final') {
         heading = challenge.key === 'verdict' ? 'Cast your final vote' : 'Lock your final answer';
         details = `<p class="muted">${esc(puzzle.prompt)}</p>
           ${options[state.own] ? `<p class="turn-note">Your first pick was ${esc(options[state.own])}.</p>` : ''}
-          ${puzzle.board ? `<details class="round-tools"><summary>See the puzzle again</summary>${puzzle.board}</details>` : ''}`;
-        actions = `<div class="table-clues">${players.map((player, i) => i === seat ? '' : `<div class="table-person">
+          ${puzzle.board ? sideScreen('view-puzzle', 'Puzzle', puzzle.board, 'See the puzzle again') : ''}`;
+        actions = `${sideScreen('other-clues', 'Other players’ clues', `<div class="table-clues">${players.map((player, i) => i === seat ? '' : `<div class="table-person">
           ${avatar(state, i)}<div><strong>${esc(name(state, i))}</strong><small>${esc(options[player.clue] ?? 'No clue shared')}</small></div>
-          ${options[player.clue] ? button('Copy clue', 'copy-clue', `data-option="${player.clue}" data-from="${i}"`) : ''}</div>`).join('')}</div>
+          ${options[player.clue] ? button('Copy clue', 'copy-clue', `data-option="${player.clue}" data-from="${i}"`) : ''}</div>`).join('')}</div>`, 'See or copy their clues')}
           <div class="options table-final">${picks}${button('Pass', 'pass')}</div>`;
       } else {
         heading = 'Play a card';
@@ -364,15 +368,16 @@ function makeView(env, send) {
     }
 
     clearInterval(ticker);
-    const statusPanelOpen = document.querySelector('.table-status')?.open;
     const art = phases.includes(phase) && place ? `--place-art:url(places/${place.art}.jpg)` : '';
-    env.stage(content, false, `scene focused-turn tournament${art ? ' with-place' : ''}`, art);
+    env.stage(content, false, `scene focused-turn tournament${art ? ' with-place' : ''}`, art, `table:${round}:${phase}`);
     const app = document.querySelector('#app');
-    const statusPanel = app.querySelector('.table-status');
-    if (statusPanel && statusPanelOpen) statusPanel.open = true;
     clock = app.querySelector('#table-clock');
     if (clock) {
-      const tick = () => { clock.textContent = `${Math.ceil(Math.max(0, ends - performance.now()) / 1_000)}s`; };
+      const tick = () => {
+        clock.textContent = `${Math.ceil(Math.max(0, ends - performance.now()) / 1_000)}s`;
+        const extra = app.querySelector('dialog[open] [data-screen-clock]');
+        if (extra) extra.textContent = clock.textContent;
+      };
       tick();
       ticker = setInterval(tick, 200);
     }
