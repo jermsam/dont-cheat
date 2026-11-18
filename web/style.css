@@ -495,3 +495,7 @@ button.table-card:hover,button.table-card:focus-visible{background:#ffd6a0;color
 @media(max-width:600px){
   #arena-view .room-window[data-room-model="midnight-kitchen"]{height:clamp(230px,72vw,360px)}
 }
+
+.room-window[data-rendered=false]{background:linear-gradient(#17111a45,#17111abc),var(--room-fallback,url(arena.jpg)) center/cover}
+.room-window[data-rendered=false] :is(canvas,.room-orbit,.room-profiles,.room-cast-controls){visibility:hidden}
+.room-render-status{position:absolute;inset:auto 10px 8px;margin:0;padding:7px 10px;border-radius:5px;background:#170f1be9;color:#f8e7d4;font-size:.8rem}

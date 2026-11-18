@@ -14,7 +14,7 @@ function themeFor(place) {
 
 export function mountRoomWindow(app, players, place, openButton, board) {
   const holder=app.querySelector('.room-window');
-  if (!holder || !window.WebGL2RenderingContext) return;
+  if(!holder)return;
   const state={players:players.map(player=>({online:player?.online===true,mask:maskId(player?.mask)})),theme:themeFor(place),place,table:board?.key==='matatu'?{top:board.top,serial:board.serial,action:board.roomAction,seats:board.seats,counts:board.side===0?[board.hand.length,board.count]:[board.count,board.hand.length]}:null};
   let entry=windows.get(holder);
   if(!entry){entry={state};windows.set(holder,entry);}
@@ -52,15 +52,44 @@ export function mountRoomWindow(app, players, place, openButton, board) {
     entry.cast=cast;
   }
 
+  function unavailable(message) {
+    holder.dataset.rendered='false';
+    if(entry.status)return;
+    const status=document.createElement('p');
+    status.className='room-render-status';
+    status.setAttribute('role','status');
+    status.textContent=message;
+    if(place?.art)holder.style.setProperty('--room-fallback',`url("places/${place.art}.jpg")`);
+    entry.status=status;
+    holder.append(status);
+  }
+
   async function show() {
+    if(!window.WebGL2RenderingContext){
+      unavailable('The 3D view is unavailable on this browser. You can still play.');
+      return;
+    }
     if(entry.scene){entry.scene.update(entry.state.players,entry.state.table);entry.scene.adjust();castControls();return;}
     if(entry.loading)return;
     entry.loading=true;
     try{
-      const {createArenaRoom}=await import('./arena-room.js?v=11');
+      const {createArenaRoom}=await import('./arena-room.js?v=12');
       if(!holder.isConnected)return;
       entry.scene=createArenaRoom(holder,entry.state.theme,entry.state.place);
       holder.dataset.rendered='true';
+      entry.status?.remove();
+      entry.status=null;
+      const canvas=holder.querySelector('canvas');
+      canvas.addEventListener('webglcontextlost',()=>{
+        if(holder.isConnected)unavailable('The 3D view paused. You can still play.');
+      });
+      canvas.addEventListener('webglcontextrestored',()=>{
+        if(!holder.isConnected)return;
+        entry.status?.remove();
+        entry.status=null;
+        holder.dataset.rendered='true';
+        entry.scene.adjust();
+      });
       if(entry.state.place?.name)holder.dataset.destination=entry.state.place.name;
       entry.scene.update(entry.state.players,entry.state.table);
       const control=document.createElement('button');
@@ -101,7 +130,7 @@ export function mountRoomWindow(app, players, place, openButton, board) {
         holder.append(caption);
       }
     }catch{
-      holder.dataset.rendered='false';
+      unavailable('The 3D view could not load. You can still play.');
     }finally{entry.loading=false;}
   }
   if(openButton){
