@@ -448,3 +448,14 @@ button.table-card:hover,button.table-card:focus-visible{background:#ffd6a0;color
 .live-table-stage .match-clocks i{display:grid;place-items:center;background:#342430;color:#edc584;font-style:normal}
 .clock-player{line-height:1.08;font-weight:650}.clock-player small{display:block;font-size:.63rem;font-weight:500;color:#ccaab9}
 .live-table-stage .board .table-input-hint{margin:3px 0 10px;color:#e7c894;font-size:.74rem}
+
+.arena-lobby{padding:clamp(14px,2.7vw,28px)}
+.arena-lobby .board{width:min(100%,800px);max-width:none}
+.room-window{position:relative;width:100%;height:clamp(220px,54vw,415px);margin:10px 0 14px;border:1px solid #896752;border-radius:10px;overflow:hidden;isolation:isolate;background:linear-gradient(0deg,#1b1326aa,transparent 65%),url(arena.jpg) 60% 44%/cover,#261a33}
+.room-window canvas{display:block;width:100%;height:100%}
+.room-window .room-orbit{position:absolute;bottom:9px;right:9px;min-height:38px;background:#170f1be9;border-color:#af8a65}
+.side-screen .room-window{height:clamp(210px,52vw,330px)}
+@media(max-width:480px){.arena-lobby .board h2{font-size:clamp(1.55rem,6vw,2.25rem)}}
+
+.scene.arena-lobby::before{opacity:.23}
+@media(max-width:480px){.arena-lobby .room-window{height:clamp(237px,68vw,300px)}}

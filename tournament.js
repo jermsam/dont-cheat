@@ -1,3 +1,4 @@
+import { roomMarkup, mountRoomWindow } from './room-window.js';
 import { sideScreen, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=2';
 import { getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
@@ -485,7 +486,7 @@ function makeView(env, send) {
 
     if (phase === 'lobby') {
       const seated = players.filter(player => player.online).length;
-      content = `${header}<h2>Seats are open.</h2><p>${seated} of ${limit} seats filled</p>
+      content = `${header}<h2>Seats are open.</h2><p>${seated} of ${limit} seats filled</p>${roomMarkup}
         ${host ? `<div class="row"><button id="share" class="primary">Share to WhatsApp ↗</button><button id="copy">Copy invite</button></div>
           <div hidden><label for="invite">Invite link</label><input id="invite" class="invite" readonly value="${esc(env.invite)}"></div>
           ${state.approvals.map(request => `<div class="table-admission"><p>Match this code with your guest <strong>${esc(request.code)}</strong></p>
@@ -554,10 +555,12 @@ function makeView(env, send) {
         '<p class="waiting">Locked in. Waiting for the other seats.</p>' : actions}`;
     }
 
+    if(phase !== 'lobby') content += sideScreen('arena-view','Game room',roomMarkup,'Look inside the room');
     clearInterval(ticker);
     const art = (phases.includes(phase) || phase === 'match') && place?.art ? `--place-art:url(places/${place.art}.jpg)` : '';
-    env.stage(content, false, `scene focused-turn tournament${phase === 'match' ? ' live-table-stage' : ''}${won ? ' victory' : ''}${art ? ' with-place' : ''}`, art, `table:${round}:${phase}`);
+    env.stage(content, false, `scene focused-turn tournament${phase === 'match' ? ' live-table-stage' : phase === 'lobby' ? ' arena-lobby' : ''}${won ? ' victory' : ''}${art ? ' with-place' : ''}`, art, `table:${round}:${phase}`);
     const app = document.querySelector('#app');
+    mountRoomWindow(app,players,place,app.querySelector('[data-open-screen="arena-view"]'));
     app.querySelector('#next')?.addEventListener('click', () => send({type: 'next'}));
     app.querySelector('#hold-round')?.addEventListener('click', () => send({type: 'hold'}));
     if (phase === 'match') {
