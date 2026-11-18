@@ -177,3 +177,62 @@ button.mask-option{position:relative;display:grid;text-align:left;padding:0;over
 .clue-box p,.board .clue-box p{grid-column:1;margin:0;font-size:.86rem;color:var(--dim)}
 .clue-box strong{color:var(--ink)}
 .clue-box button{grid-area:1/2/span 2;white-space:normal}
+
+.table-menu{margin:16px 0}
+.table-menu select,.table-accuse select{
+  display:block;width:100%;max-width:350px;min-height:44px;margin:6px 0;
+  border:1px solid #795b71;border-radius:6px;padding:8px;background:#17101b;color:var(--ink);font:inherit;
+}
+.table-location{display:block;color:var(--dim);font-size:.77rem;margin:5px 0}
+.table-roster,.table-clues{display:grid;gap:7px;margin:12px 0}
+.table-roster{grid-template-columns:repeat(2,minmax(0,1fr))}
+.table-person{display:flex;gap:8px;align-items:center;min-width:0;padding:7px;
+  background:#261b2e;border:1px solid var(--stroke);border-radius:7px}
+.table-person img,.table-sigil{display:grid;place-items:center;flex:0 0 36px;border-radius:5px}
+.table-sigil{height:36px;background:#342335;color:var(--gold)}
+.table-person strong,.table-person small{display:block;font-size:.79rem;overflow-wrap:anywhere}
+.table-person small{color:var(--dim);margin-top:3px}
+.table-clues .table-person>div{flex:1}
+.table-clues button{font-size:.75rem;min-height:42px;padding:7px}
+.table-status{margin:12px 0;color:var(--dim)}
+.table-status summary{cursor:pointer;font-size:.85rem}
+.table-status .row{margin-top:8px}
+.table-status button{min-height:40px;font-size:.78rem}
+.table-status button[aria-pressed="true"]{border-color:var(--gold);color:var(--gold)}
+.table-admission,.table-record section{margin:12px 0;padding:10px 12px;border:1px solid var(--stroke);border-radius:7px;background:#1c1421}
+.table-record h3{margin:0;font-size:1.05rem}
+.table-record ul{padding-left:18px}
+.table-record li{padding:3px 0}
+.table-record li small{display:block;color:var(--dim);line-height:1.35}
+.tournament>.board>#table-clock{margin:8px 0}
+.table-cards{grid-template-columns:1fr}
+.table-cards .trust{background:#30261f;color:#ffe0a5}
+.table-cards .betray{background:#462536;color:#ffa6b7}
+.table-accuse{padding:10px;border:1px solid var(--stroke);border-radius:6px;background:#261b2e}
+.table-accuse label{font-size:.83rem;color:var(--dim)}
+.puzzle-grid{
+  display:grid;grid-template-columns:repeat(8,1fr);width:min(100%,256px);
+  margin:10px 0;border:2px solid #917066;border-radius:6px;overflow:hidden;
+}
+.puzzle-grid span{display:grid;place-items:center;aspect-ratio:1;font-size:clamp(.65rem,2.5vw,.85rem);font-weight:800}
+.puzzle-grid .light{background:#d2af89;color:#201526}
+.puzzle-grid .dark{background:#51334a;color:#fff5e8}
+.puzzle-grid .on-piece{background:#ffc77f;color:#201526;font-size:1.4rem}
+.poker-hands{display:grid;gap:6px}
+.poker-hands>div{display:flex;align-items:center;gap:8px;font-size:.8rem}
+.poker-hands>div>div{display:flex;gap:3px}
+.poker-hands span{padding:5px;background:#fff0e2;color:#1b1324;border-radius:4px;font-weight:800}
+.poker-hands .red-suit{color:#a32945}
+.seed-board,.puzzle-chips,.ludo-track{display:flex;gap:5px;flex-wrap:wrap}
+.seed-board span,.puzzle-chips span{display:grid;gap:4px;place-items:center;background:#322037;border:1px solid #76546b;border-radius:6px;min-width:38px;padding:6px}
+.seed-board span small{color:var(--dim);font-size:.64rem}
+.seed-board .seed-target{background:#594130;border-color:var(--gold)}
+.ludo-board{display:grid;gap:4px}
+.ludo-board>div{display:grid;grid-template-columns:50px minmax(110px,1fr) 45px;align-items:center;max-width:294px;font-size:.8rem}
+.ludo-track i{width:15px;aspect-ratio:1;border-radius:3px;background:#e0a558}
+.ludo-track[data-lane="1"] i{background:#89baff}.ludo-track[data-lane="2"] i{background:#f391aa}.ludo-track[data-lane="3"] i{background:#91d9af}
+.puzzle-grid .opponent-piece{background:#983e5b;color:#fff5e8;font-size:1.25rem}
+
+.tournament .table-final{grid-template-columns:repeat(2,minmax(0,1fr))}
+.table-final [data-table="pass"]{grid-column:1/-1}
+.table-person img{animation:portrait-arrival .45s ease-out both}

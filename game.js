@@ -1,6 +1,7 @@
 import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { drawRelic, stageDepth } from './relic.js';
+import { hostTournament, joinTournament, tournamentMenu } from './tournament.js';
 
 const app = document.querySelector('#app');
 const notice = document.querySelector('#notice');
@@ -219,7 +220,23 @@ async function approveGuest(code) {
   }
 }
 
-async function host(crew = false) {
+function tableEnvironment(playlist) {
+  return { arena, key, invite: invitation, mask: chosenMask, playlist, stage, timeout, share, copy,
+    notice: say, escape, shuffle: shuffled, cue: playCue, destination: chosenDestination };
+}
+
+function planTournament() {
+  stage(`<span class="eyebrow">THE MIDNIGHT TRIAL</span><h2>Tournament</h2>
+    <p>Bring up to five friends into one three-round season. The host reveals each game when its round starts.</p>
+    <div class="table-menu">${tournamentMenu()}</div>
+    <details class="round-tools"><summary>How a round works</summary><p>Make a private first guess. Share it, send a decoy, or keep it private. See the other seats’ clues, choose your final answer, then play a card.</p></details>
+    <div id="mask-picker"></div>
+    <div class="row"><button class="primary" id="open-table">Open season room</button>${homeButton}</div>`, true);
+  mountMaskPicker();
+  document.querySelector('#open-table').onclick = () => host(false, document.querySelector('#table-playlist').value);
+}
+
+async function host(crew = false, playlist = null) {
   connecting('Preparing your summons');
   try {
     await timeout(network());
@@ -227,11 +244,16 @@ async function host(crew = false) {
     key = Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2, '0')).join('');
     const url = new URL('./', location.href);
     url.searchParams.set('room', id);
-    if (crew) url.searchParams.set('mode', 'crew');
+    if (playlist) url.searchParams.set('mode', 'tournament');
+    else if (crew) url.searchParams.set('mode', 'crew');
     const relay = arena.relay_host();
     if (relay) url.searchParams.set('relay', relay);
     url.hash = new URLSearchParams({ seal: key });
     invitation = url.href;
+    if (playlist) {
+      hostTournament(tableEnvironment(playlist));
+      return;
+    }
     waitingRoom(crew);
     let guestMask = null;
     let guestBriefing = false;
@@ -281,6 +303,10 @@ async function join(id, seal) {
   try {
     await timeout(network());
     link = await timeout(arena.dial(id, roomRelay ?? undefined));
+    if (roomAddress.get('mode') === 'tournament') {
+      await joinTournament(tableEnvironment(), link, seal);
+      return;
+    }
     const code = (crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).toString().padStart(6, '0');
     if (!seal) {
       stage(`<span class="eyebrow">SEALED SUMMONS</span><h2>Waiting for your friend</h2>
@@ -788,7 +814,7 @@ if (roomId !== null || roomSeal !== null) {
     failure('This invite is incomplete. Ask your friend to share the full link again.');
   } else {
     stage(`<span class="icon" aria-hidden="true">✦</span><p class="eyebrow">SEALED SUMMONS</p><h2>Your seat is waiting.</h2>
-      <p>${roomAddress.get('mode') === 'crew' ? `Team up against the masked host. Answer questions, pick different jobs, and score ${crewTarget} points together to escape.` : 'Pick an answer. Show it, send a decoy, or keep it private. Then decide whether to trust your friend.'}</p>
+      <p>${roomAddress.get('mode') === 'tournament' ? 'Take a seat in a group tournament. Share a clue or a decoy, see what the other seats share, then lock your final answer.' : roomAddress.get('mode') === 'crew' ? `Team up against the masked host. Answer questions, pick different jobs, and score ${crewTarget} points together to escape.` : 'Pick an answer. Show it, send a decoy, or keep it private. Then decide whether to trust your friend.'}</p>
       <p class="muted">You’ll get a short briefing before the first question. Both choices are revealed after each round.</p>
       <div id="mask-picker"></div>
       <div class="row"><button class="primary" id="enter">Join game ↗</button>${homeButton}</div>`, true);
@@ -799,6 +825,7 @@ if (roomId !== null || roomSeal !== null) {
   mountRoutePicker();
   mountMaskPicker();
   document.querySelector('#choose-mask').onclick = () => { document.querySelector('.wardrobe').open = true; };
+  document.querySelector('#tournament').onclick = planTournament;
   document.querySelector('#host').onclick = () => host();
   document.querySelector('#crew').onclick = () => host(true);
   document.querySelector('#solo').onclick = () => start(true);
