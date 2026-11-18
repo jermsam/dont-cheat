@@ -1,4 +1,4 @@
-import { icon } from './icons.js?v=2';
+import { icon } from './icons.js?v=3';
 
 const key='dont-cheat-progress-v1';
 const ranks=[

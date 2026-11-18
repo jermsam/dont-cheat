@@ -5,10 +5,10 @@ import { masks, maskId } from './masks.js?v=2';
 import { routes, scenarioFor } from './scenarios.js?v=2';
 import { stageDepth } from './relic.js';
 import { arrive, sideScreen, mountSideScreens, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=3';
-import { hostTournament, joinTournament } from './tournament.js?v=35';
+import { hostTournament, joinTournament } from './tournament.js?v=36';
 
 import { challenges } from './challenges.js';
-import { matchTitles } from './match-rules.js?v=11';
+import { matchTitles } from './match-rules.js?v=12';
 import { mountPuzzleBoard } from './puzzle-board.js';
 
 const app = document.querySelector('#app');
@@ -297,6 +297,7 @@ function stage(content, summons = false, scene = '', placeArt = '', screen = nul
     page: Math.max(0, [...open.querySelectorAll('[data-record-page]')].findIndex(page => !page.hidden)),
   } : null;
   const choices = sameScreen ? [...app.querySelectorAll('select[id]')].map(select=>[select.id,select.value]) : [];
+  const guideOpen = sameScreen && app.querySelector('.table-guide[open], .ludo-rules[open]');
   const resignOpen = sameScreen && app.querySelector('[data-resign-confirm]:not([hidden])');
   const liveBoard = sameScreen ? [...app.querySelectorAll('.live-3d, .table-objects')] : [];
   if (!sameScreen) notice.replaceChildren();
@@ -306,6 +307,7 @@ function stage(content, summons = false, scene = '', placeArt = '', screen = nul
     const select=document.getElementById(id);
     if (select && [...select.options].some(option=>option.value===value)) select.value=value;
   });
+  if (guideOpen) app.querySelector('.table-guide, .ludo-rules')?.setAttribute('open','');
   if (resignOpen) app.querySelector('[data-resign-confirm]')?.removeAttribute('hidden');
   liveBoard.forEach(board=>app.querySelector(`.${board.classList[0]}`)?.replaceWith(board));
   mountSideScreens(app, restore);

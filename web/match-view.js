@@ -1,8 +1,9 @@
+import { tableGuide } from './table-guides.js';
 import { icon } from './icons.js?v=3';
 import { masks, maskId } from './masks.js?v=2';
 import { jumps, squarePosition } from './snakes.js';
-import { diceCategories } from './card-dice-rules.js?v=6';
-import { pokerRanks, rankHand } from './match-rules.js?v=11';
+import { diceCategories } from './card-dice-rules.js?v=7';
+import { pokerRanks, rankHand } from './match-rules.js?v=12';
 import { mountTableObjects } from './table-objects.js?v=14';
 import { mountLiveBoard } from './live-board.js?v=2';
 
@@ -223,6 +224,7 @@ function cardDiceMarkup(board) {
     content = `<p>${escape(board.phase ?? board.stage)} · Scores ${board.scores.map(Number).join(' / ')}</p>
       ${key==='spades'||key==='euchre'? `<p>Your partner is ${sideName(board,(board.side+2)%4)}.</p>` : ''}
       ${board.trump==null?'':`<p>Trump · ${suits[board.trump]}</p>`}
+      ${board.sittingOut>=0?`<p>${sideName(board,board.sittingOut)} sits out this hand.</p>`:''}
       ${board.up==null || board.phase!=='Trump'?'':lineOfCards([board.up])}
       ${board.bids?.length?`<p>Bids ${Array.from({length:4},(_,i)=>board.bids[i] == null?'—':Number(board.bids[i])).join(' / ')}</p>`:''}
       ${board.taken?`<p>Tricks ${board.taken.map(Number).join(' / ')}</p>`:''}
@@ -232,7 +234,7 @@ function cardDiceMarkup(board) {
       ${gin&&board.shown?`<p>Knock resolved. Deadwood ${board.shown.dead.map(Number).join(' / ')}.</p>`:''}
       ${bidding?`<label for="trick-bid">Tricks to bid</label> <select id="trick-bid">${legal.map(move=>`<option value="${Number(move.bid)}">${Number(move.bid)||'Nil'}</option>`).join('')}</select>
         <button type="button" data-trick-bid>Bid</button>`:''}
-      ${trump.length?`<div class="row">${trump.map(move=>`<button type="button" data-trump="${Number(move.trump)}">Name ${suits[move.trump]}</button>`).join('')}</div>`:''}
+      ${trump.length?`<div class="row">${trump.map(move=>`<button type="button" data-trump="${Number(move.trump)}" data-alone="${Boolean(move.alone)}">${move.alone?'Go alone in':'Name'} ${suits[move.trump]}</button>`).join('')}</div>`:''}
       <p class="table-caption">Your hand</p>
       <div class="shown-cards" data-card-zone="hand">${hand.map(card=>passing?
         `<button type="button" class="table-card" data-table-card="${Number(card)}" data-pass-card="${Number(card)}" aria-pressed="false">${cardName(card)}</button>`:
@@ -290,7 +292,7 @@ function cardDiceMarkup(board) {
         `<p>Bid on the total showing across both cups. Ones count wild for other faces. Rival has ${Number(board.counts[1-board.side])} dice.</p>
          ${board.bid?`<p>Current bid ${Number(board.bid.quantity)} × ${Number(board.bid.face)}</p>`:''}
          ${board.reveal?`<p>Challenge revealed ${Number(board.reveal.found)} matching dice. ${sideName(board,board.reveal.loser)} lost a die.</p>`:''}`}
-      ${dice(board.dice)}${options(board)}
+      ${dice(key==='farkle' && board.last?.bust ? board.last.bust : board.dice)}${options(board)}
       ${key==='farkle' && legal.some(move=>move.mask) ? `<label for="farkle-keep">Choose scoring dice</label>
       <select id="farkle-keep">${legal.map(move=>`<option value="${Number(move.mask)}">${board.dice.filter((_,i)=>move.mask & 1<<i).map(Number).join(', ')} · ${Number(move.points)} pts</option>`).join('')}</select>
       <button type="button" data-keep>Keep dice</button>` : ''}
@@ -331,6 +333,7 @@ export function matchMarkup(board, wallet, players = []) {
     ${board.check && !result ? '<p class="turn-note">Check</p>' : ''}
     ${active && !result && board.pieces ? '<p class="turn-note">Tap a piece to see where it can move.</p>' : ''}
     ${board.chain ? '<p class="turn-note">Finish the capture with the same piece.</p>' : ''}
+    ${board.key==='ludo' ? '' : tableGuide(board.key)}
     ${play}
     ${classic || !board.pieces ? '<div class="table-objects" hidden></div>' : ''}
     <div class="table-tools">
@@ -414,6 +417,17 @@ export function mountMatch(app, board, send, changedMove) {
     };
   });
   if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const square = changedMove && app.querySelector('.last-square .piece');
+    if (square) globalThis.Motion.animate(square,{scale:[.78,1.12,1]}, {duration:.22});
+    if(changedMove && board.toss?.serial===board.serial && !['ludo','snakes'].includes(board.key)){
+      const dice=[...app.querySelectorAll('.dice-row [data-die]')];
+      if(dice.length)globalThis.Motion.animate(dice,{y:[-8,0],rotate:[-14,0],opacity:[.62,1]},
+        {duration:.24,delay:globalThis.Motion.stagger(.025)});
+    }
+    const played=board.last?.card ?? (board.roomAction?.serial===board.serial ? board.roomAction.card : undefined);
+    const card=changedMove && Number.isInteger(played) && [...app.querySelectorAll(`[data-table-card="${played}"]`)]
+      .find(node=>!node.closest('[data-card-zone="hand"]'));
+    if(card)globalThis.Motion.animate(card,{y:[-6,0],scale:[.94,1]}, {duration:.22});
     const beat = changedMove && app.querySelector('[data-table-beat]');
     if (beat) {
       globalThis.Motion.animate(beat, {opacity:[.3,1],x:[-14,0],scale:[.98,1]}, {type:'spring',stiffness:270,damping:24});
@@ -473,7 +487,7 @@ export function mountMatch(app, board, send, changedMove) {
     };
   });
   app.querySelector('[data-trick-bid]')?.addEventListener('click',()=>action({bid:Number(app.querySelector('#trick-bid').value)}));
-  app.querySelectorAll('[data-trump]').forEach(button=>{button.onclick=()=>action({trump:Number(button.dataset.trump)});});
+  app.querySelectorAll('[data-trump]').forEach(button=>{button.onclick=()=>action({trump:Number(button.dataset.trump),alone:button.dataset.alone==='true'});});
   app.querySelectorAll('[data-tenzi]').forEach(button=>{button.onclick=()=>action({die:Number(button.dataset.tenzi)});});
   const passing=app.querySelector('[data-send-three]');
   const passed=new Set();

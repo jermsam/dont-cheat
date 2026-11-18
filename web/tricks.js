@@ -9,10 +9,15 @@ export const trickTitles = {spades:'Spades', hearts:'Hearts', euchre:'Euchre'};
 
 export function trickGame(key) {
   const hearts = key==='hearts', euchre = key==='euchre', spades = key==='spades';
-  let hands, trick, previous, active, phase, trump, up, maker, broken, handNo = 0, passes = 0;
+  let hands, trick, previous, active, phase, trump, up, maker, broken, handNo = 0, passes = 0, alone = false;
   let taken, penalty, bids, received;
   const scores=Array(hearts ? 4 : 2).fill(0), bags=[0,0];
   const dealer=()=>handNo%4;
+  const sittingOut=()=>alone ? (maker+2)%4 : -1;
+  const nextPlayer=side=>{
+    const next=(side+1)%4;
+    return next===sittingOut()?(next+1)%4:next;
+  };
   const suited=card=>euchre && trump!=null && ranks(card)===9 && suits(card)===(trump^3)?trump:suits(card);
   const right=card=>euchre && ranks(card)===9 && suits(card)===trump;
   const left=card=>euchre && ranks(card)===9 && suited(card)===trump && suits(card)!==trump;
@@ -27,7 +32,7 @@ export function trickGame(key) {
     trick=[]; previous=[]; taken=[0,0,0,0]; penalty=[0,0,0,0]; bids=[]; received=[];
     active=(dealer()+1)%4;
     up=euchre?deck.pop():null;
-    trump=spades?3:null; maker=null; broken=false; passes=0;
+    trump=spades?3:null; maker=null; broken=false; passes=0; alone=false;
     phase=euchre?'Trump':spades?'Bid':handNo%4===3?'Play':'Pass cards';
     if(hearts&&phase==='Play') active=hands.findIndex(hand=>hand.includes(0));
   }
@@ -38,7 +43,8 @@ export function trickGame(key) {
     if(phase==='Pass cards') return [{choice:'Send three'}];
     if(phase==='Trump') {
       const suit=suits(up);
-      const options = passes<4 ? [{trump:suit}] : range(4).filter(index=>index!==suit).map(trump=>({trump}));
+      const available = passes<4 ? [suit] : range(4).filter(index=>index!==suit);
+      const options = available.flatMap(trump=>[{trump,alone:true},{trump}]);
       if(passes!==7) options.push({choice:'Pass'});
       return options;
     }
@@ -65,7 +71,7 @@ export function trickGame(key) {
       penalty.forEach((value,index)=>{scores[index]+=moon<0?value:moon===index?0:26;});
     } else if(euchre) {
       const team=maker%2, wins=taken[team]+taken[team+2];
-      scores[wins>=3?team:1-team]+=wins===5||wins<3?2:1;
+      scores[wins>=3?team:1-team]+=wins===5?(alone?4:2):wins<3?2:1;
     } else {
       for(let team=0;team<2;team++) {
         const partnership=[team,team+2];
@@ -79,7 +85,7 @@ export function trickGame(key) {
       }
     }
     const best=hearts?Math.min(...scores):Math.max(...scores);
-    const goal=hearts?Math.max(...scores)>=100:best>=(euchre?10:200);
+    const goal=hearts?Math.max(...scores)>=100:best>=(euchre?10:200) && scores[0]!==scores[1];
     if(goal) {
       const winners=range(4).filter(seat=>scores[hearts?seat:seat%2]===best);
       return {winner:winners[0],winners,reason:'Final table score'};
@@ -97,7 +103,7 @@ export function trickGame(key) {
       return Array.isArray(cards)&&cards.length===3&&new Set(cards).size===3&&cards.every(card=>hands[active].includes(card)) ?
         {choice:'Send three',cards}:null;
     },
-    view:side=>({hand:[...hands[side]].sort((a,b)=>suits(a)-suits(b)||ranks(a)-ranks(b)),trick:[...trick],previous:[...previous],phase,trump,up,maker,scores:[...scores],
+    view:side=>({hand:[...hands[side]].sort((a,b)=>suits(a)-suits(b)||ranks(a)-ranks(b)),trick:[...trick],previous:[...previous],phase,trump,up,maker,sittingOut:sittingOut(),scores:[...scores],
       taken:[...taken],bids:[...bids],handNo,counts:hands.map(hand=>hand.length)}),
     move(action) {
       if(phase==='Bid') {
@@ -121,28 +127,29 @@ export function trickGame(key) {
         if(action.choice==='Pass'){passes++;active=(active+1)%4;return {};}
         maker=active;
         trump=action.trump;
+        alone=Boolean(action.alone);
         if(passes<4) {
           active=dealer();
           hands[active].push(up);
           phase='Discard';
         } else {
           phase='Play';
-          active=(dealer()+1)%4;
+          active=nextPlayer(dealer());
         }
         return {};
       }
       if(phase==='Discard') {
         hands[active]=hands[active].filter(card=>card!==action.card);
         phase='Play';
-        active=(dealer()+1)%4;
+        active=nextPlayer(dealer());
         return {};
       }
       const {card}=action;
       hands[active]=hands[active].filter(value=>value!==card);
       trick.push({side:active,card});
-      if(suits(card)===(hearts?2:3)) broken=true;
-      active=(active+1)%4;
-      if(trick.length===4) {
+      if(hearts ? hurts(card) : suits(card)===3) broken=true;
+      active=nextPlayer(active);
+      if(trick.length===(alone?3:4)) {
         const lead=suited(trick[0].card);
         active=trick.reduce((best,entry)=>weight(entry.card,lead)>weight(best.card,lead)?entry:best).side;
         taken[active]++;

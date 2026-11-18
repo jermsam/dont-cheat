@@ -618,3 +618,24 @@ select, .destination-picker select, .table-menu select, .table-accuse select {
 @keyframes ludo-crown{0%,34%{opacity:0;scale:.65}55%{opacity:1;scale:1.2}80%{opacity:1}100%{opacity:0;scale:1.65;translate:0 -20px}}
 .ludo-crown-burst::before{content:"";position:absolute;inset:-.65rem;border-radius:50%;background:repeating-conic-gradient(from 12deg,#ffd27c 0deg 5deg,transparent 5deg 45deg);mask-image:radial-gradient(circle,transparent 42%,#000 52%,transparent 72%);filter:drop-shadow(0 0 5px #f6b845)}
 .ludo-tray small{font-variant-numeric:tabular-nums;color:#ffe7a2}
+
+.table-guide{margin:.38rem 0 .55rem;color:#efdbeb;font-size:.82rem}
+.table-guide summary{cursor:pointer;width:max-content}
+.live-grid button.light{background:#ebce9e}
+.live-grid button.dark{background:#76526c}
+.live-grid .side-0{color:#fff4d8;filter:drop-shadow(0 1px 1px #241129)}
+.live-grid .side-1{color:#180e20;filter:drop-shadow(0 1px 1px #ffd7bf)}
+.live-grid button.legal-target::after{border-color:#78ffba;box-shadow:0 0 0 2px #192c26}
+.live-table-stage .race-cell{border-color:#ac839f;color:#fff4e7}
+.live-table-stage .race-cell.ladder{color:#c8ffdb;border-color:#80cfa1}
+.live-table-stage .race-cell.snake{color:#ffe3ed;border-color:#da8ea2}
+.live-table-stage :is(.table-card,[data-pit],[data-die],[data-token]):enabled:focus-visible{outline-color:#fff1a8}
+.round-loot>span{position:relative;display:grid;grid-template-columns:auto auto;grid-template-rows:auto auto;column-gap:.45rem;min-width:4.7rem;padding:.45rem .62rem;overflow:hidden}
+.round-loot>span .ui-icon{grid-row:1/3;width:1.5rem;height:1.5rem}
+.round-loot>span b{font-size:1.4rem;line-height:1}
+.round-loot>span small{font-size:.63rem;letter-spacing:.08em;text-transform:uppercase}
+.round-loot .loot-coins{background:#4d3219;border-color:#d6a558}
+.round-loot .loot-time{background:#213537;border-color:#78b5ae;color:#c4fff0}
+.round-loot.loot-earned .loot-points{background:#3b294c;border-color:#b793d8;color:#efdaff}
+.season-trophy{display:grid;place-items:center;width:3.5rem;height:3.5rem;margin:.15rem 0 .6rem;border-radius:50%;border:1px solid #f5c875;background:radial-gradient(circle at 38% 28%,#7f5430,#301b20);color:#ffe2a0;box-shadow:0 0 22px #e0a04666}
+.season-trophy .ui-icon{width:2rem;height:2rem}
