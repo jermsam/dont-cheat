@@ -1,5 +1,5 @@
 import { masks, maskId } from './masks.js?v=1';
-import { routes, scenarioFor } from './scenarios.js?v=1';
+import { routes, scenarioFor } from './scenarios.js?v=2';
 
 const app = document.querySelector('#app');
 const notice = document.querySelector('#notice');
