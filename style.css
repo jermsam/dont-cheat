@@ -90,9 +90,6 @@ button.mask-option{position:relative;display:grid;text-align:left;padding:0;over
 .gift-reveal p{position:relative;margin:9px 0;font-size:.86rem}
 .gift-reveal::before{content:"";position:absolute;inset:0;background:linear-gradient(108deg,transparent 17%,#ffc77f55,transparent 80%);transform:translateX(-130%);animation:mask-glint 1s ease-out both}
 @keyframes mask-glint{to{transform:translateX(130%)}}
-.scene-reveal .pact-card,.scene-verdict .pact-card{animation:card-appear .38s ease-out both}
-.scene-reveal .pact-card:nth-child(2),.scene-verdict .pact-card:nth-child(2){animation-delay:.11s}
-@keyframes card-appear{from{opacity:.25;transform:perspective(450px) rotateY(-32deg) translateY(8px)}to{opacity:1;transform:perspective(450px) rotateY(0) translateY(0)}}
 .scene.under-pressure::after{animation:timer-glow 1.5s ease-in-out 3 alternate both}
 @keyframes timer-glow{from{opacity:.45}to{opacity:1}}
 @media(max-width:680px){
@@ -117,3 +114,46 @@ button.mask-option{position:relative;display:grid;text-align:left;padding:0;over
 .destination-picker figure{margin:12px 0 0}
 .destination-picker figure img{display:block;width:min(100%,520px);max-height:225px;object-fit:cover;border-radius:6px}
 .destination-picker figcaption{margin-top:8px;font-size:.85rem;color:var(--dim)}
+
+/* Moving scenery, the 3D relic, and two-sided cards */
+.scene::before{
+  transform:translate3d(var(--depth-x,0),var(--depth-y,0),0) scale(1.06);
+  transition:transform .3s ease-out,opacity .3s ease-out;
+}
+.scene-briefing.with-place::before{animation:room-arrival 4.6s ease-out both}
+@keyframes room-arrival{from{scale:1.11;opacity:.35}to{scale:1;opacity:.66}}
+.cinematic-title{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px}
+.cinematic-title h2{margin-bottom:0}
+.relic{
+  display:block;width:clamp(76px,13vw,136px);aspect-ratio:1;
+  border-radius:50%;background:radial-gradient(circle,#f4aa6b34 0%,#d07f5230 34%,transparent 67%);
+  filter:drop-shadow(0 0 12px #ef9e6765);
+}
+.card-turn{
+  position:relative;display:grid;min-width:0;
+  transform-style:preserve-3d;
+  animation:sealed-turn .76s cubic-bezier(.19,.72,.26,1) both;
+}
+.card-turn:nth-child(2){animation-delay:.16s}
+.card-turn .pact-card,.card-back{
+  grid-area:1/1;min-width:0;
+  -webkit-backface-visibility:hidden;backface-visibility:hidden;
+}
+.card-back{
+  display:grid;place-items:center;border:1px solid #b68b60;border-radius:8px;
+  color:var(--gold);font-size:2.1rem;transform:rotateY(180deg);
+  background:radial-gradient(circle,#5f3542,#241829 68%);
+}
+@keyframes sealed-turn{
+  from{transform:perspective(700px) rotateY(180deg) translateY(10px)}
+  to{transform:perspective(700px) rotateY(0)}
+}
+.scene .mask-seat img{transform-origin:center;animation:portrait-arrival .55s ease-out both}
+@keyframes portrait-arrival{from{opacity:.42;scale:.88;filter:brightness(1.8)}to{opacity:1;scale:1;filter:brightness(1)}}
+@media(max-width:420px){.cinematic-title{column-gap:5px}.relic{width:78px}.scene-briefing h2{font-size:clamp(1.85rem,8vw,2.8rem)}}
+@media(prefers-reduced-motion:reduce){
+  .scene::before,.card-turn,.scene .mask-seat img{transform:none}
+}
+.transmission .host-avatar{animation:portrait-arrival .7s ease-out both}
+
+.pact-card .reveal-portrait{width:52px;justify-self:center;border:1px solid currentColor;border-radius:50%}

@@ -1,5 +1,6 @@
 import { masks, maskId } from './masks.js?v=1';
 import { routes, scenarioFor } from './scenarios.js?v=2';
+import { drawRelic, stageDepth } from './relic.js';
 
 const app = document.querySelector('#app');
 const notice = document.querySelector('#notice');
@@ -60,6 +61,7 @@ let arena, link, key, game, revision = 0, shown, audio, enabled = false;
 let seat = 0, clockEnd = 0, phaseDuration = duration, solo = false, pending = false, guestAccepted = false;
 let invitation = '';
 let lastAlarm = -1;
+let audioOut, stopRelic;
 let chosenMask = null;
 let chosenDestination = null;
 
@@ -76,29 +78,51 @@ const shuffled = values => {
   return result;
 };
 
-function chime(notes = [147, 220, 294]) {
+const soundCues = {
+  briefing: { notes: [65, 98, 146, 196], wave: 'sine', volume: .12, length: .63 },
+  trivia: { notes: [164, 246, 329] },
+  claim: { notes: [196, 155], wave: 'sine', length: .29 },
+  choice: { notes: [110, 139, 165], wave: 'triangle', length: .53 },
+  reveal: { notes: [82, 123, 185], wave: 'triangle', volume: .1, length: .52 },
+  verdict: { notes: [98, 147, 196, 294, 392], wave: 'triangle', length: .63 },
+  gift: { notes: [82, 123, 207, 370, 554], wave: 'sine', length: .71 },
+  passage: { notes: [98, 147, 110], wave: 'triangle', length: .58 },
+};
+
+function chime(notes = [147, 220, 294], { wave = 'triangle', volume = .08, length = .38 } = {}) {
   if (!enabled || !audio) return;
   const start = audio.currentTime;
   notes.forEach((frequency, index) => {
     const tone = audio.createOscillator();
     const gain = audio.createGain();
     const time = start + index * .11;
-    tone.type = 'triangle';
+    tone.type = wave;
     tone.frequency.value = frequency;
     gain.gain.setValueAtTime(.001, time);
-    gain.gain.exponentialRampToValueAtTime(.08, time + .035);
-    gain.gain.exponentialRampToValueAtTime(.001, time + .38);
-    tone.connect(gain).connect(audio.destination);
+    gain.gain.exponentialRampToValueAtTime(volume, time + .035);
+    gain.gain.exponentialRampToValueAtTime(.001, time + length);
+    tone.connect(gain).connect(audioOut);
     tone.start(time);
-    tone.stop(time + .4);
+    tone.stop(time + length + .02);
   });
 }
+
+function playCue(name) {
+  const cue = soundCues[name];
+  if (cue) chime(cue.notes, cue);
+}
+
 document.querySelector('#sound').onclick = async event => {
   const button = event.currentTarget;
   try {
-    audio ??= new AudioContext();
+    if (!audio) {
+      audio = new AudioContext();
+      audioOut = audio.createGain();
+      audioOut.connect(audio.destination);
+    }
     await audio.resume();
     enabled = !enabled;
+    audioOut.gain.setTargetAtTime(enabled ? 1 : 0, audio.currentTime, .02);
     button.textContent = enabled ? 'Sound on' : 'Sound off';
     button.setAttribute('aria-pressed', enabled);
     if (enabled) chime();
@@ -107,8 +131,16 @@ document.querySelector('#sound').onclick = async event => {
   }
 };
 
+const relic = '<canvas class="relic" width="260" height="260" aria-hidden="true"></canvas>';
+
 function stage(content, summons = false, scene = '', placeArt = '') {
+  stopRelic?.();
+  stopRelic = undefined;
   app.innerHTML = `<section class="stage ${summons ? 'summons' : ''} ${scene}"${placeArt ? ` style="${placeArt}"` : ''}><div class="board reveal">${content}</div></section>`;
+  const sculpture = app.querySelector('.relic');
+  if (sculpture) stopRelic = drawRelic(sculpture);
+  const sceneElement = app.querySelector('.scene');
+  if (sceneElement) stageDepth(sceneElement);
   const heading = app.querySelector('h2');
   if (heading) {
     heading.tabIndex = -1;
@@ -575,12 +607,13 @@ function debrief(round) {
   return `<details class="debrief"><summary>Ask each other</summary><p>${debriefs[round]}</p><small>Talk it through together. Skip it if you like.</small></details>`;
 }
 
-function pactCards(record) {
+function pactCards(record, state) {
   return [seat, 1 - seat].map(player => {
     const choice = record.cards[player];
+    const id = maskId(state.masks?.[player]);
     const style = ['Trust', 'Distract'].includes(choice) ? 'trust' : ['Betray', 'Grab'].includes(choice) ? 'betray' : choice === 'Call bluff' ? 'call' : 'empty';
     const mark = style === 'trust' ? '✦' : style === 'betray' ? '◆' : style === 'call' ? '⌕' : '–';
-    return `<div class="pact-card ${style}"><span class="eyebrow">${player === seat ? 'Your card' : 'Other seat'}</span><span class="pact-mark" aria-hidden="true">${mark}</span><strong>${escape(choice)}</strong><small>${points(record.gains[player])} round points</small></div>`;
+    return `<div class="card-turn"><div class="card-back" aria-hidden="true">✦</div><div class="pact-card ${style}"><span class="eyebrow">${player === seat ? 'Your card' : 'Other seat'}</span>${id ? portrait(id, 'reveal-portrait') : ''}<span class="pact-mark" aria-hidden="true">${mark}</span><strong>${escape(choice)}</strong><small>${points(record.gains[player])} round points</small></div></div>`;
   }).join('');
 }
 
@@ -599,10 +632,9 @@ function draw(state) {
   if (previous?.phase !== phase || previous?.round !== round) {
     lastAlarm = -1;
     const maskFlared = (phase === 'reveal' || phase === 'verdict') && records.at(-1)?.gifts?.some(Boolean);
-    chime(maskFlared ? [82, 123, 207, 370, 554] : phase === 'verdict' ? [98, 196, 294, 392] :
-      phase === 'choice' ? [110, 139, 165] : undefined);
+    playCue(maskFlared ? 'gift' : phase);
   }
-  if (secret && previous?.secret?.name !== secret.name) chime([98, 147, 110]);
+  if (secret && previous?.secret?.name !== secret.name) playCue('passage');
   const scenario = scenarioFor(round, state.route?.[round]);
   const locationStyle = scenario?.art ? `--place-art:url(places/${scenario.art}.jpg)` : '';
   const locationTone = locationStyle ? ' with-place' : '';
@@ -613,7 +645,7 @@ function draw(state) {
   const route = `<ol class="route" aria-label="Rounds">${acts.map((act, index) =>
     `<li class="${index < round ? 'passed' : ''}" ${index === round ? 'aria-current="step"' : ''}><span aria-hidden="true">${index < round ? '✓' : index + 1}</span>${index <= round ? scenarioFor(index, state.route?.[index])?.name ?? act : act}</li>`).join('')}</ol>`;
   if (phase === 'briefing' && scenario) {
-    stage(`${score}${maskSeats(state)}${route}<span class="eyebrow">ROUND ${round + 1} BRIEFING</span><h2>${scenario.name}</h2>
+    stage(`${score}${maskSeats(state)}${route}<div class="cinematic-title"><div><span class="eyebrow">ROUND ${round + 1} BRIEFING</span><h2>${scenario.name}</h2></div>${relic}</div>
       <p>${scenario.line}</p>
       <ul class="briefing-rules">
         <li><b>${scenario.seconds}s</b> to answer</li>
@@ -685,7 +717,7 @@ function draw(state) {
       record.cards.every(card => card === 'Betray') ? 'Two masterminds. Zero pact points.' :
       record.cards.includes('Betray') ? 'Someone broke the pact.' : 'The pact went unanswered.';
     const nextNumber = round + 2;
-    stage(`${score}<span class="eyebrow">ROUND ${round + 1} · UNSEALED</span><h2>${result}</h2><div class="pact-cards">${pactCards(record)}</div>${giftReveal(record)}<ul class="receipt"><li>${receipt(record)}</li></ul>${!state.solo ? debrief(round) : ''}
+    stage(`${score}<span class="eyebrow">ROUND ${round + 1} · UNSEALED</span><h2>${result}</h2><div class="pact-cards">${pactCards(record, state)}</div>${giftReveal(record)}<ul class="receipt"><li>${receipt(record)}</li></ul>${!state.solo ? debrief(round) : ''}
       ${seat === 0 ? `<button class="primary" id="next">Start Round ${nextNumber} ↗</button>${solo ? '' : `<p class="muted">${scenario ? 'Both players see the briefing before the clock starts.' : 'This starts the timer for both players.'}</p>`}` : `<p class="waiting">Waiting for the host to start Round ${nextNumber}.</p>`}`, false, `scene scene-reveal${locationTone}`, locationStyle);
     const next = document.querySelector('#next');
     if (next) next.onclick = nextRound;
@@ -693,7 +725,7 @@ function draw(state) {
   }
   const [you, them] = [scores[seat], scores[1 - seat]];
   const verdict = crew ? (teamScore >= crewTarget ? 'Your crew got away.' : 'The host kept the loot.') : you === them ? 'The trial ends in a draw.' : you > them ? 'You won the trial.' : 'The other seat won.';
-  stage(`${score}<span class="eyebrow">FINAL VERDICT · RECORD UNSEALED</span><h2>${verdict}</h2><div class="pact-cards">${pactCards(record)}</div>${giftReveal(record)}<ul class="receipt">${records.map(result => `<li>${receipt(result)}</li>`).join('')}</ul>${!state.solo ? debrief(round) : ''}${homeButton}`, false, `scene scene-verdict${locationTone}`, locationStyle);
+  stage(`${score}<div class="cinematic-title"><div><span class="eyebrow">FINAL VERDICT · RECORD UNSEALED</span><h2>${verdict}</h2></div>${relic}</div><div class="pact-cards">${pactCards(record, state)}</div>${giftReveal(record)}<ul class="receipt">${records.map(result => `<li>${receipt(result)}</li>`).join('')}</ul>${!state.solo ? debrief(round) : ''}${homeButton}`, false, `scene scene-verdict${locationTone}`, locationStyle);
 }
 function tick() {
   const clock = document.querySelector('#clock');
@@ -704,7 +736,7 @@ function tick() {
   clock.closest('.stage').classList.toggle('under-pressure', shown.phase !== 'briefing' && seconds <= 5);
   if (shown.phase !== 'briefing' && seconds > 0 && seconds <= 5 && lastAlarm !== seconds) {
     lastAlarm = seconds;
-    chime([seconds === 1 ? 147 : 110]);
+    chime(seconds === 1 ? [146, 65] : [65, 55], { wave: 'sine', volume: .13, length: .23 });
   }
   document.querySelector('#bar').style.transform = `scaleX(${remaining / phaseDuration})`;
 }
