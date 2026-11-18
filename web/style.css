@@ -707,3 +707,15 @@ select, .destination-picker select, .table-menu select, .table-accuse select {
 .quick-chat-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.45rem}
 .quick-chat-choices button{min-height:44px}
 .clock-player,.table-person strong{overflow-wrap:anywhere}
+
+.team-mode,.season-teams{display:grid;gap:.5rem}
+.team-mode{grid-template-columns:repeat(3,minmax(0,1fr));max-width:22rem;margin:.65rem 0}
+.team-mode button,.season-team button{min-height:44px;padding:.45rem .6rem}
+.team-mode button[aria-pressed="true"]{background:#ffcf88;color:#27151c;border-color:#ffcf88}
+.season-teams{grid-template-columns:repeat(2,minmax(0,1fr));margin:.65rem 0}
+.season-team{--team-color:#ffda94;min-width:0;padding:.55rem .7rem;border:1px solid var(--team-color);border-radius:8px;background:#302518;color:var(--team-color)}
+.season-team[data-team="1"]{--team-color:#e0c6ff;background:#32253f}
+.season-team-heading{display:flex;align-items:center;justify-content:space-between;gap:.4rem}
+.season-team-roster{margin:.35rem 0;color:var(--ink);font-size:.85rem;overflow-wrap:anywhere}
+.season-team button{width:100%;margin-top:.2rem}
+.season-team button[aria-pressed="true"]{opacity:1;color:var(--team-color);border-color:var(--team-color)}
