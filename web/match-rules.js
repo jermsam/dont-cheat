@@ -4,7 +4,7 @@ import { partyRules, partyTitles } from './party-rules.js';
 import { gin } from './gin.js?v=2';
 import { trickGame, trickTitles } from './tricks.js';
 import { race } from './snakes.js';
-import { cardAndDiceRules, cardAndDiceTitles } from './card-dice-rules.js?v=3';
+import { cardAndDiceRules, cardAndDiceTitles } from './card-dice-rules.js?v=4';
 import { Chess } from './vendor/chess-1.4.0.js';
 
 const files = 'abcdefgh';

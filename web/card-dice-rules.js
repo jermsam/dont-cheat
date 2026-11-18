@@ -86,7 +86,8 @@ export function matatu(deck = shuffledDeck()) {
   let stock = [...deck];
   const hands = [draw(stock, 7), draw(stock, 7)];
   const table = [stock.pop()];
-  let active = 0, called = suit(table[0]), penalty = 0, drawn;
+  const openingSuit = suit(table[0]);
+  let active = 0, called = openingSuit, penalty = 0, drawn;
   const points = cards => total(cards.map(card => rank(card) === 2 ? 20 : rank(card) === 14 ? 15 : rank(card)));
   function take(count) {
     while (count-- > 0) {
@@ -110,7 +111,7 @@ export function matatu(deck = shuffledDeck()) {
   }
   return {
     turn: () => active, legal,
-    view: side => ({hand:hands[side], count:hands[1-side].length, top:table.at(-1), called, penalty,
+    view: side => ({hand:hands[side], count:hands[1-side].length, top:table.at(-1), called, openingSuit, penalty,
       drawn: side === active && drawn !== undefined ? drawn : null}),
     move(action) {
       if (action.take) {
@@ -134,7 +135,11 @@ export function matatu(deck = shuffledDeck()) {
       table.push(card);
       called = action.call ?? suit(card);
       if (!hands[active].length) return {winner:active,reason:'Hand emptied'};
-      if (face === 7) return {winner:points(hands[active]) < points(hands[1-active]) ? active : 1-active,reason:'Cut with a seven'};
+      if (face === 7 && suit(card) === openingSuit) return {
+        winner:points(hands[active]) < points(hands[1-active]) ? active : 1-active,
+        reason:'Cut with the opening-suit seven',
+        last:{card},
+      };
       if (face === 2) penalty += 2;
       if (face !== 8 && face !== 11) active = 1-active;
       return {last:{card}};
