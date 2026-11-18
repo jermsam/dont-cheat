@@ -6,7 +6,7 @@ A two-seat browser game about trivia, trust, and betrayal. Play privately with a
 
 ## Invite a friend
 
-1. Tap **Invite a friend** and wait for the link.
+1. Tap **Duel a friend** or **Team up** and wait for the link.
 2. Tap **Share to WhatsApp** and pick WhatsApp in your device's share sheet. You can also copy the link into a chat.
 3. Return to the open host tab. Your friend taps the WhatsApp card or link, then taps **Join game**. If WhatsApp opens the card without the private seal, your friend will see a six-digit code. Check that it matches the code on the host screen and tap **Let them in**. The trial then starts for both players.
 
@@ -14,7 +14,7 @@ The invite grants access to one open seat. A refresh, closed tab, or disrupted c
 
 ## Rules
 
-Each of three rounds opens with a timed trivia question. The first two rounds give you 20 seconds per decision. The final round gives you 12. Correct answers earn 2 points. Both players then make a secret choice before the clock runs out.
+Each of three rounds opens with a timed trivia question. The first two rounds give you 20 seconds per decision. The final round gives you 12 for trivia and the pact. Duel claims get 8 seconds each round. Correct answers earn 2 points. Both players then make a secret choice before the clock runs out.
 
 | Your card | Opponent's card | Your points |
 | --- | --- | --- |
@@ -23,8 +23,16 @@ Each of three rounds opens with a timed trivia question. The first two rounds gi
 | Trust | Betray | 0 |
 | Betray | Betray | 0 |
 | Betray | No card | 1 |
+| Call bluff | They lied or peeked | 3 |
+| Call bluff | They did neither | −1 |
 
-Other timeout combinations yield zero pact points. Round two doubles pact points. The final verdict opens all three records. All stakes are in-game points.
+After trivia, tell your opponent whether you got it right. You can bluff. Each player can peek at one answer per duel. If your opponent calls your peek, you lose any points earned from that question. In the Vault and the Escape, each player can visit a hidden room for a private advantage or curse that affects their trivia score. The round record reveals who bluffed, peeked, or took a detour.
+
+Other card combinations yield zero pact points. Round two doubles pact points. The final verdict opens all three records. All stakes are in-game points.
+
+## Team Heist
+
+Tap **Team up** to play on the same side. Both players earn 2 crew points for each correct answer. Then one player must **Distract** the host while the other chooses **Grab**. Picking different jobs earns 4 crew points, doubled in Round 2. Picking the same job or leaving a job unfilled earns zero loot points. Reach 16 crew points after three rounds to escape together.
 
 ## Development
 
