@@ -703,6 +703,14 @@ select:focus-visible{outline:3px solid var(--rose);outline-offset:3px}
 }
 .power-price .ui-icon{width:.85rem;height:.85rem}
 .power-choices .power-choice:is(:hover,:focus-visible):not(:disabled){border-color:var(--power-accent)}
+@media(max-width:460px){
+  .power-choices .power-choice{
+    grid-template-columns:auto minmax(0,1fr);align-content:start;align-items:center;padding:.55rem;
+  }
+  .power-emblem{width:1.9rem}
+  .power-emblem .ui-icon{width:1.18rem;height:1.18rem}
+  .power-price{justify-self:end;font-size:.66rem;padding:.18rem .25rem}
+}
 @media(max-width:345px){.power-choices{grid-template-columns:1fr}}
 .table-power-notice{border-inline-start:2px solid #80c3a5;padding-inline-start:.55rem;color:#cffbe5}
 
