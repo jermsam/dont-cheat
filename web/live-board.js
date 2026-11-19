@@ -31,7 +31,7 @@ export function mountLiveBoard(app, board, choose) {
     }
     toggle.disabled = true;
     try {
-      const { createLiveBoard } = await import('./live-board-3d.js');
+      const { createLiveBoard } = await import('./live-board-3d.js?v=2');
       if (!surface.isConnected) return;
       display = createLiveBoard(surface, board, choose);
       displays.set(surface, display);

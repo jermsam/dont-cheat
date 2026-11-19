@@ -1,6 +1,6 @@
 import { tableIdentity, tableMoment } from './table-moments.js?v=2';
 import { recordProgress, progressMarkup } from './progress.js';
-import { icon } from './icons.js?v=3';
+import { icon } from './icons.js?v=4';
 import { sideScreen, roundPages, roundAdvance, tickRecap, recapDelay } from './screens.js?v=3';
 import { getPuzzle, majorityVerdict } from './challenges.js';
 import { routes, scenarioFor } from './scenarios.js?v=2';
@@ -9,7 +9,7 @@ import { masks, maskId } from './masks.js?v=2';
 import { seasonLength, seasonLineup, seasonMatches } from './season.js?v=14';
 import { bestHoldem } from './card-dice-rules.js?v=7';
 import { createMatch, matchTitles, rankHand, pokerRanks } from './match-rules.js?v=12';
-import { matchMarkup, mountMatch } from './match-view.js?v=20';
+import { matchMarkup, mountMatch } from './match-view.js?v=21';
 
 const limit = 6;
 const teamNames = ['Gold','Violet'];
@@ -46,10 +46,10 @@ const directedCards = ['Call bluff','Alliance','Persuade',...Object.keys(gifts)]
 const pactPrices = {Trust:1,Betray:1,'Call bluff':1,Alliance:2,Persuade:1,'Gift coin':1,'Gift time':1,Pass:0};
 const currencyFor = card => Object.hasOwn(gifts,card) ? gifts[card] : 'coins';
 const tablePowers = [
-  ['Alliance',2,'+1 season point each if you choose each other'],
-  ['Gift coin',1,'Give them 1 coin'],
-  ['Gift time',1,'Give them 1 time token'],
-  ['Signal',1,'Send a message. They decide whether to believe it.'],
+  ['Alliance',2,'+1 season point each if you choose each other','users','gold'],
+  ['Gift coin',1,'Give them 1 coin','coin','mint'],
+  ['Gift time',1,'Give them 1 time token','timer','blue'],
+  ['Signal',1,'Send the selected message','message','plum'],
 ];
 const signals = ['Let’s work together','I have a plan','You have the advantage'];
 
@@ -871,11 +871,19 @@ function makeView(env, send) {
       `<label for="power-target">Choose a player</label><select id="power-target">${targets.map(i=>
         `<option value="${i}">${esc(name(state,i))}</option>`).join('')}</select>
       <label for="power-signal">Signal message</label><select id="power-signal">${signals.map(line=>`<option>${esc(line)}</option>`).join('')}</select>
-      <div class="pact-target-actions">${tablePowers.map(([card,cost,tip])=>`<button type="button" data-table="table-power" data-card="${card}"
-        ${state.wallet[currencyFor(card)]>=cost?'':'disabled'}><strong>${card} · ${cost} ${currencyFor(card)==='time'?'time':cost===1?'coin':'coins'}</strong><small>${tip}</small></button>`).join('')}</div>`;
+      <div class="power-choices">${tablePowers.map(([card,cost,tip,symbol,tone])=>{
+        const currency=currencyFor(card);
+        const price=currency==='time'?'time token':cost===1?'coin':'coins';
+        return `<button type="button" class="power-choice" data-tone="${tone}" data-table="table-power" data-card="${card}"
+          ${state.wallet[currency]>=cost?'':'disabled'}>
+          <span class="power-emblem">${icon(symbol)}</span>
+          <span class="power-price">${icon(currency==='time'?'timer':'coin')} ${cost} ${price}</span>
+          <strong>${card}</strong><small>${tip}</small>
+        </button>`;
+      }).join('')}</div>`;
     return notices+(controls?sideScreen('table-powers','Table powers',
       `<p>${state.wallet.coins} coins · ${state.wallet.time} time tokens</p>
-      <p>Spend once per round, or keep playing by the table rules.</p>${controls}`,'Table powers'):'');
+      <p class="muted">One optional power per round</p>${controls}`,'Table powers'):'');
   }
 
   function tableDraft(state) {

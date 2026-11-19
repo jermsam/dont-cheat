@@ -27,6 +27,10 @@ export function createLiveBoard(container, initial, choose) {
   const makeSurface = color => new THREE.MeshStandardMaterial({color, roughness:.48, metalness:.15});
   const lightTile = makeSurface(0xc8a179), darkTile = makeSurface(0x644963);
   const sides = [makeSurface(0xf9dbaa), makeSurface(0x382035)];
+  const checkers = [
+    {body:makeSurface(0xffe3a7), inlay:makeSurface(0x774319)},
+    {body:makeSurface(0x102339), inlay:makeSurface(0x9fe8ff)},
+  ];
   const edge = makeSurface(0x492e3e);
   const marker = new THREE.MeshBasicMaterial({color:0x90edb4});
   const selection = new THREE.MeshBasicMaterial({color:0xffd07e});
@@ -117,9 +121,11 @@ export function createLiveBoard(container, initial, choose) {
       pieces.add(model);
       const coat = sides[piece.side];
       if (board.key === 'draughts') {
-        mesh(disk,coat,0,.12,0,model);
-        mesh(rim,coat,0,.25,0,model);
-        if (piece.type === 'k') mesh(crown,coat,0,.31,0,model);
+        const {body,inlay} = checkers[piece.side];
+        mesh(disk,body,0,.12,0,model);
+        mesh(disk,inlay,0,.23,0,model).scale.y = .18;
+        mesh(rim,body,0,.255,0,model);
+        if (piece.type === 'k') mesh(crown,inlay,0,.33,0,model);
       } else if (piece.type === 'n') {
         mesh(disk,coat,0,.12,0,model);
         mesh(knight,coat,0,.22,-.07,model);
@@ -176,7 +182,7 @@ export function createLiveBoard(container, initial, choose) {
     size.disconnect();
     removal.disconnect();
     [squareGeo,platform,ring,disk,rim,crown,cross,knight,...Object.values(geometry)].forEach(item => item.dispose());
-    [lightTile,darkTile,...sides,edge,marker,track,selection].forEach(item => item.dispose());
+    [lightTile,darkTile,...sides,...checkers.flatMap(({body,inlay})=>[body,inlay]),edge,marker,track,selection].forEach(item => item.dispose());
     renderer.dispose();
   });
   removal.observe(container.closest('main'),{childList:true,subtree:true});

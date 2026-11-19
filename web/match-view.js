@@ -5,7 +5,7 @@ import { jumps, squarePosition } from './snakes.js';
 import { diceCategories } from './card-dice-rules.js?v=7';
 import { pokerRanks, rankHand } from './match-rules.js?v=12';
 import { mountTableObjects } from './table-objects.js?v=14';
-import { mountLiveBoard } from './live-board.js?v=2';
+import { mountLiveBoard } from './live-board.js?v=3';
 
 const glyph = {p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', m:'●'};
 const labels = {p:'pawn', n:'knight', b:'bishop', r:'rook', q:'queen', k:'king', m:'checker'};
@@ -33,11 +33,11 @@ function grid(board) {
     const last = board.last?.from === name || board.last?.to === name;
     return `<button type="button" class="${(row + col) % 2 ? 'dark' : 'light'}${last ? ' last-square' : ''}"
       data-square="${name}" aria-label="${squareName(board, piece, name)}" aria-pressed="false">
-      ${piece ? `<span class="piece side-${piece.side}">${board.key === 'draughts' && piece.type === 'k' ? '◉' : glyph[piece.type]}</span>` : ''}
+      ${piece ? `<span class="piece side-${piece.side}" aria-hidden="true">${board.key === 'draughts' ? (piece.type === 'k' ? icon('crown') : '') : glyph[piece.type]}</span>` : ''}
       ${i % 8 === 0 || i >= 56 ? `<small aria-hidden="true">${name}</small>` : ''}
     </button>`;
   }).join('');
-  return `<div class="live-grid" role="group" aria-label="${board.key === 'chess' ? 'Chess' : 'Draughts'} board">${squares}</div>
+  return `<div class="live-grid ${board.key === 'draughts' ? 'draughts-grid' : ''}" role="group" aria-label="${board.key === 'chess' ? 'Chess' : 'Draughts'} board">${squares}</div>
     <div class="live-3d" hidden></div><div class="board-controls"><button class="quiet icon-tool" type="button" data-view-toggle data-hint aria-label="3D board">${icon('box')}<span aria-hidden="true">3D</span></button>
       <button class="quiet icon-tool" type="button" data-board-turn data-hint aria-label="Rotate view" hidden>${icon('rotate-cw')}</button></div>
     <div class="promotion-picks row" hidden></div>`;
